@@ -4,7 +4,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHANNEL_ID,
-    DEFAULT_CRYPTOCURRENCIES
+    DEFAULT_CRYPTOCURRENCIES,
+    TICKER_TO_ID
 )
 from coingecko_api import CoinGeckoAPI
 from utils import format_price_message, format_error_message
@@ -31,6 +32,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "🤖 Welcome to the Crypto Price Bot!\n\n"
             "Group Chat Commands:\n"
             "/price <crypto> - Get price for a specific cryptocurrency\n"
+            "                 (Example: /price BTC or /price bitcoin)\n"
             "/prices - Get prices for popular cryptocurrencies\n"
             "/help - Show this help message\n\n"
             "💡 Tip: Anyone in the group can use these commands!"
@@ -39,12 +41,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         welcome_message = (
             "🤖 Welcome to the Crypto Price Bot!\n\n"
             "Available commands:\n"
-            "/price <crypto> - Get price for a specific cryptocurrency\n"
+            "/price <crypto> - Get price for any cryptocurrency\n"
+            "                 (Example: /price BTC, /price PEPE, /price bitcoin)\n"
             "/prices - Get prices for popular cryptocurrencies\n"
             "/help - Show this help message\n\n"
             "💡 To use in groups:\n"
             "1. Add me to your group\n"
-            "2. Use commands like /price bitcoin\n\n"
+            "2. Use commands like /price BTC\n\n"
             "💡 For channels:\n"
             "1. Add me as a channel admin\n"
             "2. Set up price updates using /setchannel"
@@ -67,18 +70,20 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="Please specify a cryptocurrency. Example: /price bitcoin"
+                text="Please specify a cryptocurrency. Example: /price BTC or /price bitcoin"
             )
             return
 
-        crypto_id = context.args[0].lower()
-        logger.info(f"Fetching price for {crypto_id}")
-        price_data = coingecko.get_price(crypto_id)
+        crypto_input = context.args[0].upper()  # Convert to uppercase for ticker comparison
 
-        if not price_data:
+        logger.info(f"Fetching price for {crypto_input}")
+        price_data = coingecko.get_price(crypto_input)
+
+        if not price_data or "error" in price_data:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=f"Could not find cryptocurrency: {crypto_id}"
+                text=f"Could not find cryptocurrency: {crypto_input}\n\n"
+                     f"Try using the cryptocurrency's symbol (e.g., BTC) or full name (e.g., bitcoin)"
             )
             return
 

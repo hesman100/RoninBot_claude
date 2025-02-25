@@ -15,10 +15,43 @@ DEFAULT_CRYPTOCURRENCIES = [
     "ethereum",         # ETH
     "solana",          # SOL
     "Ronin",           # RON
-    "axie",     # AXS
-    "Freysa",     # FAI
-    "Pi-network"    # PI
+    "Axie Infinity",   # AXS
+    "Freysa AI",       # FAI
+    "Pi-network",      # PI
 ]
+
+# Mapping of ticker symbols to CoinGecko IDs
+TICKER_TO_ID = {
+    # Original mappings
+    "BTC": "bitcoin",
+    "ETH": "ethereum",
+    "SOL": "solana",
+    "RON": "ronin",
+    "AXS": "Axie Infinity",
+    "PI": "pi-network",
+
+    # Additional popular cryptocurrencies
+    "BNB": "binancecoin",
+    "XRP": "ripple",
+    "ADA": "cardano",
+    "DOGE": "dogecoin",
+    "DOT": "polkadot",
+    "LINK": "chainlink",
+    "MATIC": "polygon",
+    "AVAX": "avalanche-2",
+    "SHIB": "shiba-inu",
+    "LTC": "litecoin",
+    "UNI": "uniswap",
+    "XLM": "stellar",
+    "ATOM": "cosmos",
+    "ALGO": "algorand",
+    "FTM": "fantom",
+    "NEAR": "near",
+    "FIL": "filecoin",
+    "AAVE": "aave",
+    "GRT": "the-graph",
+    # Add more mappings as needed
+}
 
 # API request parameters
 REQUEST_TIMEOUT = 30
