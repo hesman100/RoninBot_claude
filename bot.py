@@ -1,4 +1,6 @@
 import logging
+import sys
+from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from config import (
@@ -13,7 +15,11 @@ from utils import format_price_message, format_error_message
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.INFO,
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('bot.log')
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -117,18 +123,37 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             text=format_error_message(e)
         )
 
+async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Periodic health check to ensure bot is running."""
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(f"Health check - Bot is running at {current_time}")
+
 def main() -> None:
-    """Start the bot."""
-    # Create the Application and pass it your bot's token
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    """Start the bot with error handling and health checks."""
+    while True:
+        try:
+            logger.info("Starting the bot...")
 
-    # Add command handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("p", price))
+            # Create the Application and pass it your bot's token
+            application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Start the Bot
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+            # Add command handlers
+            application.add_handler(CommandHandler("start", start))
+            application.add_handler(CommandHandler("help", help_command))
+            application.add_handler(CommandHandler("p", price))
+
+            # Add periodic health check (every 30 minutes)
+            application.job_queue.run_repeating(health_check, interval=1800)
+
+            # Start the Bot
+            logger.info("Bot is now running...")
+            application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+        except Exception as e:
+            logger.error(f"Bot crashed with error: {str(e)}")
+            logger.info("Attempting to restart in 60 seconds...")
+            import time
+            time.sleep(60)  # Wait 60 seconds before restarting
 
 if __name__ == '__main__':
     main()

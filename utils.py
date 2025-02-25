@@ -2,10 +2,12 @@ from typing import Dict
 from config import DEFAULT_CRYPTOCURRENCIES, SYMBOL_TO_DISPLAY
 import logging
 
+
 def format_price_message(crypto_data: Dict) -> str:
     """Format cryptocurrency price data into a readable message"""
     logger = logging.getLogger(__name__)
-    logger.info(f"Formatting prices for cryptocurrencies: {list(crypto_data.keys())}")
+    logger.info(
+        f"Formatting prices for cryptocurrencies: {list(crypto_data.keys())}")
 
     # Get header text based on number of coins
     if len(crypto_data) == 1:
@@ -19,8 +21,8 @@ def format_price_message(crypto_data: Dict) -> str:
     # Add header with exact column widths matching the data rows
     header = (
         f"{header_text}\n\n"
-        "Coin  Price     24h\n"  # Coin is exactly 5 chars
-        "────────────────────"   # Separator line matching content width
+        "Coin    Price     24h\n"  # Coin is exactly 7 chars
+        "──────────"  # Separator line matching content width
     )
     messages = [header]
 
@@ -28,8 +30,13 @@ def format_price_message(crypto_data: Dict) -> str:
         # For single coin request, just process that coin
         symbol = next(iter(crypto_data.keys()))
         data = crypto_data[symbol]
-        # Get display name (use mapped name or pad symbol to exactly 5 chars)
-        display_name = SYMBOL_TO_DISPLAY.get(symbol, f"{symbol:<5}")  # Left align and pad to exactly 5 chars
+        if symbol in SYMBOL_TO_DISPLAY:
+            display_name = SYMBOL_TO_DISPLAY[
+                symbol]  # Use predefined 7-char width name
+        else:
+            # Ensure exactly 7 chars width by truncating or padding
+            symbol_trunc = symbol[:7]  # Take first 7 chars if longer
+            display_name = f"{symbol_trunc:<7}"  # Left align and pad to exactly 7 chars
 
         price = data.get('usd', 0)
         change_24h = data.get('usd_24h_change', 0)
@@ -49,8 +56,8 @@ def format_price_message(crypto_data: Dict) -> str:
 
         # Fixed width columns with exact alignments
         message = (
-            f"{display_name}"       # Coin: exactly 5 chars, left-aligned
-            f"{price_str:<9}"       # Price: exactly 9 chars, left-aligned
+            f"{display_name}"  # Coin: exactly 7 chars, left-aligned
+            f"{price_str:<9}"  # Price: exactly 9 chars, left-aligned
             f"{change_24h:>6.1f}%{change_24h_symbol}"  # 24h: percentage right-aligned (>6)
         )
         messages.append(message)
@@ -60,11 +67,12 @@ def format_price_message(crypto_data: Dict) -> str:
             if symbol in crypto_data:
                 data = crypto_data[symbol]
                 if symbol in SYMBOL_TO_DISPLAY:
-                    display_name = SYMBOL_TO_DISPLAY[symbol]  # Use predefined 5-char width name
+                    display_name = SYMBOL_TO_DISPLAY[
+                        symbol]  # Use predefined 7-char width name
                 else:
-                    # Ensure exactly 5 chars width by truncating or padding
-                    symbol_trunc = symbol[:5]  # Take first 5 chars if longer
-                    display_name = f"{symbol_trunc:<5}"  # Left align and pad to exactly 5 chars
+                    # Ensure exactly 7 chars width by truncating or padding
+                    symbol_trunc = symbol[:7]  # Take first 7 chars if longer
+                    display_name = f"{symbol_trunc:<7}"  # Left align and pad to exactly 7 chars
 
                 price = data.get('usd', 0)
                 change_24h = data.get('usd_24h_change', 0)
@@ -84,15 +92,17 @@ def format_price_message(crypto_data: Dict) -> str:
 
                 # Fixed width columns with exact alignments
                 message = (
-                    f"{display_name}"       # Coin: exactly 5 chars, left-aligned
-                    f"{price_str:<9}"       # Price: exactly 9 chars, left-aligned
+                    f"{display_name}"  # Coin: exactly 7 chars, left-aligned
+                    f"{price_str:<9}"  # Price: exactly 9 chars, left-aligned
                     f"{change_24h:>6.1f}%{change_24h_symbol}"  # 24h: percentage right-aligned (>6)
                 )
                 messages.append(message)
 
     final_message = "\n".join(messages)
-    logger.debug(f"Final formatted message:\n{final_message}")  # Debug logging for final output
+    logger.debug(f"Final formatted message:\n{final_message}"
+                 )  # Debug logging for final output
     return final_message
+
 
 def format_error_message(error: Exception) -> str:
     """Format error message for user display"""
