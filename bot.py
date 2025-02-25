@@ -77,12 +77,16 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             crypto_input = context.args[0]
             logger.info(f"Fetching price for {crypto_input}")
             price_data = coingecko.get_price(crypto_input)
+            logger.info(f"Price data received: {price_data}")
 
         if not price_data or "error" in price_data:
+            error_msg = (
+                f"Could not find cryptocurrency: {context.args[0] if context.args else 'unknown'}\n\n"
+                f"Try using the cryptocurrency's symbol (e.g., BTC) or full name (e.g., bitcoin)"
+            )
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=f"Could not find cryptocurrency: {crypto_input}\n\n"
-                     f"Try using the cryptocurrency's symbol (e.g., BTC) or full name (e.g., bitcoin)"
+                text=error_msg
             )
             return
 

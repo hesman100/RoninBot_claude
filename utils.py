@@ -13,7 +13,8 @@ def format_price_message(crypto_data: Dict) -> str:
         'solana': 'SOL  ',
         'ronin': 'RON  ',
         'axie-infinity': 'AXS  ',
-        'pi-network': 'PI   '
+        'pi-network': 'PI   ',
+        'bnb': 'BNB  '  # Updated from 'binancecoin' to 'bnb'
     }
 
     logger.info(f"Formatting prices for cryptocurrencies: {list(crypto_data.keys())}")

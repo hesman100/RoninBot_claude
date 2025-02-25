@@ -15,6 +15,7 @@ DEFAULT_CRYPTOCURRENCIES = [
     "ronin",           # RON
     "axie-infinity",   # AXS
     "pi-network",      # PI
+    "bnb",             # BNB - Added for testing
 ]
 
 # Mapping of ticker symbols to CoinGecko IDs
@@ -27,10 +28,10 @@ TICKER_TO_ID = {
     "AXS": "axie-infinity",
     "PI": "pi-network",
     # Additional popular coins
-    "BNB": "binancecoin",
-    "USDT": "tether",
-    "XRP": "ripple",
-    "DOGE": "dogecoin",
+    "BNB": "bnb",           # Updated from 'binancecoin' to 'bnb'
+    "USDT": "tether",       # Tether
+    "XRP": "ripple",        # Ripple
+    "DOGE": "dogecoin",     # Dogecoin
 }
 
 # API request parameters

@@ -14,6 +14,9 @@ class CoinGeckoAPI:
     def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """Make a request to CoinGecko API with retry logic"""
         url = f"{self.base_url}/{endpoint}"
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Making request to {url} with params: {params}")
 
         for attempt in range(MAX_RETRIES):
             try:
@@ -23,13 +26,18 @@ class CoinGeckoAPI:
                     timeout=REQUEST_TIMEOUT
                 )
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+                logger.info(f"Successful response: {data}")
+                return data
             except requests.exceptions.RequestException as e:
+                logger.error(f"Request failed (attempt {attempt + 1}/{MAX_RETRIES}): {str(e)}")
                 if attempt == MAX_RETRIES - 1:
+                    if hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 429:
+                        return {"error": "Rate limit exceeded. Please try again later."}
                     return {"error": str(e)}  # Return error dict instead of raising
-                time.sleep(RETRY_DELAY)
+                time.sleep(RETRY_DELAY * (attempt + 1))  # Exponential backoff
 
-        return {"error": "Maximum retries exceeded"}  # Fallback error response
+        return {"error": "Maximum retries exceeded"}
 
     def get_coin_list(self) -> Dict[str, str]:
         """Get a mapping of coin symbols to their IDs, with caching"""
@@ -73,26 +81,48 @@ class CoinGeckoAPI:
 
     def get_coin_id(self, symbol_or_id: str) -> str:
         """Convert a symbol to coin ID, or return the ID if it's already an ID"""
+        import logging
+        logger = logging.getLogger(__name__)
+
         # If it's in our predefined mapping, use that
         from config import TICKER_TO_ID
-        if symbol_or_id.upper() in TICKER_TO_ID:
-            return TICKER_TO_ID[symbol_or_id.upper()]
-
-        # Get the full coin list
-        coin_list = self.get_coin_list()
-
-        # Check if it's a symbol
         symbol = symbol_or_id.upper()
-        if symbol in coin_list:
-            return coin_list[symbol]
+        logger.info(f"Looking up coin ID for input: {symbol}")
+
+        # Special debug for BNB
+        if symbol == "BNB":
+            logger.info("Processing BNB specifically")
+            logger.info(f"Available mappings: {TICKER_TO_ID}")
+            if symbol in TICKER_TO_ID:
+                logger.info(f"BNB mapping found: {TICKER_TO_ID[symbol]}")
+
+        if symbol in TICKER_TO_ID:
+            coin_id = TICKER_TO_ID[symbol]
+            logger.info(f"Found coin ID in TICKER_TO_ID mapping: {coin_id}")
+            return coin_id
+
+        # Try searching for the coin if not in our mappings
+        try:
+            search_data = self._make_request('search', {'query': symbol_or_id})
+            if search_data and 'coins' in search_data and search_data['coins']:
+                coin_id = search_data['coins'][0]['id']
+                logger.info(f"Found coin ID via search: {coin_id}")
+                return coin_id
+        except Exception as e:
+            logger.error(f"Search request failed: {str(e)}")
 
         # If not found as symbol, return the original input (assuming it's an ID)
+        logger.info(f"Using input as coin ID: {symbol_or_id.lower()}")
         return symbol_or_id.lower()
 
     def get_price(self, crypto_id: str) -> Dict:
         """Get current price for a single cryptocurrency"""
+        import logging
+        logger = logging.getLogger(__name__)
+
         # Convert symbol to ID if needed
         coin_id = self.get_coin_id(crypto_id)
+        logger.info(f"Fetching price for coin ID: {coin_id}")
 
         params = {
             'ids': coin_id,
@@ -101,11 +131,20 @@ class CoinGeckoAPI:
             'include_market_cap': 'true'
         }
 
+        logger.info(f"Making API request with params: {params}")  # Added logging
         data = self._make_request('simple/price', params)
+        logger.info(f"Received raw price data: {data}")
+
         # If we got valid data back, create a properly structured response
-        if coin_id in data:
+        if isinstance(data, dict) and coin_id in data:
+            logger.info(f"Found price data for {coin_id}: {data[coin_id]}")
             return {coin_id: data[coin_id]}
-        return data  # Return error response if any
+
+        # Log error case
+        logger.error(f"No price data found for {coin_id}. Response: {data}")
+        if isinstance(data, dict) and "error" in data:
+            return data
+        return {"error": f"No data found for {coin_id}"}
 
     def get_prices(self, crypto_ids: List[str] = None) -> Dict:
         """Get current prices for multiple cryptocurrencies"""
