@@ -21,8 +21,8 @@ def format_price_message(crypto_data: Dict) -> str:
     # Add header
     header = (
         "📊 Cryptocurrency Prices\n\n"
-        "Coin    Price         24h Change    3d Change\n"
-        "─────────────────────────────────────────────"
+        "Coin    Price    24h    7days\n"
+        "─────────────────────────────"
     )
     messages = [header]
 
@@ -32,29 +32,28 @@ def format_price_message(crypto_data: Dict) -> str:
             data = crypto_data[crypto_id]
             price = data.get('usd', 0)
             change_24h = data.get('usd_24h_change', 0)
-            change_3d = data.get('usd_3d_change', 0)  # Get 3-day change
+            change_7d = data.get('usd_7d_change', 0)  # Get 7-day change
 
-            # Format price with appropriate scaling
-            if price < 0.01:
-                price_str = f"${price:.8f}"
-            elif price < 1:
+            # Format price based on the coin
+            if crypto_id in ['bitcoin', 'ethereum', 'solana']:
+                price_str = f"${price:,.0f}"  # No decimals for BTC, ETH, SOL
+            elif price < 0.01:
                 price_str = f"${price:.4f}"
+            elif price < 1:
+                price_str = f"${price:.3f}"
             else:
-                price_str = f"${price:,.2f}"
+                price_str = f"${price:.2f}"
 
             # Format the change indicators
             change_24h_symbol = "📈" if change_24h > 0 else "📉"
-            change_3d_symbol = "📈" if change_3d > 0 else "📉"
+            change_7d_symbol = "📈" if change_7d > 0 else "📉"
 
-            # Pad the coin name and price for alignment
-            coin_padding = 8 - len(display_name[crypto_id])
-            price_padding = 13 - len(price_str)
-
+            # Right-align all columns with fixed widths
             message = (
-                f"{display_name[crypto_id]}{' ' * coin_padding}"
-                f"{price_str}{' ' * price_padding}"
-                f"{change_24h_symbol}{change_24h:>6.1f}%     "
-                f"{change_3d_symbol}{change_3d:>6.1f}%"
+                f"{display_name[crypto_id]:>4}"  # Coin: 4 chars, right-aligned
+                f"{price_str:>8}"                # Price: 8 chars, right-aligned
+                f"{change_24h_symbol}{change_24h:>6.1f}%"  # 24h: 7 chars, right-aligned
+                f"{change_7d_symbol}{change_7d:>6.1f}%"    # 7days: 7 chars, right-aligned
             )
             messages.append(message)
 

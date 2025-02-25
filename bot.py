@@ -31,9 +31,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         welcome_message = (
             "🤖 Welcome to the Crypto Price Bot!\n\n"
             "Group Chat Commands:\n"
-            "/price <crypto> - Get price for a specific cryptocurrency\n"
-            "                 (Example: /price BTC or /price bitcoin)\n"
-            "/prices - Get prices for popular cryptocurrencies\n"
+            "/p <crypto> - Get price for a specific cryptocurrency\n"
+            "              (Example: /p BTC or /p bitcoin)\n"
+            "/p - Get prices for popular cryptocurrencies\n"
             "/help - Show this help message\n\n"
             "💡 Tip: Anyone in the group can use these commands!"
         )
@@ -41,13 +41,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         welcome_message = (
             "🤖 Welcome to the Crypto Price Bot!\n\n"
             "Available commands:\n"
-            "/price <crypto> - Get price for any cryptocurrency\n"
-            "                 (Example: /price BTC, /price PEPE, /price bitcoin)\n"
-            "/prices - Get prices for popular cryptocurrencies\n"
+            "/p <crypto> - Get price for any cryptocurrency\n"
+            "              (Example: /p BTC, /p PEPE, /p bitcoin)\n"
+            "/p - Get prices for popular cryptocurrencies\n"
             "/help - Show this help message\n\n"
             "💡 To use in groups:\n"
             "1. Add me to your group\n"
-            "2. Use commands like /price BTC\n\n"
+            "2. Use commands like /p BTC\n\n"
             "💡 For channels:\n"
             "1. Add me as a channel admin\n"
             "2. Set up price updates using /setchannel"
@@ -65,13 +65,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Get price for a specific cryptocurrency."""
-    logger.info(f"Received /price command from chat {update.effective_chat.id}")
+    logger.info(f"Received /p command from chat {update.effective_chat.id}")
     try:
         if not context.args:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="Please specify a cryptocurrency. Example: /price BTC or /price bitcoin"
-            )
+            # If no arguments, show all default cryptocurrencies
+            logger.info("No cryptocurrency specified, showing all prices")
+            await prices(update, context)
             return
 
         crypto_input = context.args[0].upper()  # Convert to uppercase for ticker comparison
@@ -116,7 +115,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Get prices for multiple cryptocurrencies."""
-    logger.info(f"Received /prices command from chat {update.effective_chat.id}")
+    logger.info(f"Received /p command from chat {update.effective_chat.id}")
     try:
         logger.info("Fetching prices for default cryptocurrency list")
         price_data = coingecko.get_prices(DEFAULT_CRYPTOCURRENCIES)
@@ -156,8 +155,7 @@ def main() -> None:
     # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("price", price))
-    application.add_handler(CommandHandler("prices", prices))
+    application.add_handler(CommandHandler("p", price))  # Changed from "price" to "p"
 
     # Start the Bot
     application.run_polling(allowed_updates=Update.ALL_TYPES)

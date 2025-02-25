@@ -117,7 +117,7 @@ class CoinGeckoAPI:
             'vs_currencies': 'usd',
             'include_24hr_change': 'true',
             'include_market_cap': 'true',
-            'include_3d_change': 'true'  # Add 3-day change parameter
+            'include_7d_change': 'true'  # Changed from 3d to 7d change
         }
 
         data = self._make_request('simple/price', params)
