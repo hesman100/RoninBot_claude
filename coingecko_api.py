@@ -116,7 +116,8 @@ class CoinGeckoAPI:
             'ids': ','.join(DEFAULT_CRYPTOCURRENCIES),
             'vs_currencies': 'usd',
             'include_24hr_change': 'true',
-            'include_market_cap': 'true'
+            'include_market_cap': 'true',
+            'include_3d_change': 'true'  # Add 3-day change parameter
         }
 
         data = self._make_request('simple/price', params)
