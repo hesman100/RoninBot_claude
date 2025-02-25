@@ -16,13 +16,13 @@ def format_price_message(crypto_data: Dict) -> str:
         'pi-network': 'PI'
     }
 
-    logger.info(f"Formatting prices for cryptocurrencies: {DEFAULT_CRYPTOCURRENCIES}")
+    logger.info(f"Formatting prices for cryptocurrencies: {list(crypto_data.keys())}")
 
-    # Add header
+    # Add header with exact column widths
     header = (
         "📊 Cryptocurrency Prices\n\n"
-        "Coin    Price    24h    7days\n"
-        "─────────────────────────────"
+        "Coin  Price     24h   \n"
+        "─────────────────"  # Separator line matching content width
     )
     messages = [header]
 
@@ -32,7 +32,6 @@ def format_price_message(crypto_data: Dict) -> str:
             data = crypto_data[crypto_id]
             price = data.get('usd', 0)
             change_24h = data.get('usd_24h_change', 0)
-            change_7d = data.get('usd_7d_change', 0)  # Get 7-day change
 
             # Format price based on the coin
             if crypto_id in ['bitcoin', 'ethereum', 'solana']:
@@ -46,20 +45,18 @@ def format_price_message(crypto_data: Dict) -> str:
 
             # Format the change indicators
             change_24h_symbol = "📈" if change_24h > 0 else "📉"
-            change_7d_symbol = "📈" if change_7d > 0 else "📉"
 
-            # Right-align all columns with fixed widths
+            # Fixed width columns with specified alignments
             message = (
-                f"{display_name[crypto_id]:>4}"  # Coin: 4 chars, right-aligned
-                f"{price_str:>8}"                # Price: 8 chars, right-aligned
-                f"{change_24h_symbol}{change_24h:>6.1f}%"  # 24h: 7 chars, right-aligned
-                f"{change_7d_symbol}{change_7d:>6.1f}%"    # 7days: 7 chars, right-aligned
+                f"{display_name[crypto_id]:<5}"  # Coin: 5 chars, left-aligned
+                f"{price_str:<9}"                # Price: 9 chars, left-aligned
+                f"{change_24h_symbol}{change_24h:<6.1f}%"  # 24h: 7 chars, left-aligned
             )
             messages.append(message)
+            logger.debug(f"Formatted row: '{message}'")  # Debug logging for each row
 
-    logger.info(f"Formatted message contains {len(messages)-1} cryptocurrencies")
     final_message = "\n".join(messages)
-    logger.info(f"Final formatted message:\n{final_message}")  # Added debug log
+    logger.debug(f"Final formatted message:\n{final_message}")  # Debug logging for final output
     return final_message
 
 def format_error_message(error: Exception) -> str:

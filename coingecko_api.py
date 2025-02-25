@@ -116,8 +116,7 @@ class CoinGeckoAPI:
             'ids': ','.join(DEFAULT_CRYPTOCURRENCIES),
             'vs_currencies': 'usd',
             'include_24hr_change': 'true',
-            'include_market_cap': 'true',
-            'include_7d_change': 'true'  # Changed from 3d to 7d change
+            'include_market_cap': 'true'  
         }
 
         data = self._make_request('simple/price', params)
