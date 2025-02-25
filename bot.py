@@ -31,7 +31,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         welcome_message = (
             "🤖 Welcome to the Crypto Price Bot!\n\n"
             "Group Chat Commands:\n"
-            "/p <crypto> - Get price for a specific cryptocurrency\n"
+            "/p <crypto> - Get price for any cryptocurrency\n"
             "              (Example: /p BTC or /p bitcoin)\n"
             "/p - Get prices for popular cryptocurrencies\n"
             "/help - Show this help message\n\n"
@@ -42,7 +42,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "🤖 Welcome to the Crypto Price Bot!\n\n"
             "Available commands:\n"
             "/p <crypto> - Get price for any cryptocurrency\n"
-            "              (Example: /p BTC, /p PEPE, /p bitcoin)\n"
+            "              (Example: /p BTC, /p BNB, /p bitcoin)\n"
             "/p - Get prices for popular cryptocurrencies\n"
             "/help - Show this help message\n\n"
             "💡 To use in groups:\n"
@@ -69,14 +69,14 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         if not context.args:
             # If no arguments, show all default cryptocurrencies
-            logger.info("No cryptocurrency specified, showing all prices")
-            await prices(update, context)
-            return
-
-        crypto_input = context.args[0].upper()  # Convert to uppercase for ticker comparison
-
-        logger.info(f"Fetching price for {crypto_input}")
-        price_data = coingecko.get_price(crypto_input)
+            logger.info("No cryptocurrency specified, showing default list")
+            price_data = coingecko.get_prices()  # Uses DEFAULT_CRYPTOCURRENCIES
+            logger.info(f"Received price data for default coins: {list(price_data.keys())}")
+        else:
+            # Get price for the specified cryptocurrency
+            crypto_input = context.args[0]
+            logger.info(f"Fetching price for {crypto_input}")
+            price_data = coingecko.get_price(crypto_input)
 
         if not price_data or "error" in price_data:
             await context.bot.send_message(
@@ -113,40 +113,6 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             text=format_error_message(e)
         )
 
-async def prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Get prices for multiple cryptocurrencies."""
-    logger.info(f"Received /p command from chat {update.effective_chat.id}")
-    try:
-        logger.info("Fetching prices for default cryptocurrency list")
-        price_data = coingecko.get_prices(DEFAULT_CRYPTOCURRENCIES)
-        logger.info(f"Received price data for coins: {list(price_data.keys())}")
-        message = format_price_message(price_data)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=message
-        )
-
-        # Only post to channel if explicitly configured and channel ID is valid
-        if TELEGRAM_CHANNEL_ID and TELEGRAM_CHANNEL_ID.strip():
-            try:
-                logger.info(f"Attempting to post prices update to channel {TELEGRAM_CHANNEL_ID}")
-                await context.bot.send_message(
-                    chat_id=TELEGRAM_CHANNEL_ID,
-                    text=message
-                )
-                logger.info("Successfully posted to channel")
-            except Exception as channel_error:
-                logger.error(f"Failed to post to channel: {str(channel_error)}")
-                # Don't send channel errors to users in groups/private chats
-                pass
-
-    except Exception as e:
-        logger.error(f"Error in prices command: {str(e)}")
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=format_error_message(e)
-        )
-
 def main() -> None:
     """Start the bot."""
     # Create the Application and pass it your bot's token
@@ -155,7 +121,7 @@ def main() -> None:
     # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("p", price))  # Changed from "price" to "p"
+    application.add_handler(CommandHandler("p", price))
 
     # Start the Bot
     application.run_polling(allowed_updates=Update.ALL_TYPES)

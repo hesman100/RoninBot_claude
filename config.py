@@ -26,6 +26,11 @@ TICKER_TO_ID = {
     "RON": "ronin",
     "AXS": "axie-infinity",
     "PI": "pi-network",
+    # Additional popular coins
+    "BNB": "binancecoin",
+    "USDT": "tether",
+    "XRP": "ripple",
+    "DOGE": "dogecoin",
 }
 
 # API request parameters

@@ -1,7 +1,7 @@
 import requests
 import time
 from typing import Dict, List, Optional, Tuple
-from config import COINGECKO_BASE_URL, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
+from config import COINGECKO_BASE_URL, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY, DEFAULT_CRYPTOCURRENCIES
 
 class CoinGeckoAPI:
     def __init__(self):
@@ -101,19 +101,25 @@ class CoinGeckoAPI:
             'include_market_cap': 'true'
         }
 
-        return self._make_request('simple/price', params)
+        data = self._make_request('simple/price', params)
+        # If we got valid data back, create a properly structured response
+        if coin_id in data:
+            return {coin_id: data[coin_id]}
+        return data  # Return error response if any
 
-    def get_prices(self, crypto_ids: List[str]) -> Dict:
+    def get_prices(self, crypto_ids: List[str] = None) -> Dict:
         """Get current prices for multiple cryptocurrencies"""
-        # Only fetch prices for cryptocurrencies in our DEFAULT_CRYPTOCURRENCIES list
-        from config import DEFAULT_CRYPTOCURRENCIES
         import logging
-
         logger = logging.getLogger(__name__)
-        logger.info(f"Fetching prices for cryptocurrencies: {DEFAULT_CRYPTOCURRENCIES}")
+
+        # If no specific IDs provided, use default list
+        if crypto_ids is None:
+            crypto_ids = DEFAULT_CRYPTOCURRENCIES
+
+        logger.info(f"Fetching prices for cryptocurrencies: {crypto_ids}")
 
         params = {
-            'ids': ','.join(DEFAULT_CRYPTOCURRENCIES),
+            'ids': ','.join(crypto_ids),
             'vs_currencies': 'usd',
             'include_24hr_change': 'true',
             'include_market_cap': 'true'  
