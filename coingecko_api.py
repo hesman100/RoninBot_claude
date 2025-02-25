@@ -105,14 +105,20 @@ class CoinGeckoAPI:
 
     def get_prices(self, crypto_ids: List[str]) -> Dict:
         """Get current prices for multiple cryptocurrencies"""
-        # Convert all symbols to IDs
-        coin_ids = [self.get_coin_id(crypto_id) for crypto_id in crypto_ids]
+        # Only fetch prices for cryptocurrencies in our DEFAULT_CRYPTOCURRENCIES list
+        from config import DEFAULT_CRYPTOCURRENCIES
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.info(f"Fetching prices for cryptocurrencies: {DEFAULT_CRYPTOCURRENCIES}")
 
         params = {
-            'ids': ','.join(coin_ids),
+            'ids': ','.join(DEFAULT_CRYPTOCURRENCIES),
             'vs_currencies': 'usd',
             'include_24hr_change': 'true',
             'include_market_cap': 'true'
         }
 
-        return self._make_request('simple/price', params)
+        data = self._make_request('simple/price', params)
+        logger.info(f"Received price data for coins: {list(data.keys())}")
+        return data

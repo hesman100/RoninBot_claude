@@ -8,16 +8,13 @@ TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID', 'your_channel_id_here')
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 
 # Default cryptocurrencies to track
-# Add or remove cryptocurrencies by their CoinGecko IDs
-# You can find coin IDs at https://www.coingecko.com/en/all-cryptocurrencies
 DEFAULT_CRYPTOCURRENCIES = [
     "bitcoin",          # BTC
     "ethereum",         # ETH
     "solana",          # SOL
-    "Ronin",           # RON
-    "Axie Infinity",   # AXS
-    "Freysa AI",       # FAI
-    "Pi-network",      # PI
+    "ronin",           # RON
+    "axie-infinity",   # AXS
+    "pi-network",      # PI
 ]
 
 # Mapping of ticker symbols to CoinGecko IDs
@@ -27,30 +24,8 @@ TICKER_TO_ID = {
     "ETH": "ethereum",
     "SOL": "solana",
     "RON": "ronin",
-    "AXS": "Axie Infinity",
+    "AXS": "axie-infinity",
     "PI": "pi-network",
-
-    # Additional popular cryptocurrencies
-    "BNB": "binancecoin",
-    "XRP": "ripple",
-    "ADA": "cardano",
-    "DOGE": "dogecoin",
-    "DOT": "polkadot",
-    "LINK": "chainlink",
-    "MATIC": "polygon",
-    "AVAX": "avalanche-2",
-    "SHIB": "shiba-inu",
-    "LTC": "litecoin",
-    "UNI": "uniswap",
-    "XLM": "stellar",
-    "ATOM": "cosmos",
-    "ALGO": "algorand",
-    "FTM": "fantom",
-    "NEAR": "near",
-    "FIL": "filecoin",
-    "AAVE": "aave",
-    "GRT": "the-graph",
-    # Add more mappings as needed
 }
 
 # API request parameters

@@ -120,6 +120,7 @@ async def prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         logger.info("Fetching prices for default cryptocurrency list")
         price_data = coingecko.get_prices(DEFAULT_CRYPTOCURRENCIES)
+        logger.info(f"Received price data for coins: {list(price_data.keys())}")
         message = format_price_message(price_data)
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
