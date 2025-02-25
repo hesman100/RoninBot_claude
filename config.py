@@ -20,13 +20,13 @@ DEFAULT_CRYPTOCURRENCIES = [
 
 # Mapping of CoinMarketCap symbols to display names (for formatting)
 SYMBOL_TO_DISPLAY = {
-    'BTC': 'BTC  ',
-    'ETH': 'ETH  ',
-    'SOL': 'SOL  ',
-    'RON': 'RON  ',
-    'AXS': 'AXS  ',
-    'PI': 'PI   ',
-    'BNB': 'BNB  ',
+    'BTC': 'BTC  ',  # Exactly 5 chars
+    'ETH': 'ETH  ',  # Exactly 5 chars
+    'SOL': 'SOL  ',  # Exactly 5 chars
+    'RON': 'RON  ',  # Exactly 5 chars
+    'AXS': 'AXS  ',  # Exactly 5 chars
+    'PI': 'PI   ',   # Exactly 5 chars
+    'BNB': 'BNB  ',  # Exactly 5 chars
 }
 
 # API request parameters

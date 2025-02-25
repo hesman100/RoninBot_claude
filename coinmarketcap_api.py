@@ -62,11 +62,12 @@ class CoinMarketCapAPI:
             coin_data = next(iter(data["data"].values()))
             quote = coin_data["quote"]["USD"]
 
-        # Format response to match our existing structure
+            # Format response to match our existing structure
             formatted_data = {
-                symbol.upper(): {  # Use symbol instead of slug
+                symbol.upper(): {
                     "usd": quote["price"],
-                    "usd_24h_change": quote["percent_change_24h"]
+                    "usd_24h_change": quote["percent_change_24h"],
+                    "name": coin_data["name"]  # Include the full name
                 }
             }
             logger.info(f"Formatted price data: {formatted_data}")
@@ -95,9 +96,10 @@ class CoinMarketCapAPI:
             formatted_data = {}
             for symbol, coin_data in data["data"].items():
                 quote = coin_data["quote"]["USD"]
-                formatted_data[symbol.upper()] = {  # Use symbol instead of slug
+                formatted_data[symbol.upper()] = {
                     "usd": quote["price"],
-                    "usd_24h_change": quote["percent_change_24h"]
+                    "usd_24h_change": quote["percent_change_24h"],
+                    "name": coin_data["name"]  # Include the full name
                 }
             logger.info(f"Formatted multi-price data: {formatted_data}")
             return formatted_data
