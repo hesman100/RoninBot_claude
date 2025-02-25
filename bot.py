@@ -5,9 +5,9 @@ from config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHANNEL_ID,
     DEFAULT_CRYPTOCURRENCIES,
-    TICKER_TO_ID
+    SYMBOL_TO_DISPLAY
 )
-from coingecko_api import CoinGeckoAPI
+from coinmarketcap_api import CoinMarketCapAPI
 from utils import format_price_message, format_error_message
 
 # Configure logging
@@ -17,8 +17,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize CoinGecko API client
-coingecko = CoinGeckoAPI()
+# Initialize CoinMarketCap API client
+crypto_api = CoinMarketCapAPI()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
@@ -32,7 +32,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "🤖 Welcome to the Crypto Price Bot!\n\n"
             "Group Chat Commands:\n"
             "/p <crypto> - Get price for any cryptocurrency\n"
-            "              (Example: /p BTC or /p bitcoin)\n"
+            "              (Example: /p BTC or /p BNB)\n"
             "/p - Get prices for popular cryptocurrencies\n"
             "/help - Show this help message\n\n"
             "💡 Tip: Anyone in the group can use these commands!"
@@ -42,7 +42,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "🤖 Welcome to the Crypto Price Bot!\n\n"
             "Available commands:\n"
             "/p <crypto> - Get price for any cryptocurrency\n"
-            "              (Example: /p BTC, /p BNB, /p bitcoin)\n"
+            "              (Example: /p BTC, /p BNB)\n"
             "/p - Get prices for popular cryptocurrencies\n"
             "/help - Show this help message\n\n"
             "💡 To use in groups:\n"
@@ -70,19 +70,19 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args:
             # If no arguments, show all default cryptocurrencies
             logger.info("No cryptocurrency specified, showing default list")
-            price_data = coingecko.get_prices()  # Uses DEFAULT_CRYPTOCURRENCIES
-            logger.info(f"Received price data for default coins: {list(price_data.keys())}")
+            price_data = crypto_api.get_prices()
+            logger.info(f"Received price data for coins: {list(price_data.keys()) if isinstance(price_data, dict) else 'error'}")
         else:
             # Get price for the specified cryptocurrency
-            crypto_input = context.args[0]
+            crypto_input = context.args[0].upper()
             logger.info(f"Fetching price for {crypto_input}")
-            price_data = coingecko.get_price(crypto_input)
+            price_data = crypto_api.get_price(crypto_input)
             logger.info(f"Price data received: {price_data}")
 
         if not price_data or "error" in price_data:
             error_msg = (
                 f"Could not find cryptocurrency: {context.args[0] if context.args else 'unknown'}\n\n"
-                f"Try using the cryptocurrency's symbol (e.g., BTC) or full name (e.g., bitcoin)"
+                f"Try using the cryptocurrency's symbol (e.g., BTC, BNB)"
             )
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,

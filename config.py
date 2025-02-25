@@ -4,34 +4,29 @@ import os
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'your_bot_token_here')
 TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID', 'your_channel_id_here')
 
-# CoinGecko API Configuration
-COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
+# CoinMarketCap API Configuration
+COINMARKETCAP_BASE_URL = "https://pro-api.coinmarketcap.com/v1"
 
-# Default cryptocurrencies to track
+# Default cryptocurrencies to track (using symbols for CoinMarketCap)
 DEFAULT_CRYPTOCURRENCIES = [
-    "bitcoin",          # BTC
-    "ethereum",         # ETH
-    "solana",          # SOL
-    "ronin",           # RON
-    "axie-infinity",   # AXS
-    "pi-network",      # PI
-    "bnb",             # BNB - Added for testing
+    "BTC",          # Bitcoin
+    "ETH",         # Ethereum
+    "SOL",          # Solana
+    "RON",           # Ronin
+    "AXS",   # Axie Infinity
+    "PI",      # Pi Network
+    "BNB",             # BNB
 ]
 
-# Mapping of ticker symbols to CoinGecko IDs
-TICKER_TO_ID = {
-    # Original mappings
-    "BTC": "bitcoin",
-    "ETH": "ethereum",
-    "SOL": "solana",
-    "RON": "ronin",
-    "AXS": "axie-infinity",
-    "PI": "pi-network",
-    # Additional popular coins
-    "BNB": "bnb",           # Updated from 'binancecoin' to 'bnb'
-    "USDT": "tether",       # Tether
-    "XRP": "ripple",        # Ripple
-    "DOGE": "dogecoin",     # Dogecoin
+# Mapping of CoinMarketCap symbols to display names (for formatting)
+SYMBOL_TO_DISPLAY = {
+    'BTC': 'BTC  ',
+    'ETH': 'ETH  ',
+    'SOL': 'SOL  ',
+    'RON': 'RON  ',
+    'AXS': 'AXS  ',
+    'PI': 'PI   ',
+    'BNB': 'BNB  ',
 }
 
 # API request parameters
