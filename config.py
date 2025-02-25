@@ -8,12 +8,16 @@ TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID', 'your_channel_id_here')
 COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 
 # Default cryptocurrencies to track
+# Add or remove cryptocurrencies by their CoinGecko IDs
+# You can find coin IDs at https://www.coingecko.com/en/all-cryptocurrencies
 DEFAULT_CRYPTOCURRENCIES = [
-    "bitcoin",
-    "ethereum",
-    "binancecoin",
-    "ripple",
-    "cardano"
+    "bitcoin",          # BTC
+    "ethereum",         # ETH
+    "solana",          # SOL
+    "Ronin",           # RON
+    "axie",     # AXS
+    "Freysa",     # FAI
+    "Pi-network"    # PI
 ]
 
 # API request parameters

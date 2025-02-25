@@ -21,64 +21,126 @@ coingecko = CoinGeckoAPI()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
-    welcome_message = (
-        "🤖 Welcome to the Crypto Price Bot!\n\n"
-        "Available commands:\n"
-        "/price <crypto> - Get price for a specific cryptocurrency\n"
-        "/prices - Get prices for popular cryptocurrencies\n"
-        "/help - Show this help message"
+    logger.info(f"Received /start command from chat {update.effective_chat.id}")
+
+    is_group = update.effective_chat.type in ["group", "supergroup"]
+    is_channel = update.effective_chat.type == "channel"
+
+    if is_group:
+        welcome_message = (
+            "🤖 Welcome to the Crypto Price Bot!\n\n"
+            "Group Chat Commands:\n"
+            "/price <crypto> - Get price for a specific cryptocurrency\n"
+            "/prices - Get prices for popular cryptocurrencies\n"
+            "/help - Show this help message\n\n"
+            "💡 Tip: Anyone in the group can use these commands!"
+        )
+    else:
+        welcome_message = (
+            "🤖 Welcome to the Crypto Price Bot!\n\n"
+            "Available commands:\n"
+            "/price <crypto> - Get price for a specific cryptocurrency\n"
+            "/prices - Get prices for popular cryptocurrencies\n"
+            "/help - Show this help message\n\n"
+            "💡 To use in groups:\n"
+            "1. Add me to your group\n"
+            "2. Use commands like /price bitcoin\n\n"
+            "💡 For channels:\n"
+            "1. Add me as a channel admin\n"
+            "2. Set up price updates using /setchannel"
+        )
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=welcome_message
     )
-    await update.message.reply_text(welcome_message)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /help is issued."""
+    logger.info(f"Received /help command from chat {update.effective_chat.id}")
     await start(update, context)
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Get price for a specific cryptocurrency."""
+    logger.info(f"Received /price command from chat {update.effective_chat.id}")
     try:
         if not context.args:
-            await update.message.reply_text("Please specify a cryptocurrency. Example: /price bitcoin")
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Please specify a cryptocurrency. Example: /price bitcoin"
+            )
             return
 
         crypto_id = context.args[0].lower()
+        logger.info(f"Fetching price for {crypto_id}")
         price_data = coingecko.get_price(crypto_id)
 
         if not price_data:
-            await update.message.reply_text(f"Could not find cryptocurrency: {crypto_id}")
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"Could not find cryptocurrency: {crypto_id}"
+            )
             return
 
         message = format_price_message(price_data)
-        await update.message.reply_text(message)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message
+        )
 
-        # Post to channel if channel ID is configured
-        if TELEGRAM_CHANNEL_ID:
-            await context.bot.send_message(
-                chat_id=TELEGRAM_CHANNEL_ID,
-                text=message
-            )
+        # Only post to channel if explicitly configured and channel ID is valid
+        if TELEGRAM_CHANNEL_ID and TELEGRAM_CHANNEL_ID.strip():
+            try:
+                logger.info(f"Attempting to post price update to channel {TELEGRAM_CHANNEL_ID}")
+                await context.bot.send_message(
+                    chat_id=TELEGRAM_CHANNEL_ID,
+                    text=message
+                )
+                logger.info("Successfully posted to channel")
+            except Exception as channel_error:
+                logger.error(f"Failed to post to channel: {str(channel_error)}")
+                # Don't send channel errors to users in groups/private chats
+                pass
 
     except Exception as e:
         logger.error(f"Error in price command: {str(e)}")
-        await update.message.reply_text(format_error_message(e))
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=format_error_message(e)
+        )
 
 async def prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Get prices for multiple cryptocurrencies."""
+    logger.info(f"Received /prices command from chat {update.effective_chat.id}")
     try:
+        logger.info("Fetching prices for default cryptocurrency list")
         price_data = coingecko.get_prices(DEFAULT_CRYPTOCURRENCIES)
         message = format_price_message(price_data)
-        await update.message.reply_text(message)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message
+        )
 
-        # Post to channel if channel ID is configured
-        if TELEGRAM_CHANNEL_ID:
-            await context.bot.send_message(
-                chat_id=TELEGRAM_CHANNEL_ID,
-                text=message
-            )
+        # Only post to channel if explicitly configured and channel ID is valid
+        if TELEGRAM_CHANNEL_ID and TELEGRAM_CHANNEL_ID.strip():
+            try:
+                logger.info(f"Attempting to post prices update to channel {TELEGRAM_CHANNEL_ID}")
+                await context.bot.send_message(
+                    chat_id=TELEGRAM_CHANNEL_ID,
+                    text=message
+                )
+                logger.info("Successfully posted to channel")
+            except Exception as channel_error:
+                logger.error(f"Failed to post to channel: {str(channel_error)}")
+                # Don't send channel errors to users in groups/private chats
+                pass
 
     except Exception as e:
         logger.error(f"Error in prices command: {str(e)}")
-        await update.message.reply_text(format_error_message(e))
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=format_error_message(e)
+        )
 
 def main() -> None:
     """Start the bot."""
