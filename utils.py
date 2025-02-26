@@ -1,22 +1,24 @@
 from typing import Dict
-from config import DEFAULT_CRYPTOCURRENCIES, SYMBOL_TO_DISPLAY
+from config import DEFAULT_CRYPTOCURRENCIES, SYMBOL_TO_DISPLAY, STOCK_TO_DISPLAY, DEFAULT_STOCKS
 import logging
 
 
 def format_price_message(crypto_data: Dict) -> str:
-    """Format cryptocurrency price data into a readable message"""
+    """Format cryptocurrency or stock price data into a readable message"""
     logger = logging.getLogger(__name__)
     logger.info(
         f"Formatting prices for cryptocurrencies: {list(crypto_data.keys())}")
 
-    # Get header text based on number of coins
+    # Get header text based on number of coins and type
     if len(crypto_data) == 1:
-        # For single coin, use its full name
-        coin_symbol = next(iter(crypto_data.keys()))
-        coin_data = crypto_data[coin_symbol]
-        header_text = f"📊 {coin_data.get('name', 'Cryptocurrency')}"
+        # For single item, use its full name
+        symbol = next(iter(crypto_data.keys()))
+        coin_data = crypto_data[symbol]
+        header_text = f"📊 {coin_data.get('name', symbol)}"
     else:
-        header_text = "📊 Cryptocurrency Prices"
+        # Check if we're dealing with stocks or crypto
+        is_stocks = all(symbol in STOCK_TO_DISPLAY for symbol in crypto_data.keys())
+        header_text = "📊 Stock Prices" if is_stocks else "📊 Cryptocurrency Prices"
 
     # Add header with exact column widths matching the data rows
     header = (
@@ -27,12 +29,15 @@ def format_price_message(crypto_data: Dict) -> str:
     messages = [header]
 
     if len(crypto_data) == 1:
-        # For single coin request, just process that coin
+        # For single coin/stock request, just process that item
         symbol = next(iter(crypto_data.keys()))
         data = crypto_data[symbol]
-        if symbol in SYMBOL_TO_DISPLAY:
-            display_name = SYMBOL_TO_DISPLAY[
-                symbol]  # Use predefined 7-char width name
+
+        # Choose display format based on whether it's a stock or crypto
+        if symbol in STOCK_TO_DISPLAY:
+            display_name = STOCK_TO_DISPLAY[symbol]
+        elif symbol in SYMBOL_TO_DISPLAY:
+            display_name = SYMBOL_TO_DISPLAY[symbol]
         else:
             # Ensure exactly 7 chars width by truncating or padding
             symbol_trunc = symbol[:7]  # Take first 7 chars if longer
@@ -42,16 +47,16 @@ def format_price_message(crypto_data: Dict) -> str:
         change_24h = data.get('usd_24h_change', 0)
 
         # Format price based on the value
-        if symbol in ['BTC', 'ETH', 'SOL']:
-            price_str = f"${price:,.0f}"  # No decimals for BTC, ETH, SOL
-        elif price < 0.01:
-            price_str = f"${price:.4f}"
-        elif price < 1:
-            price_str = f"${price:.3f}"
+        if price >= 1000:
+            price_str = f"${price:,.0f}"  # No decimals for high values
+        elif price >= 100:
+            price_str = f"${price:.1f}"  # 1 decimal for medium values
+        elif price >= 1:
+            price_str = f"${price:.2f}"  # 2 decimals for normal values
         else:
-            price_str = f"${price:.2f}"
+            price_str = f"${price:.4f}"  # 4 decimals for small values
 
-        # Format the change indicators with arrow immediately after
+        # Format the change indicators with arrow
         change_24h_symbol = "📈" if change_24h > 0 else "📉"
 
         # Fixed width columns with exact alignments
@@ -62,37 +67,36 @@ def format_price_message(crypto_data: Dict) -> str:
         )
         messages.append(message)
     else:
-        # For multiple coins, process them in the order defined in DEFAULT_CRYPTOCURRENCIES
-        for symbol in DEFAULT_CRYPTOCURRENCIES:
+        # Get appropriate list and display mapping based on data type
+        is_stocks = all(symbol in STOCK_TO_DISPLAY for symbol in crypto_data.keys())
+        default_list = DEFAULT_STOCKS if is_stocks else DEFAULT_CRYPTOCURRENCIES
+        display_map = STOCK_TO_DISPLAY if is_stocks else SYMBOL_TO_DISPLAY
+
+        # Process items in the defined order
+        for symbol in default_list:
             if symbol in crypto_data:
                 data = crypto_data[symbol]
-                if symbol in SYMBOL_TO_DISPLAY:
-                    display_name = SYMBOL_TO_DISPLAY[
-                        symbol]  # Use predefined 7-char width name
-                else:
-                    # Ensure exactly 7 chars width by truncating or padding
-                    symbol_trunc = symbol[:7]  # Take first 7 chars if longer
-                    display_name = f"{symbol_trunc:<7}"  # Left align and pad to exactly 7 chars
+                display_name = display_map.get(symbol, f"{symbol:<7}")
 
                 price = data.get('usd', 0)
                 change_24h = data.get('usd_24h_change', 0)
 
                 # Format price based on the value
-                if symbol in ['BTC', 'ETH', 'SOL']:
-                    price_str = f"${price:,.0f}"  # No decimals for BTC, ETH, SOL
-                elif price < 0.01:
-                    price_str = f"${price:.4f}"
-                elif price < 1:
-                    price_str = f"${price:.3f}"
-                else:
+                if price >= 1000:
+                    price_str = f"${price:,.0f}"
+                elif price >= 100:
+                    price_str = f"${price:.1f}"
+                elif price >= 1:
                     price_str = f"${price:.2f}"
+                else:
+                    price_str = f"${price:.4f}"
 
-                # Format the change indicators with arrow immediately after
+                # Format the change indicators with arrow
                 change_24h_symbol = "📈" if change_24h > 0 else "📉"
 
                 # Fixed width columns with exact alignments
                 message = (
-                    f"{display_name}"  # Coin: exactly 7 chars, left-aligned
+                    f"{display_name}"  # Coin/Stock: exactly 7 chars, left-aligned
                     f"{price_str:<9}"  # Price: exactly 9 chars, left-aligned
                     f"{change_24h:>6.1f}%{change_24h_symbol}"  # 24h: percentage right-aligned (>6)
                 )
