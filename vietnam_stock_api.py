@@ -2,7 +2,7 @@ import yfinance as yf
 import logging
 import time
 from typing import Dict, List, Optional
-from config import REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY, DEFAULT_VN_STOCKS
+from config import REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY, DEFAULT_VN_STOCKS, VN_STOCK_COMPANY_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class VietnamStockAPI:
                     symbol.upper(): {
                         "usd": price,  # Actually in VND but keeping same structure
                         "usd_24h_change": change_percent,
-                        "name": symbol.upper()  # Use symbol as name since we can't reliably get company name
+                        "name": VN_STOCK_COMPANY_NAMES.get(symbol.upper(), symbol.upper())  # Get company name if available
                     }
                 }
                 logger.info(f"Formatted stock data: {formatted_data}")

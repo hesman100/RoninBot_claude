@@ -7,6 +7,8 @@ from config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHANNEL_ID,
     DEFAULT_CRYPTOCURRENCIES,
+    DEFAULT_STOCKS,
+    DEFAULT_VN_STOCKS,  # Add this import
     SYMBOL_TO_DISPLAY
 )
 from coinmarketcap_api import CoinMarketCapAPI
@@ -14,9 +16,8 @@ from utils import format_price_message, format_error_message
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from alphavantage_api import AlphaVantageAPI
-from finnhub_api import FinnhubAPI  # Only keep Finnhub as backup
-from vietnam_stock_api import VietnamStockAPI # Add to imports
-
+from finnhub_api import FinnhubAPI
+from vietnam_stock_api import VietnamStockAPI
 
 # Configure logging
 logging.basicConfig(
@@ -295,6 +296,7 @@ def main() -> None:
             # Add command handlers
             application.add_handler(CommandHandler("start", start))
             application.add_handler(CommandHandler("help", help_command))
+            application.add_handler(CommandHandler("h", help_command))  # Added /h as alias for /help
             application.add_handler(CommandHandler("c", price))  # Changed from "p" to "c"
             application.add_handler(CommandHandler("s", stock))
             application.add_handler(CommandHandler("vn", vietnam_stock)) # Add in the main() function where other command handlers are added

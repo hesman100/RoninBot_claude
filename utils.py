@@ -14,7 +14,12 @@ def format_price_message(crypto_data: Dict) -> str:
     # Check if we're dealing with stocks, vietnam stocks, or crypto
     is_vn_stock = any(symbol in DEFAULT_VN_STOCKS for symbol in crypto_data.keys())
     is_stocks = any(symbol in DEFAULT_STOCKS for symbol in crypto_data.keys()) if not is_vn_stock else False
-    column_header = "Stock   " if (is_stocks or is_vn_stock) else "Coin    "  # Keep exact 7 chars width
+
+    # Customize column header based on type
+    if is_vn_stock:
+        column_header = "Stock   $vnd     24h\n"  # Changed from "Price" to "$vnd"
+    else:
+        column_header = "Coin    Price     24h\n"  # Keep original for non-VN stocks
 
     # Get header text based on number of coins/stocks and type
     if len(crypto_data) == 1:
@@ -39,7 +44,7 @@ def format_price_message(crypto_data: Dict) -> str:
     # Add header with exact column widths matching the data rows
     header = (
         f"{header_text}\n\n"
-        f"{column_header}Price     24h\n"
+        f"{column_header}"
         "──────────"  # Separator line matching content width
     )
     messages = [header]
@@ -63,22 +68,26 @@ def format_price_message(crypto_data: Dict) -> str:
         price = data.get('usd', 0)
         change_24h = data.get('usd_24h_change', 0)
 
-        # Format price based on the value
-        if price >= 1000:
-            price_str = f"${price:,.0f}"  # No decimals for high values
-        elif price >= 100:
-            price_str = f"${price:.1f}"  # 1 decimal for medium values
-        elif price >= 1:
-            price_str = f"${price:.2f}"  # 2 decimals for normal values
+        # Format price based on the value and type
+        if symbol in DEFAULT_VN_STOCKS:
+            price_str = f"{price:,.0f}"  # No $ sign for VN stocks, no decimals
         else:
-            price_str = f"${price:.4f}"  # 4 decimals for small values
+            # Original formatting for non-VN stocks
+            if price >= 1000:
+                price_str = f"${price:,.0f}"
+            elif price >= 100:
+                price_str = f"${price:.1f}"
+            elif price >= 1:
+                price_str = f"${price:.2f}"
+            else:
+                price_str = f"${price:.4f}"
 
         # Format the change indicators with colored circles
         change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
         # Fixed width columns with exact alignments
         message = (
-            f"{display_name}"  # Coin/Stock: exactly 7 chars, left-aligned
+            f"{display_name}"  # Name: exactly 7 chars, left-aligned
             f"{price_str:<9}"  # Price: exactly 9 chars, left-aligned
             f"{change_24h:>6.1f}%{change_24h_symbol}"  # 24h: percentage right-aligned (>6)
         )
@@ -104,22 +113,26 @@ def format_price_message(crypto_data: Dict) -> str:
                 price = data.get('usd', 0)
                 change_24h = data.get('usd_24h_change', 0)
 
-                # Format price based on the value
-                if price >= 1000:
-                    price_str = f"${price:,.0f}"
-                elif price >= 100:
-                    price_str = f"${price:.1f}"
-                elif price >= 1:
-                    price_str = f"${price:.2f}"
+                # Format price based on the value and type
+                if symbol in DEFAULT_VN_STOCKS:
+                    price_str = f"{price:,.0f}"  # No $ sign for VN stocks, no decimals
                 else:
-                    price_str = f"${price:.4f}"
+                    # Original formatting for non-VN stocks
+                    if price >= 1000:
+                        price_str = f"${price:,.0f}"
+                    elif price >= 100:
+                        price_str = f"${price:.1f}"
+                    elif price >= 1:
+                        price_str = f"${price:.2f}"
+                    else:
+                        price_str = f"${price:.4f}"
 
                 # Format the change indicators with colored circles
                 change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
                 # Fixed width columns with exact alignments
                 message = (
-                    f"{display_name}"  # Stock/Coin: exactly 7 chars, left-aligned
+                    f"{display_name}"  # Name: exactly 7 chars, left-aligned
                     f"{price_str:<9}"  # Price: exactly 9 chars, left-aligned
                     f"{change_24h:>6.1f}%{change_24h_symbol}"  # 24h: percentage right-aligned (>6)
                 )
