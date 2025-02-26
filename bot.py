@@ -14,6 +14,7 @@ from utils import format_price_message, format_error_message
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from alphavantage_api import AlphaVantageAPI
+from yahoo_finance_api import YahooFinanceAPI
 
 # Configure logging
 logging.basicConfig(
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 # Initialize API clients
 crypto_api = CoinMarketCapAPI()
 stock_api = AlphaVantageAPI()
+yahoo_api = YahooFinanceAPI()  # Add Yahoo Finance API client
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -175,12 +177,24 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # If no arguments, show all default stocks
             logger.info("No stock specified, showing default list")
             price_data = stock_api.get_stock_prices()
+
+            # If AlphaVantage fails or hits rate limit, try Yahoo Finance
+            if isinstance(price_data, dict) and "error" in price_data and "rate limit" in price_data["error"].lower():
+                logger.info("AlphaVantage rate limited, falling back to Yahoo Finance")
+                price_data = yahoo_api.get_stock_prices()
+
             logger.info(f"Received price data: {price_data}")
         else:
             # Get price for the specified stock
             stock_input = context.args[0].upper()
             logger.info(f"Fetching price for {stock_input}")
             price_data = stock_api.get_stock_price(stock_input)
+
+            # If AlphaVantage fails or hits rate limit, try Yahoo Finance
+            if isinstance(price_data, dict) and "error" in price_data and "rate limit" in price_data["error"].lower():
+                logger.info("AlphaVantage rate limited, falling back to Yahoo Finance")
+                price_data = yahoo_api.get_stock_price(stock_input)
+
             logger.info(f"Price data received: {price_data}")
 
         if isinstance(price_data, dict) and "error" in price_data:
