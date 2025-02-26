@@ -240,14 +240,14 @@ async def vietnam_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         if not context.args:
             # If no arguments, show all default Vietnam stocks
             logger.info("No stock specified, showing default Vietnam stock list")
-            price_data = vietnam_stock_api.get_stock_prices(DEFAULT_VN_STOCKS) # Assumes DEFAULT_VN_STOCKS is defined elsewhere
-            logger.info(f"Received price data: {price_data}")
+            price_data = vietnam_stock_api.get_stock_prices(DEFAULT_VN_STOCKS)
+            logger.info(f"Received price data for Vietnam stocks: {list(price_data.keys()) if isinstance(price_data, dict) else 'error'}")
         else:
             # Get price for the specified stock
             stock_input = context.args[0].upper()
             logger.info(f"Fetching price for Vietnam stock: {stock_input}")
             price_data = vietnam_stock_api.get_stock_price(stock_input)
-            logger.info(f"Price data received: {price_data}")
+            logger.info(f"Received price data: {price_data}")
 
         if isinstance(price_data, dict) and "error" in price_data:
             error_msg = (
