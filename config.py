@@ -95,6 +95,7 @@ DEFAULT_VN_STOCKS = [
     "PLX",  # Petrolimex
     "GAS",  # PetroVietnam Gas
     "PNJ",  # Phu Nhuan Jewelry
+    "MWG" #Mobile World
 ]
 
 # Mapping of Vietnam stock symbols to display names (for formatting)
@@ -109,6 +110,7 @@ VN_STOCK_TO_DISPLAY = {
     'PLX': 'PLX    ',  # Exactly 7 chars
     'GAS': 'GAS    ',  # Exactly 7 chars
     'PNJ': 'PNJ    ',  # Exactly 7 chars
+    'MWG': 'MWG    ' # Exactly 7 chars
 }
 
 # Mapping of Vietnam stock symbols to full company names
@@ -123,6 +125,7 @@ VN_STOCK_COMPANY_NAMES = {
     'PLX': 'Petrolimex',
     'GAS': 'PetroVietnam Gas JSC',
     'PNJ': 'Phu Nhuan Jewelry JSC',
+    'MWG': 'Mobile World JSC',  # Adding MWG
 }
 
 # API request parameters

@@ -61,6 +61,16 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
                 else:
                     self._send_response(503, "Bot is starting")
                     logger.warning("Health check failed - bot not ready")
+            elif self.path == '/shutdown':
+                logger.info("Shutdown request received")
+                self._send_response(200, "Shutting down...")
+                # Schedule the shutdown after responding
+                threading.Thread(target=lambda: [
+                    logger.info("Initiating shutdown sequence"),
+                    setattr(self.server, 'bot_running', False),
+                    self.server.shutdown(),
+                    sys.exit(0)
+                ]).start()
             else:
                 self._send_response(404, "Not found")
         except Exception as e:

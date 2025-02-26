@@ -12,7 +12,7 @@ def format_price_message(crypto_data: Dict) -> str:
     logger.info(f"Formatting prices for data: {list(crypto_data.keys())}")
 
     # Check if we're dealing with stocks, vietnam stocks, or crypto
-    is_vn_stock = any(symbol in DEFAULT_VN_STOCKS for symbol in crypto_data.keys())
+    is_vn_stock = any(symbol in DEFAULT_VN_STOCKS for symbol in crypto_data.keys()) or any(symbol in VN_STOCK_COMPANY_NAMES for symbol in crypto_data.keys())
     is_stocks = any(symbol in DEFAULT_STOCKS for symbol in crypto_data.keys()) if not is_vn_stock else False
 
     # Customize column header based on type
@@ -26,7 +26,7 @@ def format_price_message(crypto_data: Dict) -> str:
         # For single item, use its full name
         symbol = next(iter(crypto_data.keys()))
 
-        if symbol in DEFAULT_VN_STOCKS:
+        if symbol in VN_STOCK_COMPANY_NAMES:
             header_text = f"📊 {VN_STOCK_COMPANY_NAMES.get(symbol, symbol)}"
         elif symbol in DEFAULT_STOCKS:
             header_text = f"📊 {STOCK_COMPANY_NAMES.get(symbol, symbol)}"
