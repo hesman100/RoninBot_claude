@@ -18,6 +18,7 @@ class AlphaVantageAPI:
         self.api_key = ALPHAVANTAGE_API_KEY
         self.base_url = ALPHAVANTAGE_BASE_URL
         self.session = requests.Session()
+        self._company_names_cache = {}
 
     def _make_request(self, params: Dict) -> Dict:
         """Make a request to Alpha Vantage API with retry logic"""
@@ -45,6 +46,23 @@ class AlphaVantageAPI:
 
         return {"error": "Maximum retries exceeded"}
 
+    def get_company_name(self, symbol: str) -> str:
+        """Get the full company name for a stock symbol"""
+        if symbol in self._company_names_cache:
+            return self._company_names_cache[symbol]
+
+        params = {
+            'function': 'OVERVIEW',
+            'symbol': symbol.upper(),
+            'apikey': self.api_key
+        }
+
+        data = self._make_request(params)
+        if "Name" in data:
+            self._company_names_cache[symbol] = data["Name"]
+            return data["Name"]
+        return symbol.upper()  # Return symbol if name not found
+
     def get_stock_price(self, symbol: str) -> Dict:
         """Get current price and daily change for a single stock"""
         logger.info(f"Fetching price for stock: {symbol}")
@@ -65,12 +83,15 @@ class AlphaVantageAPI:
             if quote:
                 price = float(quote.get('05. price', 0))
                 change_percent = float(quote.get('10. change percent', '0').rstrip('%'))
-                
+
+                # Get company name
+                company_name = self.get_company_name(symbol)
+
                 formatted_data = {
                     symbol.upper(): {
                         "usd": price,
                         "usd_24h_change": change_percent,
-                        "name": symbol.upper()
+                        "name": company_name
                     }
                 }
                 logger.info(f"Formatted stock data: {formatted_data}")

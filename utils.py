@@ -8,27 +8,29 @@ def format_price_message(crypto_data: Dict) -> str:
     logger.info(
         f"Formatting prices for cryptocurrencies: {list(crypto_data.keys())}")
 
-    # Get header text based on number of coins and type
+    # Determine if we're dealing with stocks
+    is_stocks = DEFAULT_STOCKS[0] in crypto_data  # Check if first stock is in the data
+
+    # Get header text based on number of items and type
     if len(crypto_data) == 1:
         # For single item, use its full name
         symbol = next(iter(crypto_data.keys()))
-        coin_data = crypto_data[symbol]
-        header_text = f"📊 {coin_data.get('name', symbol)}"
+        item_data = crypto_data[symbol]
+        header_text = f"📊 {item_data.get('name', symbol)}"
     else:
-        # Check if we're dealing with stocks or crypto
-        is_stocks = DEFAULT_STOCKS[0] in crypto_data  # Check if first stock is in the data
         header_text = "📊 Stock Prices" if is_stocks else "📊 Cryptocurrency Prices"
 
     # Add header with exact column widths matching the data rows
+    column_name = "Stock   " if is_stocks else "Coin    "  # Both exactly 7 chars
     header = (
         f"{header_text}\n\n"
-        "Coin    Price     24h\n"  # Coin is exactly 7 chars
+        f"{column_name}Price     24h\n"
         "──────────"  # Separator line matching content width
     )
     messages = [header]
 
     if len(crypto_data) == 1:
-        # For single coin/stock request, just process that item
+        # For single item request, just process that item
         symbol = next(iter(crypto_data.keys()))
         data = crypto_data[symbol]
 
@@ -60,14 +62,13 @@ def format_price_message(crypto_data: Dict) -> str:
 
         # Fixed width columns with exact alignments
         message = (
-            f"{display_name}"  # Coin: exactly 7 chars, left-aligned
+            f"{display_name}"  # Item: exactly 7 chars, left-aligned
             f"{price_str:<9}"  # Price: exactly 9 chars, left-aligned
             f"{change_24h:>6.1f}%{change_24h_symbol}"  # 24h: percentage right-aligned (>6)
         )
         messages.append(message)
     else:
         # Get appropriate list and display mapping based on data type
-        is_stocks = DEFAULT_STOCKS[0] in crypto_data  # Check if first stock is in the data
         default_list = DEFAULT_STOCKS if is_stocks else DEFAULT_CRYPTOCURRENCIES
         display_map = STOCK_TO_DISPLAY if is_stocks else SYMBOL_TO_DISPLAY
 
@@ -95,7 +96,7 @@ def format_price_message(crypto_data: Dict) -> str:
 
                 # Fixed width columns with exact alignments
                 message = (
-                    f"{display_name}"  # Coin/Stock: exactly 7 chars, left-aligned
+                    f"{display_name}"  # Item: exactly 7 chars, left-aligned
                     f"{price_str:<9}"  # Price: exactly 9 chars, left-aligned
                     f"{change_24h:>6.1f}%{change_24h_symbol}"  # 24h: percentage right-aligned (>6)
                 )
