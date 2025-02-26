@@ -65,6 +65,33 @@ STOCK_COMPANY_NAMES = {
     'CDNS': 'Cadence Design Systems'
 }
 
+# Default Vietnam stocks to track
+DEFAULT_VN_STOCKS = [
+    "VNM",  # Vietnam Dairy Products
+    "VCB",  # Vietcombank
+    "VIC",  # Vingroup
+    "HPG",  # Hoa Phat Group
+    "MSN",  # Masan Group
+]
+
+# Mapping of Vietnam stock symbols to display names (for formatting)
+VN_STOCK_TO_DISPLAY = {
+    'VNM': 'VNM    ',  # Exactly 7 chars
+    'VCB': 'VCB    ',  # Exactly 7 chars
+    'VIC': 'VIC    ',  # Exactly 7 chars
+    'HPG': 'HPG    ',  # Exactly 7 chars
+    'MSN': 'MSN    ',  # Exactly 7 chars
+}
+
+# Mapping of Vietnam stock symbols to full company names
+VN_STOCK_COMPANY_NAMES = {
+    'VNM': 'Vietnam Dairy Products JSC',
+    'VCB': 'Vietcombank',
+    'VIC': 'Vingroup JSC',
+    'HPG': 'Hoa Phat Group JSC',
+    'MSN': 'Masan Group Corporation',
+}
+
 # API request parameters
 REQUEST_TIMEOUT = 30
 MAX_RETRIES = 3

@@ -1,30 +1,40 @@
 from typing import Dict
-from config import DEFAULT_CRYPTOCURRENCIES, SYMBOL_TO_DISPLAY, STOCK_TO_DISPLAY, DEFAULT_STOCKS
+from config import (
+    DEFAULT_CRYPTOCURRENCIES, DEFAULT_STOCKS, DEFAULT_VN_STOCKS,
+    SYMBOL_TO_DISPLAY, STOCK_TO_DISPLAY, VN_STOCK_TO_DISPLAY,
+    STOCK_COMPANY_NAMES, VN_STOCK_COMPANY_NAMES
+)
 import logging
 
 def format_price_message(crypto_data: Dict) -> str:
     """Format cryptocurrency or stock price data into a readable message"""
     logger = logging.getLogger(__name__)
-    logger.info(
-        f"Formatting prices for cryptocurrencies: {list(crypto_data.keys())}")
+    logger.info(f"Formatting prices for data: {list(crypto_data.keys())}")
 
-    # Check if we're dealing with stocks or crypto first
-    is_stocks = any(symbol in DEFAULT_STOCKS for symbol in crypto_data.keys())
-    column_header = "Stock   " if is_stocks else "Coin    "  # Keep exact 7 chars width
+    # Check if we're dealing with stocks, vietnam stocks, or crypto
+    is_vn_stock = any(symbol in DEFAULT_VN_STOCKS for symbol in crypto_data.keys())
+    is_stocks = any(symbol in DEFAULT_STOCKS for symbol in crypto_data.keys()) if not is_vn_stock else False
+    column_header = "Stock   " if (is_stocks or is_vn_stock) else "Coin    "  # Keep exact 7 chars width
 
     # Get header text based on number of coins/stocks and type
     if len(crypto_data) == 1:
         # For single item, use its full name
         symbol = next(iter(crypto_data.keys()))
 
-        if symbol in DEFAULT_STOCKS:
-            from config import STOCK_COMPANY_NAMES
+        if symbol in DEFAULT_VN_STOCKS:
+            header_text = f"📊 {VN_STOCK_COMPANY_NAMES.get(symbol, symbol)}"
+        elif symbol in DEFAULT_STOCKS:
             header_text = f"📊 {STOCK_COMPANY_NAMES.get(symbol, symbol)}"
         else:
             coin_data = crypto_data[symbol]
             header_text = f"📊 {coin_data.get('name', symbol)}"
     else:
-        header_text = "📊 Stock Prices" if is_stocks else "📊 Cryptocurrency Prices"
+        if is_vn_stock:
+            header_text = "📊 Vietnam Stock Prices"
+        elif is_stocks:
+            header_text = "📊 Stock Prices"
+        else:
+            header_text = "📊 Cryptocurrency Prices"
 
     # Add header with exact column widths matching the data rows
     header = (
@@ -39,13 +49,14 @@ def format_price_message(crypto_data: Dict) -> str:
         symbol = next(iter(crypto_data.keys()))
         data = crypto_data[symbol]
 
-        # Choose display format based on whether it's a stock or crypto
-        if symbol in STOCK_TO_DISPLAY:
+        # Choose display format based on whether it's a stock, vn stock, or crypto
+        if symbol in VN_STOCK_TO_DISPLAY:
+            display_name = VN_STOCK_TO_DISPLAY[symbol]
+        elif symbol in STOCK_TO_DISPLAY:
             display_name = STOCK_TO_DISPLAY[symbol]
         elif symbol in SYMBOL_TO_DISPLAY:
             display_name = SYMBOL_TO_DISPLAY[symbol]
         else:
-            # Ensure exactly 7 chars width by truncating or padding
             symbol_trunc = symbol[:7]  # Take first 7 chars if longer
             display_name = f"{symbol_trunc:<7}"  # Left align and pad to exactly 7 chars
 
@@ -74,8 +85,15 @@ def format_price_message(crypto_data: Dict) -> str:
         messages.append(message)
     else:
         # Get appropriate list and display mapping based on data type
-        default_list = DEFAULT_STOCKS if is_stocks else DEFAULT_CRYPTOCURRENCIES
-        display_map = STOCK_TO_DISPLAY if is_stocks else SYMBOL_TO_DISPLAY
+        if is_vn_stock:
+            default_list = DEFAULT_VN_STOCKS
+            display_map = VN_STOCK_TO_DISPLAY
+        elif is_stocks:
+            default_list = DEFAULT_STOCKS
+            display_map = STOCK_TO_DISPLAY
+        else:
+            default_list = DEFAULT_CRYPTOCURRENCIES
+            display_map = SYMBOL_TO_DISPLAY
 
         # Process items in the defined order
         for symbol in default_list:

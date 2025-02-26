@@ -15,6 +15,8 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from alphavantage_api import AlphaVantageAPI
 from finnhub_api import FinnhubAPI  # Only keep Finnhub as backup
+from vietnam_stock_api import VietnamStockAPI # Add to imports
+
 
 # Configure logging
 logging.basicConfig(
@@ -31,6 +33,7 @@ logger = logging.getLogger(__name__)
 crypto_api = CoinMarketCapAPI()
 stock_api = AlphaVantageAPI()
 finnhub_api = FinnhubAPI()  # Finnhub as backup API
+vietnam_stock_api = VietnamStockAPI() # Add after other API client initializations
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -82,6 +85,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/s <stock> - Get price for any stock\n"
             "              (Example: /s AAPL or /s TSLA)\n"
             "/s - Get prices for popular stocks\n"
+            "/vn <stock> - Get Vietnam stock price\n"
+            "              (Example: /vn VNM or /vn HPG)\n"
+            "/vn - Get prices for popular Vietnam stocks\n"
             "/help - Show this help message\n\n"
             "💡 Tip: Anyone in the group can use these commands!"
         )
@@ -95,6 +101,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/s <stock> - Get price for any stock\n"
             "              (Example: /s AAPL, /s TSLA)\n"
             "/s - Get prices for popular stocks\n"
+            "/vn <stock> - Get Vietnam stock price\n"
+            "              (Example: /vn VNM or /vn HPG)\n"
+            "/vn - Get prices for popular Vietnam stocks\n"
             "/help - Show this help message\n\n"
             "💡 To use in groups:\n"
             "1. Add me to your group\n"
@@ -224,6 +233,46 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             text=format_error_message(e)
         )
 
+async def vietnam_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Get price for a specific Vietnam stock or default list of Vietnam stocks."""
+    logger.info(f"Received /vn command from chat {update.effective_chat.id}")
+    try:
+        if not context.args:
+            # If no arguments, show all default Vietnam stocks
+            logger.info("No stock specified, showing default Vietnam stock list")
+            price_data = vietnam_stock_api.get_stock_prices(DEFAULT_VN_STOCKS) # Assumes DEFAULT_VN_STOCKS is defined elsewhere
+            logger.info(f"Received price data: {price_data}")
+        else:
+            # Get price for the specified stock
+            stock_input = context.args[0].upper()
+            logger.info(f"Fetching price for Vietnam stock: {stock_input}")
+            price_data = vietnam_stock_api.get_stock_price(stock_input)
+            logger.info(f"Price data received: {price_data}")
+
+        if isinstance(price_data, dict) and "error" in price_data:
+            error_msg = (
+                f"Could not find Vietnam stock{': ' + context.args[0] if context.args else ''}\n\n"
+                f"Try using the stock symbol (e.g., VNM, HPG)"
+            )
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=error_msg
+            )
+            return
+
+        message = format_price_message(price_data)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message
+        )
+
+    except Exception as e:
+        logger.error(f"Error in vietnam_stock command: {str(e)}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=format_error_message(e)
+        )
+
 async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Periodic health check to ensure bot is running."""
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -248,6 +297,7 @@ def main() -> None:
             application.add_handler(CommandHandler("help", help_command))
             application.add_handler(CommandHandler("c", price))  # Changed from "p" to "c"
             application.add_handler(CommandHandler("s", stock))
+            application.add_handler(CommandHandler("vn", vietnam_stock)) # Add in the main() function where other command handlers are added
 
             # Add periodic health check (every 30 minutes)
             application.job_queue.run_repeating(health_check, interval=1800)
