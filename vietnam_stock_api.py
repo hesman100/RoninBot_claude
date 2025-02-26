@@ -8,11 +8,12 @@ logger = logging.getLogger(__name__)
 
 class VietnamStockAPI:
     def __init__(self):
-        self.base_url = "https://wgateway-iboard.ssi.com.vn/v5/stocks"
+        self.base_url = "https://gateway-iboard.ssi.com.vn/graphql"
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0',
-            'Referer': 'https://iboard.ssi.com.vn/',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'Origin': 'https://iboard.ssi.com.vn'
         })
         self._cache = {}
@@ -31,15 +32,20 @@ class VietnamStockAPI:
         self._cache[symbol] = data
         self._cache_expiry[symbol] = time.time() + self._cache_duration
 
-    def _make_request(self, symbol: str) -> Dict:
-        """Make a request to SSI API with retry logic"""
-        url = f"{self.base_url}/quote/{symbol}"
-        logger.info(f"Making request to SSI API: {url}")
+    def _make_request(self, query: str, variables: Dict) -> Dict:
+        """Make a GraphQL request to SSI API with retry logic"""
+        logger.info(f"Making request to SSI API with query: {query}")
+
+        payload = {
+            "query": query,
+            "variables": variables
+        }
 
         for attempt in range(MAX_RETRIES):
             try:
-                response = self.session.get(
-                    url,
+                response = self.session.post(
+                    self.base_url,
+                    json=payload,
                     timeout=REQUEST_TIMEOUT
                 )
                 response.raise_for_status()
@@ -65,23 +71,50 @@ class VietnamStockAPI:
             return cached_data
 
         try:
-            # Get current quote
-            data = self._make_request(symbol.upper())
+            # GraphQL query for single stock
+            query = """
+            query stockRealtimes($exchange: String!, $symbols: [String!]) {
+                stockRealtimes(exchange: $exchange, symbols: $symbols) {
+                    symbol
+                    ceiling
+                    floor
+                    refPrice
+                    matchPrice
+                    matchVolume
+                    priceChange
+                    priceChangePercent
+                }
+            }
+            """
+
+            # Determine exchange based on symbol (HOSE or HNX)
+            exchange = "HOSE"  # Default to HOSE
+            if symbol.startswith("HN"):
+                exchange = "HNX"
+
+            variables = {
+                "exchange": exchange,
+                "symbols": [symbol.upper()]
+            }
+
+            data = self._make_request(query, variables)
             logger.info(f"Raw quote data for {symbol}: {data}")
 
-            if "error" in data:
-                return data
+            if "errors" in data:
+                return {"error": str(data["errors"][0]["message"])}
 
-            if isinstance(data, dict):
-                price = float(data.get('lastPrice', 0))
-                prev_close = float(data.get('priorPrice', price))
-                change_percent = ((price - prev_close) / prev_close * 100) if prev_close else 0
+            if "data" in data and "stockRealtimes" in data["data"] and data["data"]["stockRealtimes"]:
+                stock_data = data["data"]["stockRealtimes"][0]
+
+                price = float(stock_data.get('matchPrice', 0))
+                ref_price = float(stock_data.get('refPrice', price))
+                change_percent = float(stock_data.get('priceChangePercent', 0))
 
                 formatted_data = {
                     symbol.upper(): {
                         "usd": price,  # Actually in VND but keeping same structure
                         "usd_24h_change": change_percent,
-                        "name": data.get('stockSymbol', symbol.upper())
+                        "name": symbol.upper()  # We'll get company name from config
                     }
                 }
                 logger.info(f"Formatted stock data: {formatted_data}")
@@ -103,15 +136,50 @@ class VietnamStockAPI:
 
         logger.info(f"Fetching prices for Vietnam stocks: {symbols}")
 
-        all_data = {}
-        for symbol in symbols:
-            try:
-                data = self.get_stock_price(symbol)
-                if not isinstance(data.get('error'), str):
-                    all_data.update(data)
-                time.sleep(0.2)  # Small delay between requests
-            except Exception as e:
-                logger.error(f"Error fetching price for {symbol}: {str(e)}")
-                continue
+        # GraphQL query for multiple stocks
+        query = """
+        query stockRealtimes($exchange: String!, $symbols: [String!]) {
+            stockRealtimes(exchange: $exchange, symbols: $symbols) {
+                symbol
+                ceiling
+                floor
+                refPrice
+                matchPrice
+                matchVolume
+                priceChange
+                priceChangePercent
+            }
+        }
+        """
 
-        return all_data if all_data else {"error": "No stock data available"}
+        try:
+            # We'll make a single request for all HOSE stocks
+            variables = {
+                "exchange": "HOSE",  # Most VN stocks are on HOSE
+                "symbols": symbols
+            }
+
+            data = self._make_request(query, variables)
+
+            if "errors" in data:
+                return {"error": str(data["errors"][0]["message"])}
+
+            all_data = {}
+            if "data" in data and "stockRealtimes" in data["data"]:
+                for stock in data["data"]["stockRealtimes"]:
+                    symbol = stock["symbol"]
+                    price = float(stock.get('matchPrice', 0))
+                    change_percent = float(stock.get('priceChangePercent', 0))
+
+                    formatted_data = {
+                        "usd": price,
+                        "usd_24h_change": change_percent,
+                        "name": symbol
+                    }
+                    all_data[symbol] = formatted_data
+
+            return all_data if all_data else {"error": "No stock data available"}
+
+        except Exception as e:
+            logger.error(f"Error fetching multiple stock prices: {str(e)}")
+            return {"error": str(e)}
