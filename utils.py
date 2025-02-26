@@ -20,9 +20,12 @@ def format_price_message(crypto_data: Dict) -> str:
         header_text = "📊 Stock Prices" if is_stocks else "📊 Cryptocurrency Prices"
 
     # Add header with exact column widths matching the data rows
+    # Use "Stock" instead of "Coin" for stock data
+    is_stocks = DEFAULT_STOCKS[0] in crypto_data
+    column_header = "Stock   " if is_stocks else "Coin    "  # Keep exact 7 chars width
     header = (
         f"{header_text}\n\n"
-        "Coin    Price     24h\n"  # Coin is exactly 7 chars
+        f"{column_header}Price     24h\n"
         "──────────"  # Separator line matching content width
     )
     messages = [header]
