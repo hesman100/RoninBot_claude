@@ -62,34 +62,39 @@ class AlphaVantageAPI:
 
         if "Global Quote" in data and data["Global Quote"]:
             quote = data["Global Quote"]
-            if quote:
-                price = float(quote.get('05. price', 0))
-                change_percent = float(quote.get('10. change percent', '0').rstrip('%'))
+            price = float(quote.get('05. price', 0))
+            change_percent = float(quote.get('10. change percent', '0').rstrip('%'))
 
-                formatted_data = {
-                    symbol.upper(): {
-                        "usd": price,
-                        "usd_24h_change": change_percent,
-                        "name": symbol.upper()
-                    }
+            formatted_data = {
+                symbol.upper(): {
+                    "usd": price,
+                    "usd_24h_change": change_percent,
+                    "name": symbol.upper()  # Use symbol as name for stocks
                 }
-                logger.info(f"Formatted stock data: {formatted_data}")
-                return formatted_data
+            }
+            logger.info(f"Formatted stock data: {formatted_data}")
+            return formatted_data
 
         return {"error": f"No data found for {symbol}"}
 
-    def get_stock_prices(self, symbols: List[str] = None) -> Dict:
-        """Get current prices for multiple stocks"""
-        if symbols is None:
-            symbols = DEFAULT_STOCKS
-
-        logger.info(f"Fetching prices for stocks: {symbols}")
+    def get_stock_prices(self) -> Dict:
+        """Get current prices for multiple stocks using default list"""
+        logger.info(f"Fetching prices for default stocks: {DEFAULT_STOCKS}")
 
         all_data = {}
-        for symbol in symbols:
-            data = self.get_stock_price(symbol)
-            if "error" not in data:
-                all_data.update(data)
-            time.sleep(0.2)  # Avoid hitting rate limits
+        error_occurred = False
 
-        return all_data if all_data else {"error": "Failed to fetch stock prices"}
+        for symbol in DEFAULT_STOCKS:
+            try:
+                data = self.get_stock_price(symbol)
+                if "error" not in data:
+                    all_data.update(data)
+                time.sleep(0.2)  # Avoid hitting rate limits
+            except Exception as e:
+                logger.error(f"Error fetching price for {symbol}: {str(e)}")
+                error_occurred = True
+                continue
+
+        if not all_data and error_occurred:
+            return {"error": "Failed to fetch stock prices"}
+        return all_data if all_data else {"error": "No stock data available"}

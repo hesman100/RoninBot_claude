@@ -175,7 +175,7 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # If no arguments, show all default stocks
             logger.info("No stock specified, showing default list")
             price_data = stock_api.get_stock_prices()
-            logger.info(f"Received price data for stocks: {list(price_data.keys()) if isinstance(price_data, dict) else 'error'}")
+            logger.info(f"Received price data: {price_data}")
         else:
             # Get price for the specified stock
             stock_input = context.args[0].upper()
@@ -183,9 +183,9 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             price_data = stock_api.get_stock_price(stock_input)
             logger.info(f"Price data received: {price_data}")
 
-        if not price_data or "error" in price_data:
+        if "error" in price_data:
             error_msg = (
-                f"Could not find stock: {context.args[0] if context.args else 'unknown'}\n\n"
+                f"Could not find stock{': ' + context.args[0] if context.args else 's'}\n\n"
                 f"Try using the stock symbol (e.g., AAPL, TSLA)"
             )
             await context.bot.send_message(
