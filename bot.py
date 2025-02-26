@@ -76,9 +76,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         welcome_message = (
             "🤖 Welcome to the Crypto & Stock Price Bot!\n\n"
             "Group Chat Commands:\n"
-            "/p <crypto> - Get price for any cryptocurrency\n"
-            "              (Example: /p BTC or /p BNB)\n"
-            "/p - Get prices for popular cryptocurrencies\n"
+            "/c <crypto> - Get price for any cryptocurrency\n"
+            "              (Example: /c BTC or /c BNB)\n"
+            "/c - Get prices for popular cryptocurrencies\n"
             "/s <stock> - Get price for any stock\n"
             "              (Example: /s AAPL or /s TSLA)\n"
             "/s - Get prices for popular stocks\n"
@@ -89,16 +89,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         welcome_message = (
             "🤖 Welcome to the Crypto & Stock Price Bot!\n\n"
             "Available commands:\n"
-            "/p <crypto> - Get price for any cryptocurrency\n"
-            "              (Example: /p BTC, /p BNB)\n"
-            "/p - Get prices for popular cryptocurrencies\n"
+            "/c <crypto> - Get price for any cryptocurrency\n"
+            "              (Example: /c BTC, /c BNB)\n"
+            "/c - Get prices for popular cryptocurrencies\n"
             "/s <stock> - Get price for any stock\n"
             "              (Example: /s AAPL, /s TSLA)\n"
             "/s - Get prices for popular stocks\n"
             "/help - Show this help message\n\n"
             "💡 To use in groups:\n"
             "1. Add me to your group\n"
-            "2. Use commands like /p BTC or /s AAPL\n\n"
+            "2. Use commands like /c BTC or /s AAPL\n\n"
             "💡 For channels:\n"
             "1. Add me as a channel admin\n"
             "2. Set up price updates using /setchannel"
@@ -246,8 +246,8 @@ def main() -> None:
             # Add command handlers
             application.add_handler(CommandHandler("start", start))
             application.add_handler(CommandHandler("help", help_command))
-            application.add_handler(CommandHandler("p", price))
-            application.add_handler(CommandHandler("s", stock))  # Add the stock command handler
+            application.add_handler(CommandHandler("c", price))  # Changed from "p" to "c"
+            application.add_handler(CommandHandler("s", stock))
 
             # Add periodic health check (every 30 minutes)
             application.job_queue.run_repeating(health_check, interval=1800)
