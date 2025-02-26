@@ -13,6 +13,7 @@ from coinmarketcap_api import CoinMarketCapAPI
 from utils import format_price_message, format_error_message
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from alphavantage_api import AlphaVantageAPI
 
 # Configure logging
 logging.basicConfig(
@@ -25,8 +26,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize CoinMarketCap API client
+# Initialize API clients
 crypto_api = CoinMarketCapAPI()
+stock_api = AlphaVantageAPI()
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -71,25 +73,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if is_group:
         welcome_message = (
-            "🤖 Welcome to the Crypto Price Bot!\n\n"
+            "🤖 Welcome to the Crypto & Stock Price Bot!\n\n"
             "Group Chat Commands:\n"
             "/p <crypto> - Get price for any cryptocurrency\n"
             "              (Example: /p BTC or /p BNB)\n"
             "/p - Get prices for popular cryptocurrencies\n"
+            "/s <stock> - Get price for any stock\n"
+            "              (Example: /s AAPL or /s TSLA)\n"
+            "/s - Get prices for popular stocks\n"
             "/help - Show this help message\n\n"
             "💡 Tip: Anyone in the group can use these commands!"
         )
     else:
         welcome_message = (
-            "🤖 Welcome to the Crypto Price Bot!\n\n"
+            "🤖 Welcome to the Crypto & Stock Price Bot!\n\n"
             "Available commands:\n"
             "/p <crypto> - Get price for any cryptocurrency\n"
             "              (Example: /p BTC, /p BNB)\n"
             "/p - Get prices for popular cryptocurrencies\n"
+            "/s <stock> - Get price for any stock\n"
+            "              (Example: /s AAPL, /s TSLA)\n"
+            "/s - Get prices for popular stocks\n"
             "/help - Show this help message\n\n"
             "💡 To use in groups:\n"
             "1. Add me to your group\n"
-            "2. Use commands like /p BTC\n\n"
+            "2. Use commands like /p BTC or /s AAPL\n\n"
             "💡 For channels:\n"
             "1. Add me as a channel admin\n"
             "2. Set up price updates using /setchannel"
@@ -159,6 +167,46 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             text=format_error_message(e)
         )
 
+async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Get price for a specific stock or default list of stocks."""
+    logger.info(f"Received /s command from chat {update.effective_chat.id}")
+    try:
+        if not context.args:
+            # If no arguments, show all default stocks
+            logger.info("No stock specified, showing default list")
+            price_data = stock_api.get_stock_prices()
+            logger.info(f"Received price data for stocks: {list(price_data.keys()) if isinstance(price_data, dict) else 'error'}")
+        else:
+            # Get price for the specified stock
+            stock_input = context.args[0].upper()
+            logger.info(f"Fetching price for {stock_input}")
+            price_data = stock_api.get_stock_price(stock_input)
+            logger.info(f"Price data received: {price_data}")
+
+        if not price_data or "error" in price_data:
+            error_msg = (
+                f"Could not find stock: {context.args[0] if context.args else 'unknown'}\n\n"
+                f"Try using the stock symbol (e.g., AAPL, TSLA)"
+            )
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=error_msg
+            )
+            return
+
+        message = format_price_message(price_data)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message
+        )
+
+    except Exception as e:
+        logger.error(f"Error in stock command: {str(e)}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=format_error_message(e)
+        )
+
 async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Periodic health check to ensure bot is running."""
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -182,6 +230,7 @@ def main() -> None:
             application.add_handler(CommandHandler("start", start))
             application.add_handler(CommandHandler("help", help_command))
             application.add_handler(CommandHandler("p", price))
+            application.add_handler(CommandHandler("s", stock))  # Add the stock command handler
 
             # Add periodic health check (every 30 minutes)
             application.job_queue.run_repeating(health_check, interval=1800)
