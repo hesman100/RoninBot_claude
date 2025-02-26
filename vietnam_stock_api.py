@@ -2,13 +2,13 @@ import requests
 import logging
 import time
 from typing import Dict, List, Optional
-from config import REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
+from config import REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY, DEFAULT_VN_STOCKS
 
 logger = logging.getLogger(__name__)
 
 class VietnamStockAPI:
     def __init__(self):
-        self.base_url = "https://restv2.fireant.vn"
+        self.base_url = "https://iboard.ssi.com.vn/api/v5/stocks"
         self.session = requests.Session()
         self._cache = {}
         self._cache_expiry = {}
@@ -26,21 +26,20 @@ class VietnamStockAPI:
         self._cache[symbol] = data
         self._cache_expiry[symbol] = time.time() + self._cache_duration
 
-    def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
-        """Make a request to FireAnt API with retry logic"""
-        url = f"{self.base_url}/{endpoint}"
-        logger.info(f"Making request to FireAnt API: {url} with params: {params}")
+    def _make_request(self, symbol: str) -> Dict:
+        """Make a request to SSI API with retry logic"""
+        url = f"{self.base_url}/{symbol}"
+        logger.info(f"Making request to SSI API: {url}")
 
         for attempt in range(MAX_RETRIES):
             try:
                 response = self.session.get(
                     url,
-                    params=params,
                     timeout=REQUEST_TIMEOUT
                 )
                 response.raise_for_status()
                 data = response.json()
-                logger.info(f"FireAnt API response: {data}")
+                logger.info(f"SSI API response: {data}")
                 return data
             except requests.exceptions.RequestException as e:
                 logger.error(f"Request failed (attempt {attempt + 1}/{MAX_RETRIES}): {str(e)}")
@@ -62,25 +61,22 @@ class VietnamStockAPI:
 
         try:
             # Get current quote
-            data = self._make_request(f'symbols/{symbol.upper()}/quote')
+            data = self._make_request(symbol.upper())
             logger.info(f"Raw quote data for {symbol}: {data}")
 
             if "error" in data:
                 return data
 
-            if data and isinstance(data, dict):
-                price = data.get('priceClose', 0)
-                prev_close = data.get('priceBasic', price)
-                stock_name = data.get('organName', symbol.upper())
-
-                # Calculate 24h change
-                change_percent = ((price - prev_close) / prev_close) * 100 if prev_close else 0
+            if isinstance(data, dict) and data.get('symbol') == symbol.upper():
+                price = float(data.get('currentPrice', 0))
+                prev_close = float(data.get('priorClosePrice', price))
+                change_percent = ((price - prev_close) / prev_close * 100) if prev_close else 0
 
                 formatted_data = {
                     symbol.upper(): {
                         "usd": price,  # Actually in VND but keeping same structure
                         "usd_24h_change": change_percent,
-                        "name": stock_name
+                        "name": data.get('companyName', symbol.upper())
                     }
                 }
                 logger.info(f"Formatted stock data: {formatted_data}")
