@@ -62,8 +62,8 @@ def format_price_message(crypto_data: Dict) -> str:
         else:
             price_str = f"${price:.4f}"  # 4 decimals for small values
 
-        # Format the change indicators with arrow
-        change_24h_symbol = "📈" if change_24h > 0 else "📉"
+        # Format the change indicators with colored circles
+        change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
         # Fixed width columns with exact alignments
         message = (
@@ -96,8 +96,8 @@ def format_price_message(crypto_data: Dict) -> str:
                 else:
                     price_str = f"${price:.4f}"
 
-                # Format the change indicators with arrow
-                change_24h_symbol = "📈" if change_24h > 0 else "📉"
+                # Format the change indicators with colored circles
+                change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
                 # Fixed width columns with exact alignments
                 message = (
