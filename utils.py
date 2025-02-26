@@ -2,7 +2,6 @@ from typing import Dict
 from config import DEFAULT_CRYPTOCURRENCIES, SYMBOL_TO_DISPLAY, STOCK_TO_DISPLAY, DEFAULT_STOCKS
 import logging
 
-
 def format_price_message(crypto_data: Dict) -> str:
     """Format cryptocurrency or stock price data into a readable message"""
     logger = logging.getLogger(__name__)
@@ -17,7 +16,7 @@ def format_price_message(crypto_data: Dict) -> str:
         header_text = f"📊 {coin_data.get('name', symbol)}"
     else:
         # Check if we're dealing with stocks or crypto
-        is_stocks = all(symbol in STOCK_TO_DISPLAY for symbol in crypto_data.keys())
+        is_stocks = DEFAULT_STOCKS[0] in crypto_data  # Check if first stock is in the data
         header_text = "📊 Stock Prices" if is_stocks else "📊 Cryptocurrency Prices"
 
     # Add header with exact column widths matching the data rows
@@ -68,7 +67,7 @@ def format_price_message(crypto_data: Dict) -> str:
         messages.append(message)
     else:
         # Get appropriate list and display mapping based on data type
-        is_stocks = all(symbol in STOCK_TO_DISPLAY for symbol in crypto_data.keys())
+        is_stocks = DEFAULT_STOCKS[0] in crypto_data  # Check if first stock is in the data
         default_list = DEFAULT_STOCKS if is_stocks else DEFAULT_CRYPTOCURRENCIES
         display_map = STOCK_TO_DISPLAY if is_stocks else SYMBOL_TO_DISPLAY
 
@@ -103,8 +102,7 @@ def format_price_message(crypto_data: Dict) -> str:
                 messages.append(message)
 
     final_message = "\n".join(messages)
-    logger.debug(f"Final formatted message:\n{final_message}"
-                 )  # Debug logging for final output
+    logger.debug(f"Final formatted message:\n{final_message}")  # Debug logging for final output
     return final_message
 
 
