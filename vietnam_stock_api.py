@@ -24,32 +24,6 @@ class VietnamStockAPI:
         self._cache[symbol] = data
         self._cache_expiry[symbol] = time.time() + self._cache_duration
 
-    def _find_vietnam_symbol(self, symbol: str) -> str:
-        """Try different symbol formats for Vietnam stocks"""
-        symbol = symbol.upper().strip()
-
-        # Try different exchange suffixes
-        suffixes = ['.HO', '.VN']  # .HO for HOSE stocks, .VN as fallback
-
-        for suffix in suffixes:
-            test_symbol = f"{symbol}{suffix}"
-            logger.info(f"Trying symbol format: {test_symbol}")
-
-            try:
-                ticker = yf.Ticker(test_symbol)
-                info = ticker.info
-
-                # Verify we got valid data
-                if info and info.get('regularMarketPrice'):
-                    logger.info(f"Found working symbol: {test_symbol}")
-                    return test_symbol
-            except Exception as e:
-                logger.debug(f"Symbol {test_symbol} not found: {str(e)}")
-                continue
-
-        # If no suffix worked, return the first format as default
-        return f"{symbol}.HO"
-
     def get_stock_price(self, symbol: str) -> Dict:
         """Get current price for a single Vietnam stock"""
         logger.info(f"Fetching price for Vietnam stock: {symbol}")
@@ -61,36 +35,37 @@ class VietnamStockAPI:
             return cached_data
 
         try:
-            # Find correct symbol format
-            yahoo_symbol = self._find_vietnam_symbol(symbol)
+            # Format symbol for Yahoo Finance
+            yahoo_symbol = f"{symbol.upper().strip()}.VN"
             logger.info(f"Using Yahoo Finance symbol: {yahoo_symbol}")
 
-            ticker = yf.Ticker(yahoo_symbol)
-            info = ticker.info
+            # Use yfinance download function to get latest data
+            data = yf.download(
+                yahoo_symbol,
+                period="2d",  # Get 2 days of data to calculate change
+                interval="1d",
+                progress=False
+            )
 
-            if not info or 'regularMarketPrice' not in info:
-                logger.error(f"No market data available for {symbol}")
-                return {"error": f"No data found for {symbol}. Please verify the stock symbol."}
+            if data.empty:
+                logger.error(f"No market data available for {yahoo_symbol}")
+                return {"error": f"No data found for {symbol}. Make sure it's a valid Vietnam stock symbol."}
 
             try:
-                # Extract price information
-                price = float(info.get('regularMarketPrice', 0))
-                prev_close = float(info.get('regularMarketPreviousClose', info.get('previousClose', price)))
+                # Get the latest price from today's data
+                latest_row = data.iloc[-1]
+                prev_row = data.iloc[-2] if len(data) > 1 else latest_row
+
+                price = float(latest_row['Close'].iloc[0])
+                prev_close = float(prev_row['Close'].iloc[0])
                 change_percent = ((price - prev_close) / prev_close * 100) if prev_close else 0
 
-                # Get company name from multiple possible fields
-                company_name = (
-                    info.get('longName') or 
-                    info.get('shortName') or 
-                    info.get('displayName') or 
-                    symbol.upper()
-                )
-
+                # Format the response
                 formatted_data = {
                     symbol.upper(): {
                         "usd": price,  # Actually in VND but keeping same structure
                         "usd_24h_change": change_percent,
-                        "name": company_name
+                        "name": symbol.upper()  # Use symbol as name since we can't reliably get company name
                     }
                 }
                 logger.info(f"Formatted stock data: {formatted_data}")
@@ -99,7 +74,7 @@ class VietnamStockAPI:
                 self._cache_data(symbol, formatted_data)
                 return formatted_data
 
-            except (ValueError, TypeError, KeyError) as e:
+            except (ValueError, TypeError, KeyError, IndexError) as e:
                 logger.error(f"Error parsing price data for {symbol}: {str(e)}")
                 return {"error": f"Invalid data format for {symbol}"}
 
