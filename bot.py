@@ -8,7 +8,7 @@ from config import (
     TELEGRAM_CHANNEL_ID,
     DEFAULT_CRYPTOCURRENCIES,
     DEFAULT_STOCKS,
-    DEFAULT_VN_STOCKS,  # Add this import
+    DEFAULT_VN_STOCKS,
     SYMBOL_TO_DISPLAY
 )
 from coinmarketcap_api import CoinMarketCapAPI
@@ -37,30 +37,29 @@ finnhub_api = FinnhubAPI()  # Finnhub as backup API
 vietnam_stock_api = VietnamStockAPI() # Add after other API client initializations
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
+    def _send_response(self, status_code, message):
+        self.send_response(status_code)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(message.encode())
+
     def do_GET(self):
         try:
             if self.path == '/health':
                 if hasattr(self.server, 'bot_running') and self.server.bot_running:
-                    self.send_response(200)
-                    self.send_header('Content-type', 'text/plain')
-                    self.end_headers()
-                    self.wfile.write(b"Bot is running")
+                    self._send_response(200, "Bot is running")
                     logger.info("Health check succeeded")
                 else:
-                    self.send_response(503)
-                    self.send_header('Content-type', 'text/plain')
-                    self.end_headers()
-                    self.wfile.write(b"Bot is starting")
+                    self._send_response(503, "Bot is starting")
                     logger.warning("Health check failed - bot not ready")
             else:
-                self.send_response(404)
-                self.end_headers()
+                self._send_response(404, "Not found")
         except Exception as e:
             logger.error(f"Health check error: {str(e)}")
-            self.send_response(500)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b"Internal server error")
+            self._send_response(500, "Internal server error")
+
+    def do_HEAD(self):
+        self.do_GET()
 
 def run_http_server():
     """Run HTTP server for health checks"""
@@ -89,7 +88,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/vn <stock> - Get Vietnam stock price\n"
             "              (Example: /vn VNM or /vn HPG)\n"
             "/vn - Get prices for popular Vietnam stocks\n"
-            "/help - Show this help message\n\n"
+            "/help or /h - Show this help message\n\n"
             "💡 Tip: Anyone in the group can use these commands!"
         )
     else:
@@ -105,7 +104,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/vn <stock> - Get Vietnam stock price\n"
             "              (Example: /vn VNM or /vn HPG)\n"
             "/vn - Get prices for popular Vietnam stocks\n"
-            "/help - Show this help message\n\n"
+            "/help or /h - Show this help message\n\n"
             "💡 To use in groups:\n"
             "1. Add me to your group\n"
             "2. Use commands like /c BTC or /s AAPL\n\n"
@@ -296,23 +295,22 @@ def main() -> None:
             # Add command handlers
             application.add_handler(CommandHandler("start", start))
             application.add_handler(CommandHandler("help", help_command))
-            application.add_handler(CommandHandler("h", help_command))  # Added /h as alias for /help
-            application.add_handler(CommandHandler("c", price))  # Changed from "p" to "c"
+            application.add_handler(CommandHandler("h", help_command))
+            application.add_handler(CommandHandler("c", price))
             application.add_handler(CommandHandler("s", stock))
-            application.add_handler(CommandHandler("vn", vietnam_stock)) # Add in the main() function where other command handlers are added
+            application.add_handler(CommandHandler("vn", vietnam_stock))
 
             # Add periodic health check (every 30 minutes)
             application.job_queue.run_repeating(health_check, interval=1800)
 
-            # Start the Bot
+            # Start the Bot with error recovery
             logger.info("Bot is now running...")
-            application.run_polling(allowed_updates=Update.ALL_TYPES)
+            application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
         except Exception as e:
             logger.error(f"Bot crashed with error: {str(e)}")
             logger.info("Attempting to restart in 60 seconds...")
-            import time
-            time.sleep(60)  # Wait 60 seconds before restarting
+            time.sleep(60)  # Wait before restarting
 
 if __name__ == '__main__':
     main()
