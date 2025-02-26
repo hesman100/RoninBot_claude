@@ -183,11 +183,18 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             price_data = stock_api.get_stock_price(stock_input)
             logger.info(f"Price data received: {price_data}")
 
-        if "error" in price_data:
-            error_msg = (
-                f"Could not find stock{': ' + context.args[0] if context.args else 's'}\n\n"
-                f"Try using the stock symbol (e.g., AAPL, TSLA)"
-            )
+        if isinstance(price_data, dict) and "error" in price_data:
+            error_msg = price_data["error"]
+            if "rate limit" in error_msg.lower():
+                error_msg = (
+                    "⚠️ API rate limit reached\n"
+                    "Please try again in a few minutes."
+                )
+            else:
+                error_msg = (
+                    f"Could not find stock{': ' + context.args[0] if context.args else ''}\n\n"
+                    f"Try using the stock symbol (e.g., AAPL, TSLA)"
+                )
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=error_msg
