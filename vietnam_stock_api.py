@@ -90,44 +90,14 @@ class VietnamStockAPI:
             # Update cache for this symbol and related ones
             self._update_batch_cache([symbol] + DEFAULT_VN_STOCKS[:5])  # Update requested symbol and some default ones
 
-            # Check cache again after update
+            # Check cache again after batch update
             cached_data = self._get_cached_data(symbol)
             if cached_data:
                 return cached_data
 
-            # If still no data, try individual request
-            yahoo_symbol = f"{symbol.upper().strip()}.VN"
-            logger.info(f"Individual request for symbol: {yahoo_symbol}")
-
-            data = yf.download(
-                yahoo_symbol,
-                period="2d",
-                interval="1d",
-                progress=False
-            )
-
-            if data.empty:
-                logger.error(f"No market data available for {yahoo_symbol}")
-                return {"error": f"No data found for {symbol}. Make sure it's a valid Vietnam stock symbol."}
-
-            latest_row = data.iloc[-1]
-            prev_row = data.iloc[-2] if len(data) > 1 else latest_row
-
-            price = float(latest_row['Close'])
-            prev_close = float(prev_row['Close'])
-            change_percent = ((price - prev_close) / prev_close * 100) if prev_close else 0
-
-            formatted_data = {
-                symbol.upper(): {
-                    "usd": price,
-                    "usd_24h_change": change_percent,
-                    "name": VN_STOCK_COMPANY_NAMES.get(symbol.upper(), symbol.upper())
-                }
-            }
-
-            # Cache the successful response
-            self._cache_data(symbol, formatted_data)
-            return formatted_data
+            # If still no data available after batch update, return error
+            logger.error(f"No data available for {symbol} after batch update")
+            return {"error": f"No data found for {symbol}. Make sure it's a valid Vietnam stock symbol."}
 
         except Exception as e:
             logger.error(f"Error fetching stock price for {symbol}: {str(e)}")
