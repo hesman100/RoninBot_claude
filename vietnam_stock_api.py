@@ -8,8 +8,13 @@ logger = logging.getLogger(__name__)
 
 class VietnamStockAPI:
     def __init__(self):
-        self.base_url = "https://iboard.ssi.com.vn/api/v5/stocks"
+        self.base_url = "https://wgateway-iboard.ssi.com.vn/v5/stocks"
         self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0',
+            'Referer': 'https://iboard.ssi.com.vn/',
+            'Origin': 'https://iboard.ssi.com.vn'
+        })
         self._cache = {}
         self._cache_expiry = {}
         self._cache_duration = 300  # Cache for 5 minutes
@@ -28,7 +33,7 @@ class VietnamStockAPI:
 
     def _make_request(self, symbol: str) -> Dict:
         """Make a request to SSI API with retry logic"""
-        url = f"{self.base_url}/{symbol}"
+        url = f"{self.base_url}/quote/{symbol}"
         logger.info(f"Making request to SSI API: {url}")
 
         for attempt in range(MAX_RETRIES):
@@ -67,16 +72,16 @@ class VietnamStockAPI:
             if "error" in data:
                 return data
 
-            if isinstance(data, dict) and data.get('symbol') == symbol.upper():
-                price = float(data.get('currentPrice', 0))
-                prev_close = float(data.get('priorClosePrice', price))
+            if isinstance(data, dict):
+                price = float(data.get('lastPrice', 0))
+                prev_close = float(data.get('priorPrice', price))
                 change_percent = ((price - prev_close) / prev_close * 100) if prev_close else 0
 
                 formatted_data = {
                     symbol.upper(): {
                         "usd": price,  # Actually in VND but keeping same structure
                         "usd_24h_change": change_percent,
-                        "name": data.get('companyName', symbol.upper())
+                        "name": data.get('stockSymbol', symbol.upper())
                     }
                 }
                 logger.info(f"Formatted stock data: {formatted_data}")
@@ -91,8 +96,11 @@ class VietnamStockAPI:
             logger.error(f"Error fetching stock price: {str(e)}")
             return {"error": str(e)}
 
-    def get_stock_prices(self, symbols: List[str]) -> Dict:
+    def get_stock_prices(self, symbols: List[str] = None) -> Dict:
         """Get current prices for multiple Vietnam stocks"""
+        if symbols is None:
+            symbols = DEFAULT_VN_STOCKS
+
         logger.info(f"Fetching prices for Vietnam stocks: {symbols}")
 
         all_data = {}
