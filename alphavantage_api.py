@@ -56,10 +56,14 @@ class AlphaVantageAPI:
             'apikey': self.api_key
         }
 
-        data = self._make_request(params)
-        if isinstance(data, dict) and "Name" in data:
-            self._company_names_cache[symbol] = data["Name"]
-            return data["Name"]
+        try:
+            data = self._make_request(params)
+            if isinstance(data, dict) and "Name" in data:
+                self._company_names_cache[symbol] = data["Name"]
+                return data["Name"]
+        except Exception as e:
+            logger.error(f"Error fetching company name: {str(e)}")
+
         return symbol.upper()  # Return symbol if name not found
 
     def get_stock_price(self, symbol: str) -> Dict:
@@ -85,7 +89,7 @@ class AlphaVantageAPI:
                     price = float(quote.get('05. price', 0))
                     change_percent = float(quote.get('10. change percent', '0').rstrip('%'))
 
-                    # Get company name
+                    # Get company name - non-blocking
                     company_name = self.get_company_name(symbol)
 
                     formatted_data = {
@@ -101,6 +105,9 @@ class AlphaVantageAPI:
                     logger.error(f"Error parsing quote data: {str(e)}")
                     return {"error": f"Invalid data format for {symbol}"}
 
+        # Only return error if no valid data was found
+        if "Information" in data:  # Check for rate limit message
+            return {"error": "Rate limit exceeded. Please try again later."}
         return {"error": f"No data found for {symbol}"}
 
     def get_stock_prices(self, symbols: Optional[List[str]] = None) -> Dict:
@@ -113,9 +120,9 @@ class AlphaVantageAPI:
         all_data = {}
         for symbol in symbols:
             data = self.get_stock_price(symbol)
-            if not isinstance(data, dict) or "error" not in data:
+            if isinstance(data, dict) and symbol.upper() in data:
                 all_data.update(data)
             time.sleep(0.2)  # Avoid hitting rate limits
 
-        # Only return error if no data was fetched at all
+        # Return what we have even if some failed
         return all_data if all_data else {"error": "Failed to fetch stock prices"}
