@@ -11,6 +11,8 @@ from config import (
 )
 from coinmarketcap_api import CoinMarketCapAPI
 from utils import format_price_message, format_error_message
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # Configure logging
 logging.basicConfig(
@@ -25,6 +27,23 @@ logger = logging.getLogger(__name__)
 
 # Initialize CoinMarketCap API client
 crypto_api = CoinMarketCapAPI()
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b"Bot is running")
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+def run_http_server():
+    """Run HTTP server for health checks"""
+    server = HTTPServer(('0.0.0.0', 5000), HealthCheckHandler)
+    logger.info("Starting HTTP server on port 5000")
+    server.serve_forever()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
@@ -130,6 +149,11 @@ async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def main() -> None:
     """Start the bot with error handling and health checks."""
+    # Start HTTP server in a separate thread
+    http_thread = threading.Thread(target=run_http_server, daemon=True)
+    http_thread.start()
+    logger.info("HTTP server thread started")
+
     while True:
         try:
             logger.info("Starting the bot...")
