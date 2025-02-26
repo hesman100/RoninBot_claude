@@ -14,7 +14,7 @@ from utils import format_price_message, format_error_message
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from alphavantage_api import AlphaVantageAPI
-from yahoo_finance_api import YahooFinanceAPI
+from finnhub_api import FinnhubAPI  # Only keep Finnhub as backup
 
 # Configure logging
 logging.basicConfig(
@@ -30,13 +30,12 @@ logger = logging.getLogger(__name__)
 # Initialize API clients
 crypto_api = CoinMarketCapAPI()
 stock_api = AlphaVantageAPI()
-yahoo_api = YahooFinanceAPI()  # Add Yahoo Finance API client
+finnhub_api = FinnhubAPI()  # Finnhub as backup API
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             if self.path == '/health':
-                # Check if the bot is actually running by verifying the Telegram connection
                 if hasattr(self.server, 'bot_running') and self.server.bot_running:
                     self.send_response(200)
                     self.send_header('Content-type', 'text/plain')
@@ -178,10 +177,10 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             logger.info("No stock specified, showing default list")
             price_data = stock_api.get_stock_prices()
 
-            # If AlphaVantage fails or hits rate limit, try Yahoo Finance
+            # If AlphaVantage fails or hits rate limit, try Finnhub
             if isinstance(price_data, dict) and "error" in price_data and "rate limit" in price_data["error"].lower():
-                logger.info("AlphaVantage rate limited, falling back to Yahoo Finance")
-                price_data = yahoo_api.get_stock_prices()
+                logger.info("AlphaVantage rate limited, falling back to Finnhub")
+                price_data = finnhub_api.get_stock_prices()
 
             logger.info(f"Received price data: {price_data}")
         else:
@@ -190,20 +189,17 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             logger.info(f"Fetching price for {stock_input}")
             price_data = stock_api.get_stock_price(stock_input)
 
-            # If AlphaVantage fails or hits rate limit, try Yahoo Finance
+            # If AlphaVantage fails or hits rate limit, try Finnhub
             if isinstance(price_data, dict) and "error" in price_data and "rate limit" in price_data["error"].lower():
-                logger.info("AlphaVantage rate limited, falling back to Yahoo Finance")
-                price_data = yahoo_api.get_stock_price(stock_input)
+                logger.info("AlphaVantage rate limited, falling back to Finnhub")
+                price_data = finnhub_api.get_stock_price(stock_input)
 
             logger.info(f"Price data received: {price_data}")
 
         if isinstance(price_data, dict) and "error" in price_data:
             error_msg = price_data["error"]
             if "rate limit" in error_msg.lower():
-                error_msg = (
-                    "⚠️ API rate limit reached\n"
-                    "Please try again in a few minutes."
-                )
+                error_msg = "⚠️ API rate limit reached\nPlease try again in a few minutes."
             else:
                 error_msg = (
                     f"Could not find stock{': ' + context.args[0] if context.args else ''}\n\n"
