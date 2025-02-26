@@ -142,7 +142,6 @@ def format_price_message(crypto_data: Dict) -> str:
     logger.debug(f"Final formatted message:\n{final_message}")  # Debug logging for final output
     return final_message
 
-
 def format_error_message(error: Exception) -> str:
     """Format error message for user display"""
     return f"❌ Error: {str(error)}\nPlease try again later."
