@@ -38,9 +38,8 @@ class AlphaVantageAPI:
             except requests.exceptions.RequestException as e:
                 logger.error(f"Request failed (attempt {attempt + 1}/{MAX_RETRIES}): {str(e)}")
                 if attempt == MAX_RETRIES - 1:
-                    if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
-                        if e.response.status_code == 429:
-                            return {"error": "Rate limit exceeded. Please try again later."}
+                    if hasattr(e, 'response') and hasattr(e.response, 'status_code') and e.response.status_code == 429:
+                        return {"error": "Rate limit exceeded. Please try again later."}
                     return {"error": str(e)}
                 time.sleep(RETRY_DELAY * (attempt + 1))
 
@@ -58,7 +57,7 @@ class AlphaVantageAPI:
         }
 
         data = self._make_request(params)
-        if "Name" in data:
+        if isinstance(data, dict) and "Name" in data:
             self._company_names_cache[symbol] = data["Name"]
             return data["Name"]
         return symbol.upper()  # Return symbol if name not found
@@ -74,32 +73,37 @@ class AlphaVantageAPI:
         }
 
         data = self._make_request(params)
+        logger.info(f"Raw API response: {data}")  # Log raw response for debugging
 
         if "error" in data:
             return data
 
-        if "Global Quote" in data:
+        if "Global Quote" in data and data["Global Quote"]:
             quote = data["Global Quote"]
-            if quote:
-                price = float(quote.get('05. price', 0))
-                change_percent = float(quote.get('10. change percent', '0').rstrip('%'))
+            if quote:  # Check if quote has data
+                try:
+                    price = float(quote.get('05. price', 0))
+                    change_percent = float(quote.get('10. change percent', '0').rstrip('%'))
 
-                # Get company name
-                company_name = self.get_company_name(symbol)
+                    # Get company name
+                    company_name = self.get_company_name(symbol)
 
-                formatted_data = {
-                    symbol.upper(): {
-                        "usd": price,
-                        "usd_24h_change": change_percent,
-                        "name": company_name
+                    formatted_data = {
+                        symbol.upper(): {
+                            "usd": price,
+                            "usd_24h_change": change_percent,
+                            "name": company_name
+                        }
                     }
-                }
-                logger.info(f"Formatted stock data: {formatted_data}")
-                return formatted_data
+                    logger.info(f"Formatted stock data: {formatted_data}")
+                    return formatted_data
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Error parsing quote data: {str(e)}")
+                    return {"error": f"Invalid data format for {symbol}"}
 
         return {"error": f"No data found for {symbol}"}
 
-    def get_stock_prices(self, symbols: List[str] = None) -> Dict:
+    def get_stock_prices(self, symbols: Optional[List[str]] = None) -> Dict:
         """Get current prices for multiple stocks"""
         if symbols is None:
             symbols = DEFAULT_STOCKS
@@ -109,8 +113,9 @@ class AlphaVantageAPI:
         all_data = {}
         for symbol in symbols:
             data = self.get_stock_price(symbol)
-            if "error" not in data:
+            if not isinstance(data, dict) or "error" not in data:
                 all_data.update(data)
             time.sleep(0.2)  # Avoid hitting rate limits
 
+        # Only return error if no data was fetched at all
         return all_data if all_data else {"error": "Failed to fetch stock prices"}
