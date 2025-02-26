@@ -1,10 +1,10 @@
 from typing import Dict
-from config import (
-    DEFAULT_CRYPTOCURRENCIES, DEFAULT_STOCKS, DEFAULT_VN_STOCKS,
-    SYMBOL_TO_DISPLAY, STOCK_TO_DISPLAY, VN_STOCK_TO_DISPLAY,
-    STOCK_COMPANY_NAMES, VN_STOCK_COMPANY_NAMES
-)
+from config import (DEFAULT_CRYPTOCURRENCIES, DEFAULT_STOCKS,
+                    DEFAULT_VN_STOCKS, SYMBOL_TO_DISPLAY, STOCK_TO_DISPLAY,
+                    VN_STOCK_TO_DISPLAY, STOCK_COMPANY_NAMES,
+                    VN_STOCK_COMPANY_NAMES)
 import logging
+
 
 def format_price_message(crypto_data: Dict) -> str:
     """Format cryptocurrency or stock price data into a readable message"""
@@ -12,14 +12,21 @@ def format_price_message(crypto_data: Dict) -> str:
     logger.info(f"Formatting prices for data: {list(crypto_data.keys())}")
 
     # Check if we're dealing with stocks, vietnam stocks, or crypto
-    is_vn_stock = any(symbol in DEFAULT_VN_STOCKS for symbol in crypto_data.keys()) or any(symbol in VN_STOCK_COMPANY_NAMES for symbol in crypto_data.keys())
-    is_stocks = any(symbol in DEFAULT_STOCKS for symbol in crypto_data.keys()) if not is_vn_stock else False
+    is_vn_stock = any(symbol in DEFAULT_VN_STOCKS
+                      for symbol in crypto_data.keys()) or any(
+                          symbol in VN_STOCK_COMPANY_NAMES
+                          for symbol in crypto_data.keys())
+    is_stocks = any(
+        symbol in DEFAULT_STOCKS
+        for symbol in crypto_data.keys()) if not is_vn_stock else False
 
     # Customize column header based on type
     if is_vn_stock:
-        column_header = "Stock   $vnd     24h\n"  # Changed from "Price" to "$vnd"
+        column_header = "Stock    $vnd       24h\n"  # Changed from "Price" to "$vnd"
+    elif is_stocks:
+        column_header = "Stock    $usd       24h\n"  # Changed from "Price" to "$usd"
     else:
-        column_header = "Coin    Price     24h\n"  # Keep original for non-VN stocks
+        column_header = "Coin     $usd       24h\n"  # Keep original for non-VN stocks
 
     # Get header text based on number of coins/stocks and type
     if len(crypto_data) == 1:
@@ -45,7 +52,7 @@ def format_price_message(crypto_data: Dict) -> str:
     header = (
         f"{header_text}\n\n"
         f"{column_header}"
-        "──────────"  # Separator line matching content width
+        "──────────────"  # Separator line matching content width
     )
     messages = [header]
 
@@ -85,11 +92,14 @@ def format_price_message(crypto_data: Dict) -> str:
         # Format the change indicators with colored circles
         change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
+        # Format the change percentage with proper spacing for negative values
+        change_str = f"{change_24h:>6.1f}%" if change_24h >= 0 else f"{change_24h:>5.1f}%"
+
         # Fixed width columns with exact alignments
         message = (
-            f"{display_name}"  # Name: exactly 7 chars, left-aligned
-            f"{price_str:<9}"  # Price: exactly 9 chars, left-aligned
-            f"{change_24h:>6.1f}%{change_24h_symbol}"  # 24h: percentage right-aligned (>6)
+            f"{display_name:<8}"  # Name: exactly 8 chars, left-aligned (was 7)
+            f"{price_str:>9}"    # Price: exactly 9 chars, right-aligned
+            f"{change_str:>8}{change_24h_symbol}"  # Change: 8 chars, right-aligned + emoji
         )
         messages.append(message)
     else:
@@ -108,7 +118,7 @@ def format_price_message(crypto_data: Dict) -> str:
         for symbol in default_list:
             if symbol in crypto_data:
                 data = crypto_data[symbol]
-                display_name = display_map.get(symbol, f"{symbol:<7}")
+                display_name = display_map.get(symbol, f"{symbol:<8}")  # Changed from 7 to 8 chars
 
                 price = data.get('usd', 0)
                 change_24h = data.get('usd_24h_change', 0)
@@ -130,17 +140,22 @@ def format_price_message(crypto_data: Dict) -> str:
                 # Format the change indicators with colored circles
                 change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
+                # Format the change percentage with proper spacing for negative values
+                change_str = f"{change_24h:>6.1f}%" if change_24h >= 0 else f"{change_24h:>5.1f}%"
+
                 # Fixed width columns with exact alignments
                 message = (
-                    f"{display_name}"  # Name: exactly 7 chars, left-aligned
-                    f"{price_str:<9}"  # Price: exactly 9 chars, left-aligned
-                    f"{change_24h:>6.1f}%{change_24h_symbol}"  # 24h: percentage right-aligned (>6)
+                    f"{display_name:<8}"  # Name: exactly 8 chars, left-aligned
+                    f"{price_str:>9}"     # Price: exactly 9 chars, right-aligned
+                    f"{change_str:>8}{change_24h_symbol}"  # Change: 8 chars, right-aligned + emoji
                 )
                 messages.append(message)
 
     final_message = "\n".join(messages)
-    logger.debug(f"Final formatted message:\n{final_message}")  # Debug logging for final output
+    logger.debug(f"Final formatted message:\n{final_message}"
+                 )  # Debug logging for final output
     return final_message
+
 
 def format_error_message(error: Exception) -> str:
     """Format error message for user display"""
