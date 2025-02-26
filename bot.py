@@ -42,6 +42,19 @@ except Exception as e:
     logger.error(f"Failed to initialize API clients: {str(e)}")
     raise
 
+# Fixed import issues for telegram and telegram.ext
+try:
+    from telegram import Update
+    from telegram.ext import Application, CommandHandler, ContextTypes
+except ImportError:
+    # Add error handling for missing telegram package
+    print("Error: python-telegram-bot package not found. Installing...")
+    import subprocess
+    subprocess.check_call(["pip", "install", "python-telegram-bot"])
+    from telegram import Update
+    from telegram.ext import Application, CommandHandler, ContextTypes
+
+# Fix HTTPServer bot_running attribute
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def _send_response(self, status_code, message):
         self.send_response(status_code)
@@ -55,7 +68,9 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
                 self._send_response(200, "Telegram Bot Service")
                 logger.info("Root path accessed")
             elif self.path == '/health':
-                if hasattr(self.server, 'bot_running') and self.server.bot_running:
+                # Check if server has bot_running attribute
+                bot_running = getattr(self.server, 'bot_running', False)
+                if bot_running:
                     self._send_response(200, "Bot is running")
                     logger.info("Health check succeeded")
                 else:

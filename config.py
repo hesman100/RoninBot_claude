@@ -32,7 +32,7 @@ DEFAULT_STOCKS = [
     "AMZN",  # Amazon
     "CDNS",  # Cadence
     "MSFT",  # Microsoft
-    "GOOGL", # Google
+    "GOOGL",  # Google
     "META",  # Meta
     "INTC",  # Intel
     "QCOM",  # Qualcomm
@@ -86,6 +86,7 @@ STOCK_COMPANY_NAMES = {
 # Default Vietnam stocks to track
 DEFAULT_VN_STOCKS = [
     "VCB",  # Vietcombank
+    "MWG",  # Mobile World JSC
     "VIC",  # Vingroup
     "HPG",  # Hoa Phat Group
     "FPT",  # FPT Corporation
@@ -94,13 +95,13 @@ DEFAULT_VN_STOCKS = [
     "VHM",  # Vinhomes
     "PLX",  # Petrolimex
     "GAS",  # PetroVietnam Gas
-    "PNJ",  # Phu Nhuan Jewelry
-    "MWG" #Mobile World
+    "PNJ"  # Phu Nhuan Jewelry
 ]
 
 # Mapping of Vietnam stock symbols to display names (for formatting)
 VN_STOCK_TO_DISPLAY = {
     'VCB': 'VCB    ',  # Exactly 7 chars
+    'MWG': 'MWG    ',  # Exactly 7 chars'
     'VIC': 'VIC    ',  # Exactly 7 chars
     'HPG': 'HPG    ',  # Exactly 7 chars
     'FPT': 'FPT    ',  # Exactly 7 chars
@@ -110,12 +111,12 @@ VN_STOCK_TO_DISPLAY = {
     'PLX': 'PLX    ',  # Exactly 7 chars
     'GAS': 'GAS    ',  # Exactly 7 chars
     'PNJ': 'PNJ    ',  # Exactly 7 chars
-    'MWG': 'MWG    ' # Exactly 7 chars
 }
 
 # Mapping of Vietnam stock symbols to full company names
 VN_STOCK_COMPANY_NAMES = {
     'VCB': 'Vietcombank',
+    'MWG': 'Mobile World JSC',
     'VIC': 'Vingroup JSC',
     'HPG': 'Hoa Phat Group JSC',
     'FPT': 'FPT Corporation',
@@ -125,7 +126,6 @@ VN_STOCK_COMPANY_NAMES = {
     'PLX': 'Petrolimex',
     'GAS': 'PetroVietnam Gas JSC',
     'PNJ': 'Phu Nhuan Jewelry JSC',
-    'MWG': 'Mobile World JSC',  # Adding MWG
 }
 
 # API request parameters
