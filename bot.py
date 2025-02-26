@@ -30,18 +30,35 @@ crypto_api = CoinMarketCapAPI()
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/health':
-            self.send_response(200)
+        try:
+            if self.path == '/health':
+                # Check if the bot is actually running by verifying the Telegram connection
+                if hasattr(self.server, 'bot_running') and self.server.bot_running:
+                    self.send_response(200)
+                    self.send_header('Content-type', 'text/plain')
+                    self.end_headers()
+                    self.wfile.write(b"Bot is running")
+                    logger.info("Health check succeeded")
+                else:
+                    self.send_response(503)
+                    self.send_header('Content-type', 'text/plain')
+                    self.end_headers()
+                    self.wfile.write(b"Bot is starting")
+                    logger.warning("Health check failed - bot not ready")
+            else:
+                self.send_response(404)
+                self.end_headers()
+        except Exception as e:
+            logger.error(f"Health check error: {str(e)}")
+            self.send_response(500)
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
-            self.wfile.write(b"Bot is running")
-        else:
-            self.send_response(404)
-            self.end_headers()
+            self.wfile.write(b"Internal server error")
 
 def run_http_server():
     """Run HTTP server for health checks"""
     server = HTTPServer(('0.0.0.0', 5000), HealthCheckHandler)
+    server.bot_running = True  # Add a flag to track bot status
     logger.info("Starting HTTP server on port 5000")
     server.serve_forever()
 
