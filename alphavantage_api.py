@@ -60,12 +60,12 @@ class AlphaVantageAPI:
         if "error" in data:
             return data
 
-        if "Global Quote" in data:
+        if "Global Quote" in data and data["Global Quote"]:
             quote = data["Global Quote"]
             if quote:
                 price = float(quote.get('05. price', 0))
                 change_percent = float(quote.get('10. change percent', '0').rstrip('%'))
-                
+
                 formatted_data = {
                     symbol.upper(): {
                         "usd": price,
