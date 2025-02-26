@@ -1,5 +1,6 @@
 import logging
 import sys
+import os
 from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -18,6 +19,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from alphavantage_api import AlphaVantageAPI
 from finnhub_api import FinnhubAPI
 from vietnam_stock_api import VietnamStockAPI
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -30,11 +32,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize API clients
-crypto_api = CoinMarketCapAPI()
-stock_api = AlphaVantageAPI()
-finnhub_api = FinnhubAPI()  # Finnhub as backup API
-vietnam_stock_api = VietnamStockAPI() # Add after other API client initializations
+# Initialize API clients with proper error handling
+try:
+    crypto_api = CoinMarketCapAPI()
+    stock_api = AlphaVantageAPI()
+    finnhub_api = FinnhubAPI()
+    vietnam_stock_api = VietnamStockAPI()
+except Exception as e:
+    logger.error(f"Failed to initialize API clients: {str(e)}")
+    raise
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def _send_response(self, status_code, message):
@@ -45,7 +51,10 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            if self.path == '/health':
+            if self.path == '/':
+                self._send_response(200, "Telegram Bot Service")
+                logger.info("Root path accessed")
+            elif self.path == '/health':
                 if hasattr(self.server, 'bot_running') and self.server.bot_running:
                     self._send_response(200, "Bot is running")
                     logger.info("Health check succeeded")
@@ -63,10 +72,16 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 
 def run_http_server():
     """Run HTTP server for health checks"""
-    server = HTTPServer(('0.0.0.0', 5000), HealthCheckHandler)
-    server.bot_running = True  # Add a flag to track bot status
-    logger.info("Starting HTTP server on port 5000")
-    server.serve_forever()
+    try:
+        # Use PORT from environment for Autoscale compatibility
+        port = int(os.environ.get('PORT', 5000))
+        server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+        server.bot_running = True
+        logger.info(f"Starting HTTP server on port {port}")
+        server.serve_forever()
+    except Exception as e:
+        logger.error(f"Failed to start HTTP server: {str(e)}")
+        raise
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
@@ -280,7 +295,7 @@ async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def main() -> None:
     """Start the bot with error handling and health checks."""
-    # Start HTTP server in a separate thread
+    # Start HTTP server in a separate thread for Autoscale health checks
     http_thread = threading.Thread(target=run_http_server, daemon=True)
     http_thread.start()
     logger.info("HTTP server thread started")
