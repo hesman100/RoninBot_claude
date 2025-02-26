@@ -55,6 +55,16 @@ STOCK_TO_DISPLAY = {
     'CDNS': 'CDNS   ',  # Exactly 7 chars
 }
 
+# Mapping of stock symbols to full company names
+STOCK_COMPANY_NAMES = {
+    'TSLA': 'Tesla Inc.',
+    'NVDA': 'NVIDIA Corporation',
+    'AAPL': 'Apple Inc.',
+    'MRVL': 'Marvell Technology',
+    'AMZN': 'Amazon.com Inc.',
+    'CDNS': 'Cadence Design Systems'
+}
+
 # API request parameters
 REQUEST_TIMEOUT = 30
 MAX_RETRIES = 3

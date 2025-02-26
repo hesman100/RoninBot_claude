@@ -8,12 +8,18 @@ def format_price_message(crypto_data: Dict) -> str:
     logger.info(
         f"Formatting prices for cryptocurrencies: {list(crypto_data.keys())}")
 
-    # Get header text based on number of coins and type
+    # Get header text based on number of coins/stocks and type
     if len(crypto_data) == 1:
         # For single item, use its full name
         symbol = next(iter(crypto_data.keys()))
-        coin_data = crypto_data[symbol]
-        header_text = f"📊 {coin_data.get('name', symbol)}"
+        is_stock = symbol in DEFAULT_STOCKS
+
+        if is_stock:
+            from config import STOCK_COMPANY_NAMES
+            header_text = f"📊 {STOCK_COMPANY_NAMES.get(symbol, symbol)}"
+        else:
+            coin_data = crypto_data[symbol]
+            header_text = f"📊 {coin_data.get('name', symbol)}"
     else:
         # Check if we're dealing with stocks or crypto
         is_stocks = DEFAULT_STOCKS[0] in crypto_data  # Check if first stock is in the data
