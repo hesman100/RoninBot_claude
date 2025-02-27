@@ -76,8 +76,9 @@ def format_price_message(crypto_data: Dict) -> str:
         change_24h = data.get('usd_24h_change', 0)
 
         # Format price based on the value and type
-        if symbol in DEFAULT_VN_STOCKS:
-            price_str = f"{price:,.0f}"  # No $ sign for VN stocks, no decimals
+        if symbol in DEFAULT_VN_STOCKS or symbol in VN_STOCK_COMPANY_NAMES:
+            # Remove $ sign completely for VN stocks, no decimals
+            price_str = f"{price:,.0f}"
         else:
             # Original formatting for non-VN stocks
             if price >= 1000:
@@ -124,8 +125,9 @@ def format_price_message(crypto_data: Dict) -> str:
                 change_24h = data.get('usd_24h_change', 0)
 
                 # Format price based on the value and type
-                if symbol in DEFAULT_VN_STOCKS:
-                    price_str = f"{price:,.0f}"  # No $ sign for VN stocks, no decimals
+                if symbol in DEFAULT_VN_STOCKS or symbol in VN_STOCK_COMPANY_NAMES:
+                    # Remove $ sign completely for VN stocks, no decimals
+                    price_str = f"{price:,.0f}"
                 else:
                     # Original formatting for non-VN stocks
                     if price >= 1000:
