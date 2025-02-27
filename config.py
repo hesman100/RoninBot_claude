@@ -126,6 +126,8 @@ VN_STOCK_COMPANY_NAMES = {
     'PLX': 'Petrolimex',
     'GAS': 'PetroVietnam Gas JSC',
     'PNJ': 'Phu Nhuan Jewelry JSC',
+    'NVL': 'NovaLand',  # NVL
+    'HSG': 'Hoa Sen Group',  # HSG
 }
 
 # API request parameters
