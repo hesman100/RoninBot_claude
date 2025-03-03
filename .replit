@@ -28,7 +28,6 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python3 bot.py"
-waitForPort = 5000
 
 [deployment]
 run = ["sh", "-c", "python3 bot.py"]

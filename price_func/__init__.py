@@ -4,7 +4,6 @@ from .alphavantage_api import AlphaVantageAPI
 from .coinmarketcap_api import CoinMarketCapAPI
 from .finnhub_api import FinnhubAPI
 from .vietnam_stock_api import VietnamStockAPI
-from .coingecko_api import CoinGeckoAPI
 
 # Expose utility functions
 from .utils import format_price_message, format_error_message
@@ -24,7 +23,6 @@ __all__ = [
     'CoinMarketCapAPI',
     'FinnhubAPI',
     'VietnamStockAPI',
-    'CoinGeckoAPI',
     'format_price_message',
     'format_error_message',
     'DEFAULT_CRYPTOCURRENCIES',
