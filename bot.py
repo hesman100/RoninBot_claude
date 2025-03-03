@@ -3,8 +3,8 @@ import sys
 import os
 from datetime import datetime
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-from config import (
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from price_func.config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHANNEL_ID,
     DEFAULT_CRYPTOCURRENCIES,
@@ -12,14 +12,17 @@ from config import (
     DEFAULT_VN_STOCKS,
     SYMBOL_TO_DISPLAY
 )
-from coinmarketcap_api import CoinMarketCapAPI
-from utils import format_price_message, format_error_message
+from price_func.coinmarketcap_api import CoinMarketCapAPI
+from price_func.utils import format_price_message, format_error_message
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from alphavantage_api import AlphaVantageAPI
-from finnhub_api import FinnhubAPI
-from vietnam_stock_api import VietnamStockAPI
+from price_func.alphavantage_api import AlphaVantageAPI
+from price_func.finnhub_api import FinnhubAPI
+from price_func.vietnam_stock_api import VietnamStockAPI
 import time
+
+# Add this import for the game handler
+from country_game.game_handler import GameHandler
 
 # Configure logging
 logging.basicConfig(
@@ -128,6 +131,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/vn <stock> - Get Vietnam stock price\n"
             "              (Example: /vn VNM or /vn HPG)\n"
             "/vn - Get prices for popular Vietnam stocks\n"
+            "/g <option> - Play country guessing game\n"
+            "              (Example: /g map, /g flag, /g capital)\n"
             "/help or /h - Show this help message\n\n"
             "💡 Tip: Anyone in the group can use these commands!"
         )
@@ -144,6 +149,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/vn <stock> - Get Vietnam stock price\n"
             "              (Example: /vn VNM or /vn HPG)\n"
             "/vn - Get prices for popular Vietnam stocks\n"
+            "/g <option> - Play country guessing game\n"
+            "              (Example: /g map, /g flag, /g capital)\n"
             "/help or /h - Show this help message\n\n"
             "💡 To use in groups:\n"
             "1. Add me to your group\n"
@@ -318,6 +325,49 @@ async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Health check - Bot is running at {current_time}")
 
+
+async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle all /g commands with subcommands"""
+    # If we haven't initialized the game handler yet, do it now
+    if 'game_handler' not in context.bot_data:
+        context.bot_data['game_handler'] = GameHandler()
+
+    game_handler = context.bot_data['game_handler']
+
+    # If no arguments provided, default to map mode
+    if not context.args:
+        await game_handler.start_game(update, context, game_mode="map")
+        return
+
+    # Handle specific subcommands
+    subcommand = context.args[0].lower()
+
+    if subcommand == "help":
+        await game_handler.help_command(update, context)
+    elif subcommand in ["map", "flag", "capital"]:
+        await game_handler.start_game(update, context, game_mode=subcommand)
+    else:
+        # Unknown subcommand, show help
+        await update.message.reply_text(f"Unknown game option: {subcommand}. Try /g help for available options.")
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle text messages for both the existing bot functionality and the game answers"""
+    # First, check if the user has an active game
+    if 'game_handler' in context.bot_data:
+        game_handler = context.bot_data['game_handler']
+        user_id = update.effective_user.id
+
+        # If user has an active game, process their answer
+        if user_id in game_handler.active_games:
+            await game_handler.handle_answer(update, context)
+            return
+
+    # If we get here, there's no active game, so this might be a command
+    # that's missing the "/" prefix or some other message
+    # Your existing message handler code can go here
+
+
+
 def main() -> None:
     """Start the bot with error handling and health checks."""
     # Start HTTP server in a separate thread for Autoscale health checks
@@ -339,6 +389,13 @@ def main() -> None:
             application.add_handler(CommandHandler("c", price))
             application.add_handler(CommandHandler("s", stock))
             application.add_handler(CommandHandler("vn", vietnam_stock))
+
+            # Add the game command handlers
+            application.add_handler(CommandHandler("g", game_command))
+
+            # Add a message handler to process game answers and other messages
+            application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
 
             # Add periodic health check (every 30 minutes)
             application.job_queue.run_repeating(health_check, interval=1800)
