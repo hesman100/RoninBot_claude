@@ -1,9 +1,11 @@
 import logging
 import sys
 import os
+import fcntl
+import time
 from datetime import datetime
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
 from price_func.config import (
     TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHANNEL_ID,
@@ -367,9 +369,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Your existing message handler code can go here
 
 
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles callback queries from inline keyboards."""
+    query = update.callback_query
+    await query.answer()  # Acknowledge the callback query
+
+    if 'game_handler' in context.bot_data:
+        game_handler = context.bot_data['game_handler']
+        await game_handler.handle_callback_query(update, context)
+
+
+# File lock to ensure only one instance runs
+def acquire_lock():
+    """Try to acquire a file lock to ensure only one instance runs"""
+    lock_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bot.lock')
+    lock_fd = open(lock_file, 'w')
+
+    try:
+        # Try to acquire an exclusive lock (non-blocking)
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        logger.info("Successfully acquired lock. This is the only running instance.")
+        return lock_fd
+    except IOError:
+        logger.error("Another instance is already running. Exiting.")
+        sys.exit(1)
 
 def main() -> None:
     """Start the bot with error handling and health checks."""
+    # Ensure only one instance runs
+    lock_fd = acquire_lock()
+
     # Start HTTP server in a separate thread for Autoscale health checks
     http_thread = threading.Thread(target=run_http_server, daemon=True)
     http_thread.start()
@@ -393,16 +422,24 @@ def main() -> None:
             # Add the game command handlers
             application.add_handler(CommandHandler("g", game_command))
 
+            # Add a callback query handler for the game buttons
+            application.add_handler(CallbackQueryHandler(
+                lambda update, context: context.bot_data['game_handler'].handle_callback_query(update, context)
+            ))
+
             # Add a message handler to process game answers and other messages
             application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
 
             # Add periodic health check (every 30 minutes)
             application.job_queue.run_repeating(health_check, interval=1800)
 
             # Start the Bot with error recovery
             logger.info("Bot is now running...")
-            application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+            application.run_polling(
+                allowed_updates=Update.ALL_TYPES, 
+                drop_pending_updates=True,
+                close_loop=False
+            )
 
         except Exception as e:
             logger.error(f"Bot crashed with error: {str(e)}")
