@@ -3,7 +3,7 @@ import requests
 import time
 import logging
 from typing import Dict, List, Optional
-from config import DEFAULT_CRYPTOCURRENCIES, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
+from .config import DEFAULT_CRYPTOCURRENCIES, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
 
 logger = logging.getLogger(__name__)
 

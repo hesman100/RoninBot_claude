@@ -2,7 +2,7 @@ import requests
 import time
 from typing import Dict, List, Optional
 import logging
-from config import (
+from .config import (
     ALPHAVANTAGE_API_KEY,
     ALPHAVANTAGE_BASE_URL,
     REQUEST_TIMEOUT,

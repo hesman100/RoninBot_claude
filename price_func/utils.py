@@ -1,5 +1,5 @@
 from typing import Dict
-from config import (DEFAULT_CRYPTOCURRENCIES, DEFAULT_STOCKS,
+from .config import (DEFAULT_CRYPTOCURRENCIES, DEFAULT_STOCKS,
                     DEFAULT_VN_STOCKS, SYMBOL_TO_DISPLAY, STOCK_TO_DISPLAY,
                     VN_STOCK_TO_DISPLAY, STOCK_COMPANY_NAMES,
                     VN_STOCK_COMPANY_NAMES)

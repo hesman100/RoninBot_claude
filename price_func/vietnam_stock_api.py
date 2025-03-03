@@ -2,7 +2,7 @@ import yfinance as yf
 import logging
 import time
 from typing import Dict, List, Optional
-from config import REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY, DEFAULT_VN_STOCKS, VN_STOCK_COMPANY_NAMES
+from .config import REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY, DEFAULT_VN_STOCKS, VN_STOCK_COMPANY_NAMES
 
 logger = logging.getLogger(__name__)
 

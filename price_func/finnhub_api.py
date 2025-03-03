@@ -3,7 +3,7 @@ import requests
 import logging
 import time
 from typing import Dict, List, Optional
-from config import DEFAULT_STOCKS, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
+from .config import DEFAULT_STOCKS, REQUEST_TIMEOUT, MAX_RETRIES, RETRY_DELAY
 
 logger = logging.getLogger(__name__)
 
