@@ -1,524 +1,385 @@
+import logging
 import os
 import random
 import sqlite3
-import logging
 import time
-from typing import Dict, List, Optional, Tuple, Set, Any
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CallbackContext
 import asyncio
+from typing import Dict, List, Optional, Tuple, Set, Any
 
-# Set up logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+
+# Configure logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Game constants
-GAME_TIMEOUT = 15  # 15 seconds to answer
-NUM_OPTIONS = 10   # Number of answer options to provide
+# Game configuration constants
+GAME_TIMEOUT = 60  # seconds
+MAX_HINT_COUNTRIES = 9  # Maximum number of hint countries to display
 
 class GameHandler:
-    """Handles the country guessing game functionality"""
+    """Handle country guessing game logic"""
 
     def __init__(self):
-        """Initialize the game handler"""
-        # Load ALL countries from the database
-        self.all_countries = self.load_all_country_names()
-        logger.info(f"Loaded {len(self.all_countries)} country names for selection")
+        # Database path
+        self.db_path = "country_game/database/countries.db"
 
-        # Store detailed country data (will be loaded on demand)
-        self.countries_data = {}
-
-        # Store active games by user_id
+        # Dictionary to store active games by user ID
         self.active_games = {}
 
-        # Game stats by user_id - enhanced to track by game mode
+        # Store user stats
         self.user_stats = {}
 
-        # Timer tasks for active games
-        self.timer_tasks = {}
-        self.current_game_mode = None  # Added to track the current game mode
+        # Cache of country data
+        self.countries_data = {}
 
-    def load_all_country_names(self) -> List[str]:
-        """Load the names of all 194 countries from the database or fallback"""
+        # All country names for reference
+        self.all_countries = []
+
+        # Load all country names from the database
+        self._load_countries()
+
+    def _load_countries(self):
+        """Load all countries from the database"""
         try:
-            # Try to load country names from the database
-            logger.info("Loading all country names from database")
-
-            db_path = "country_game/database/countries.db"
-            if not os.path.exists(db_path):
-                logger.error(f"Database file not found at: {db_path}")
-                logger.info("Using fallback country list instead")
-                # Use all countries from the fallback list
-                fallback_countries = self._get_fallback_countries()
-                country_names = [country["name"] for country in fallback_countries]
-                logger.info(f"Loaded {len(country_names)} country names from fallback list")
-                return country_names
-
-            conn = sqlite3.connect(db_path)
+            # Ensure database connection
+            conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            # Check if the table exists
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='countries'")
-            if not cursor.fetchone():
-                logger.error("Countries table does not exist in database")
-                conn.close()
-                # Use all countries from the fallback list
-                fallback_countries = self._get_fallback_countries()
-                country_names = [country["name"] for country in fallback_countries]
-                logger.info(f"Loaded {len(country_names)} country names from fallback list")
-                return country_names
-
             # Get all country names
-            cursor.execute("SELECT name FROM countries")
+            cursor.execute("SELECT name FROM countries ORDER BY name")
             country_names = [row[0] for row in cursor.fetchall()]
+
+            self.all_countries = country_names
+            logger.info(f"Loaded {len(self.all_countries)} countries from database")
+
+            # Close the database connection
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error loading countries from database: {e}")
+            # Use an empty list if database loading fails
+            self.all_countries = []
+
+    def _get_random_country_id(self) -> int:
+        """Get a random country ID from the database (between 1 and 194)"""
+        try:
+            # Connect to the database
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Get the maximum country ID
+            cursor.execute("SELECT MAX(number) FROM countries")
+            max_id = cursor.fetchone()[0]
+
+            # Close the connection
             conn.close()
 
-            logger.info(f"Loaded {len(country_names)} country names from database")
-
-            # If the database had no countries, use the fallback list
-            if not country_names:
-                logger.warning("No country names found in database, using fallback")
-                fallback_countries = self._get_fallback_countries()
-                country_names = [country["name"] for country in fallback_countries]
-                logger.info(f"Loaded {len(country_names)} country names from fallback list")
-
-            # Add the country names from our fallback list to ensure the game works
-            if len(country_names) < 30:
-                logger.warning(f"Only {len(country_names)} countries found in database, adding fallback countries")
-                fallback_countries = self._get_fallback_countries()
-                fallback_names = [country["name"] for country in fallback_countries]
-
-                # Add any fallback countries not already in the list
-                for name in fallback_names:
-                    if name not in country_names:
-                        country_names.append(name)
-
-                logger.info(f"Added fallback countries, now have {len(country_names)} total countries")
-
-            return country_names
-
+            # Generate a random ID between 1 and max_id (should be 194)
+            random_id = random.randint(1, max_id)
+            return random_id
         except Exception as e:
-            logger.error(f"Error loading country names: {e}")
-            # Fallback to the hardcoded list
-            fallback_countries = self._get_fallback_countries()
-            country_names = [country["name"] for country in fallback_countries]
-            logger.info(f"Loaded {len(country_names)} country names from fallback list after error")
-            return country_names
+            logger.error(f"Error getting random country ID: {e}")
+            # Fallback to random between 1 and 194
+            return random.randint(1, 194)
 
     def load_country_details(self, country_name: str) -> Dict:
-        """Load detailed information for a specific country"""
-        # Check if we've already loaded this country
+        """Load country details from the database"""
+        # Return from cache if available
         if country_name in self.countries_data:
             return self.countries_data[country_name]
 
         try:
-            logger.info(f"Loading details for country: {country_name}")
-
-            db_path = "country_game/database/countries.db"
-            if not os.path.exists(db_path):
-                logger.error(f"Database file not found at: {db_path}")
-                # Try to find country in fallback data
-                for country in self._get_fallback_countries():
-                    if country["name"] == country_name:
-                        self.countries_data[country_name] = country
-                        return country
-                return None
-
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
+            # Connect to the database
+            conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            # Get country details
-            cursor.execute("SELECT * FROM countries WHERE name = ?", (country_name,))
-            row = cursor.fetchone()
+            # Query country data
+            cursor.execute("""
+                SELECT name, capital, region, population, area, 
+                       map_image_link, flag_image_link, neighbor_country, neighbor_capital 
+                FROM countries 
+                WHERE name = ?
+            """, (country_name,))
 
-            if not row:
-                logger.warning(f"Country {country_name} not found in database")
+            result = cursor.fetchone()
+
+            if result:
+                # Parse neighbor countries and capitals from comma-separated strings
+                neighbor_countries = result[7].split(',') if result[7] else []
+                neighbor_capitals = result[8].split(',') if result[8] else []
+
+                # Create country data dictionary
+                country_data = {
+                    'name': result[0],
+                    'capital': result[1],
+                    'region': result[2],
+                    'population': result[3],
+                    'area': result[4],
+                    'map_image_link': result[5],
+                    'flag_image_link': result[6],
+                    'neighbors': neighbor_countries,
+                    'neighbor_capitals': neighbor_capitals
+                }
+
+                # Cache for future use
+                self.countries_data[country_name] = country_data
+
+                # Close the connection
                 conn.close()
-                # Try to find country in fallback data
-                for country in self._get_fallback_countries():
-                    if country["name"] == country_name:
-                        self.countries_data[country_name] = country
-                        return country
-                return None
 
-            # Create country object
-            country = {
-                "name": row["name"],
-                "capital": row["capital"],
-                "neighbors": [],
-                "region": row.get("region", "Unknown"),
-                "subregion": row.get("subregion", ""),
-                "population": row.get("population", 0),
-                "area": row.get("area", 0)
-            }
-
-            # Get neighbors if available
-            try:
-                cursor.execute("SELECT neighbor_name FROM neighbors WHERE country_name = ?", (country_name,))
-                neighbor_rows = cursor.fetchall()
-                for neighbor_row in neighbor_rows:
-                    country["neighbors"].append(neighbor_row["neighbor_name"])
-            except Exception as e:
-                logger.error(f"Error fetching neighbors for {country_name}: {e}")
-                # Continue with empty neighbors list
-
-            conn.close()
-
-            # Cache the country data
-            self.countries_data[country_name] = country
-            return country
+                return country_data
+            else:
+                logger.warning(f"Country not found in database: {country_name}")
+                conn.close()
+                return {}
 
         except Exception as e:
-            logger.error(f"Error loading country details for {country_name}: {e}")
-            # Try to find country in fallback data
-            for country in self._get_fallback_countries():
-                if country["name"] == country_name:
-                    self.countries_data[country_name] = country
-                    return country
-            return None
+            logger.error(f"Error loading country details: {e}")
+            return {}
+
+    def get_country_by_id(self, country_id: int) -> Dict:
+        """Get country details by ID from the database"""
+        try:
+            # Connect to the database
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Query country data by ID
+            cursor.execute("""
+                SELECT name, capital, region, population, area, 
+                       map_image_link, flag_image_link, neighbor_country, neighbor_capital 
+                FROM countries 
+                WHERE number = ?
+            """, (country_id,))
+
+            result = cursor.fetchone()
+
+            if result:
+                # Parse neighbor countries and capitals from comma-separated strings
+                neighbor_countries = result[7].split(',') if result[7] else []
+                neighbor_capitals = result[8].split(',') if result[8] else []
+
+                # Create country data dictionary
+                country_data = {
+                    'name': result[0],
+                    'capital': result[1],
+                    'region': result[2],
+                    'population': result[3],
+                    'area': result[4],
+                    'map_image_link': result[5],
+                    'flag_image_link': result[6],
+                    'neighbors': neighbor_countries,
+                    'neighbor_capitals': neighbor_capitals
+                }
+
+                # Cache for future use
+                self.countries_data[result[0]] = country_data
+
+                # Close the connection
+                conn.close()
+
+                return country_data
+            else:
+                logger.warning(f"Country ID not found in database: {country_id}")
+                conn.close()
+                return {}
+
+        except Exception as e:
+            logger.error(f"Error getting country by ID: {e}")
+            return {}
+
+    def _select_random_country(self) -> Dict:
+        """Select a random country from the database using random ID"""
+        # Get a random country ID between 1 and 194
+        random_id = self._get_random_country_id()
+        logger.info(f"Selected random country ID: {random_id}")
+
+        # Get the country details by ID
+        country = self.get_country_by_id(random_id)
+
+        # If we got a valid country, return it
+        if country and country.get('name'):
+            logger.info(f"Successfully loaded country: {country.get('name')}")
+            return country
+
+        # Fallback: Only use Vietnam as our fallback country
+        logger.warning("Failed to select a random country, using Vietnam as fallback")
+        fallback = self.load_country_details("Vietnam")
+
+        # If even Vietnam isn't available in the database, create a minimal entry
+        if not fallback or not fallback.get('name'):
+            logger.error("Fallback country (Vietnam) not found in database, creating minimal entry")
+            return {
+                'name': 'Vietnam',
+                'capital': 'Hanoi',
+                'region': 'Asia',
+                'population': 97000000,
+                'area': 331212,
+                'map_image_link': 'country_game/images/wiki_all_map_400pi/Vietnam_locator_map.png',
+                'flag_image_link': 'country_game/images/wiki_flag/Vietnam_flag.png',
+                'neighbors': ['China', 'Laos', 'Cambodia', 'Thailand', 'Malaysia', 'Philippines', 'Indonesia', 'Myanmar', 'Brunei'],
+                'neighbor_capitals': ['Beijing', 'Vientiane', 'Phnom Penh', 'Bangkok', 'Kuala Lumpur', 'Manila', 'Jakarta', 'Naypyidaw', 'Bandar Seri Begawan']
+            }
+
+        return fallback
 
     def _cancel_timer(self, user_id: int) -> None:
-        """Cancel any active timer for a user"""
-        if user_id in self.timer_tasks:
-            task = self.timer_tasks.pop(user_id)
-            if not task.done() and not task.cancelled():
-                task.cancel()
-                logger.info(f"Cancelled timer for user {user_id}")
+        """Cancel a timer for a user's game"""
+        # If the user has an active game with a timer job
+        if user_id in self.active_games and "timer_job" in self.active_games[user_id]:
+            # Cancel the timer job
+            self.active_games[user_id]["timer_job"].cancel()
+            logger.info(f"Cancelled timer for user {user_id}")
 
-    async def _game_timeout_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
+    async def _game_timeout(self, context: ContextTypes.DEFAULT_TYPE, user_id: int, chat_id: int) -> None:
         """Handle game timeout"""
-        try:
-            await asyncio.sleep(GAME_TIMEOUT)
+        logger.info(f"Game timed out for user {user_id}")
 
-            # Check if the game is still active
-            if user_id not in self.active_games:
-                return
+        # Check if the game is still active
+        if user_id not in self.active_games:
+            return
 
-            # Get the game data
-            game = self.active_games[user_id]
-            correct_country = game["country"]
-            correct_country_name = correct_country["name"].replace("_", " ")
+        # Get the game data
+        game = self.active_games[user_id]
+        country = game.get("country", {})
+        game_mode = game.get("mode", "map")
 
-            # Get user's name for personalized message
-            user_name = update.effective_user.first_name
+        # Prepare the timeout message
+        timeout_message = f"⏱️ Time's up! You didn't answer in time.\n\n"
 
-            # Build timeout message
-            timeout_msg = f"⏱️ Time's up! {user_name} speed up next time! The correct answer was *{correct_country_name}*.\n\n"
+        # Format country name for display
+        display_name = country.get("name", "Unknown").replace("_", " ")
 
-            # Add country details
-            timeout_msg += f"🏳️ {correct_country_name}\n"
-            timeout_msg += f"📊 Quick Facts:\n"
-            timeout_msg += f"🏙️ Capital: {correct_country.get('capital', 'Unknown')}\n"
+        # Add country information to the message
+        timeout_message += f"The country was *{display_name}*.\n"
+        timeout_message += f"🏙️ Capital: *{country.get('capital', 'Unknown')}*\n"
 
-            # Get region information
-            region = correct_country.get("region", "Unknown")
-            subregion = correct_country.get("subregion", "")
-            timeout_msg += f"🌍 Region: {region}"
-            if subregion:
-                timeout_msg += f" ({subregion})"
-            timeout_msg += "\n"
+        # Add region information
+        region = country.get("region", "Unknown")
+        timeout_message += f"🌍 Region: {region}\n"
 
-            # Get population and area information
-            population = correct_country.get("population", 0)
-            area = correct_country.get("area", 0)
-            timeout_msg += f"👥 Population: {self._format_population(population)}\n"
-            timeout_msg += f"📏 Area: {self._format_area(area)}"
+        # Add population and area
+        population = country.get("population", 0)
+        area = country.get("area", 0)
+        timeout_message += f"👥 Population: {self._format_population(population)}\n"
+        timeout_message += f"📏 Area: {self._format_area(area)}"
 
-            # Send timeout message
-            chat_id = update.effective_chat.id
+        # Clean up the game
+        if user_id in self.active_games:
+            # Update user stats (count as wrong answer)
+            self._update_user_stats(user_id, False, game_mode)
 
-            # Get message ID and mode
+            # Check if we have the message ID to update
             message_id = game.get("message_id")
-            current_mode = game.get("mode", "map")
-
-            # Try to edit the existing message with the timeout information
-            try:
-                if current_mode in ["map", "flag", "cap"]:
-                    await context.bot.edit_message_caption(
+            if message_id:
+                try:
+                    # Update the original message
+                    if game_mode in ["map", "flag"]:
+                        await context.bot.edit_message_caption(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            caption=timeout_message,
+                            parse_mode="Markdown"
+                        )
+                    else:
+                        await context.bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=timeout_message,
+                            parse_mode="Markdown"
+                        )
+                except Exception as e:
+                    logger.error(f"Error updating timeout message: {e}")
+                    # If updating the original message fails, send a new one
+                    await context.bot.send_message(
                         chat_id=chat_id,
-                        message_id=message_id,
-                        caption=timeout_msg,
+                        text=timeout_message,
                         parse_mode="Markdown"
                     )
-                else:  # Capital mode
-                    await context.bot.edit_message_text(
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        text=timeout_msg,
-                        parse_mode="Markdown"
-                    )
-            except Exception as e:
-                logger.error(f"Error editing timeout message: {e}")
-                # Fallback to sending a new message
+            else:
+                # If we don't have the message ID, send a new message
                 await context.bot.send_message(
                     chat_id=chat_id,
-                    text=timeout_msg,
+                    text=timeout_message,
                     parse_mode="Markdown"
                 )
 
-            # Update stats
-            self._update_user_stats(user_id, False, current_mode)
-
-            # Remove the active game
+            # Delete the game
             del self.active_games[user_id]
 
-            # Send navigation buttons for next game
+            # Send game navigation
+            update = Update(0, None)
+            update.effective_chat = await context.bot.get_chat(chat_id)
             await self._send_game_navigation(update, context)
-
-        except asyncio.CancelledError:
-            logger.info(f"Timer for user {user_id} was cancelled")
-        except Exception as e:
-            logger.error(f"Error in game timeout callback: {e}")
-
-    def _get_random_country(self, game_mode: str = "map") -> Dict:
-        """
-        Get a random country with assets for the specified game mode
-
-        Flow:
-        1. Randomly select from the full list of countries
-        2. Load detailed information for the selected country
-        3. Check if the required assets exist for the game mode
-        4. If assets exist, use this country; otherwise, try another random country
-        """
-        logger.info(f"Getting random country for game mode: {game_mode}")
-
-        # Get all country names for selection
-        all_country_names = list(self.all_countries)
-        logger.info(f"Total number of countries available: {len(all_country_names)}")
-
-        # Shuffle the full list of country names
-        random.shuffle(all_country_names)
-
-        # Create a list to track rejected countries for debugging
-        rejected_countries = []
-
-        # Try up to 30 random countries before giving up
-        max_attempts = min(30, len(all_country_names))
-
-        for i in range(max_attempts):
-            # Skip if we've run out of countries
-            if not all_country_names:
-                logger.warning("Ran out of countries to try")
-                break
-
-            # Get a random country name
-            country_name = all_country_names.pop(0)
-            logger.info(f"Attempt {i+1}/{max_attempts}: Selected country: {country_name}")
-
-            # Load detailed information for this country
-            country_data = self.load_country_details(country_name)
-
-            if not country_data:
-                logger.warning(f"Could not load details for {country_name}, skipping")
-                rejected_countries.append(f"{country_name} (no details)")
-                continue
-
-            # Check if required assets exist for this game mode
-            is_suitable = True
-            reject_reason = ""
-
-            if game_mode in ["map", "cap"]:
-                # Need map image
-                map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country_name}_locator_map.png")
-                if not os.path.exists(map_path):
-                    is_suitable = False
-                    reject_reason = "no map image"
-                    logger.info(f"Map not found for {country_name}")
-
-            if game_mode == "flag":
-                # Need flag image
-                flag_path = os.path.join("country_game", "images", "wiki_flag", f"{country_name}_flag.png")
-                if not os.path.exists(flag_path):
-                    is_suitable = False
-                    reject_reason = "no flag image"
-                    logger.info(f"Flag not found for {country_name}")
-
-            if game_mode in ["capital", "cap"]:
-                # Need capital information
-                if not country_data.get("capital") or country_data["capital"] == "Unknown":
-                    is_suitable = False
-                    reject_reason = "no capital info"
-                    logger.info(f"Capital not known for {country_name}")
-
-            # If this country has all required assets, use it
-            if is_suitable:
-                logger.info(f"Found suitable country: {country_name} for {game_mode} mode")
-                return country_data
-            else:
-                # Track rejected countries for debugging
-                rejected_countries.append(f"{country_name} ({reject_reason})")
-
-        # Log the rejected countries to help debug issues
-        if rejected_countries:
-            logger.warning(f"Rejected {len(rejected_countries)} countries: {', '.join(rejected_countries)}")
-
-        # If we couldn't find a suitable country, use a fallback with known assets
-        logger.warning(f"Could not find suitable country for {game_mode} mode, using fallback")
-
-        # Define a list of countries we know have the required assets
-        if game_mode == "map":
-            fallback_options = ["United_States", "France", "Germany", "Japan", "Brazil", "Canada", "Italy", "Spain"]
-        elif game_mode == "flag":
-            fallback_options = ["United_States", "United_Kingdom", "France", "Germany", "Japan", "Canada", "Italy", "Brazil"]
-        else:  # capital or cap mode
-            fallback_options = ["United_States", "United_Kingdom", "France", "Germany", "Japan", "Australia", "Brazil", "Canada"]
-
-        # Shuffle the fallback options
-        random.shuffle(fallback_options)
-
-        # Try each fallback option
-        for country_name in fallback_options:
-            country_data = self.load_country_details(country_name)
-            if country_data:
-                logger.info(f"Using fallback country: {country_name}")
-                return country_data
-
-        # If all else fails, use the first fallback country from our predefined list
-        fallback_countries = self._get_fallback_countries()
-        logger.warning("Using first fallback country as last resort")
-        return fallback_countries[0]
 
     async def start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game_mode: str = "map") -> None:
         """Start a new country guessing game"""
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
-        logger.info(f"Starting new game for user {user_id} in chat {chat_id} with mode {game_mode}")
+        user_name = update.effective_user.first_name
+
+        # Normalize game mode
+        if game_mode == "cap":
+            game_mode = "capital"
+
+        logger.info(f"Starting {game_mode} game for user {user_id}")
 
         # Cancel any existing timer for this user
         self._cancel_timer(user_id)
 
-        # Get a random country based on game mode
-        country = self._get_random_country(game_mode)
+        # Select a random country
+        country = self._select_random_country()
 
-        if not country:
+        # Check if we got a valid country
+        if not country or not country.get("name"):
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"Sorry, I couldn't find any countries for the {game_mode} game mode. Please try a different mode."
+                text="Sorry, I couldn't find any countries to play with. Please try again later."
             )
             return
 
-        # Set up a new game for this user with start_time
+        logger.info(f"Selected country: {country.get('name', 'Unknown')}")
+
+        # Set up the game in active_games
         self.active_games[user_id] = {
             "country": country,
-            "attempts": 0,
-            "mode": game_mode,
-            "start_time": time.time()  # Add start_time to track elapsed time
+            "start_time": time.time(),
+            "mode": game_mode
         }
-        logger.info(f"Created new game for user {user_id} with country {country['name']}")
 
-        # Send the appropriate challenge based on game mode
-        if game_mode == "map":
-            await self._send_map_challenge(update, context, country)
-        elif game_mode == "flag":
-            await self._send_flag_challenge(update, context, country)
-        elif game_mode == "capital":
-            await self._send_capital_challenge(update, context, country)
-        elif game_mode == "cap":
-            await self._send_capital_guessing_challenge(update, context, country)
-        else:
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=f"Unknown game mode: {game_mode}. Try /g help for available options."
-            )
-            # Clean up the game if we couldn't start it
-            if user_id in self.active_games:
-                del self.active_games[user_id]
-
-        # Set a timer for this game that actually waits GAME_TIMEOUT seconds
-        self.timer_tasks[user_id] = asyncio.create_task(
-            self._game_timeout_callback(update, context, user_id)
+        # Start a timer to end the game after GAME_TIMEOUT seconds
+        timer_job = context.job_queue.run_once(
+            lambda ctx: asyncio.create_task(self._game_timeout(ctx, user_id, chat_id)),
+            GAME_TIMEOUT
         )
 
-    async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handles callback queries from inline keyboards."""
-        query = update.callback_query
-        user_id = update.effective_user.id
+        # Store the timer job for potential cancellation
+        self.active_games[user_id]["timer_job"] = timer_job
 
-        # Add detailed logging to help debug navigation buttons
-        logger.info(f"Received callback query with data: {query.data} from user {user_id}")
-
-        # Cancel any timer when user interacts
-        self._cancel_timer(user_id)
-
-        await query.answer()  # Acknowledge the button press to Telegram
-
-        # Check if it's a game guess
-        if query.data.startswith("guess_"):
-            logger.info(f"Processing guess: {query.data}")
-            # Check if this is a capital guessing game
-            if user_id in self.active_games and self.active_games[user_id].get("mode") == "cap":
-                # For cap mode, format is "guess_CountryName_CapitalName" 
-                parts = query.data.split("_", 2)
-                if len(parts) == 3:
-                    country_name = parts[1]
-                    guessed_capital = parts[2]
-                    await self._handle_capital_guess(update, context, country_name, guessed_capital)
-                else:
-                    logger.error(f"Invalid guess data format: {query.data}")
-                    await context.bot.send_message(
-                        chat_id=update.effective_chat.id,
-                        text="Sorry, there was an error processing your answer. Please try again."
-                    )
-                    # Send game navigation buttons
-                    await self._send_game_navigation(update, context)
-            else:
-                # For other modes, handle as normal country guess
-                await self._handle_guess(update, context, query.data)
-        # Check if it's a navigation button
-        elif query.data.startswith("play_"):
-            game_mode = query.data.split("_")[1]
-            logger.info(f"Starting new game with mode: {game_mode}")
-            if game_mode == "help":
-                await self.help_command(update, context)
-            else:
-                # Always allow starting a new game regardless of active_games state
-                await self.start_game(update, context, game_mode)
-        # Check if it's a leaderboard request
-        elif query.data == "show_leaderboard":
-            await self.show_leaderboard(update, context)
+        # Based on the game mode, start the appropriate game
+        if game_mode == "map":
+            await self._start_map_game(update, context, country, user_id, chat_id, user_name)
+        elif game_mode == "flag":
+            await self._start_flag_game(update, context, country, user_id, chat_id, user_name)
+        elif game_mode == "capital":
+            await self._start_capital_game(update, context, country, user_id, chat_id, user_name)
         else:
-            logger.warning(f"Unrecognized callback data: {query.data}")
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="Sorry, I didn't understand that command. Try /g help for options."
-            )
+            # Default to map game if mode is unknown
+            await self._start_map_game(update, context, country, user_id, chat_id, user_name)
 
-    async def _send_map_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
-        """Send a map challenge to the user with multiple-choice options"""
-        user_id = update.effective_user.id
-        chat_id = update.effective_chat.id
-        user_name = update.effective_user.first_name
-
-        logger.info(f"Sending map challenge for country: {country['name']}")
-
-        # Generate answer options (1 correct + 9 others)
-        options = self.get_answer_options(country)
-
-        # Create inline keyboard with answer options
-        keyboard = []
-        row = []
-        for i, option in enumerate(options):
-            display_name = option["name"].replace("_", " ")
-            callback_data = f"guess_{option['name']}"
-            logger.info(f"Creating button for {display_name} with callback_data: {callback_data}")
-            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
-
-            # Create a new row after every 2 buttons
-            if (i + 1) % 2 == 0 or (i + 1) == len(options):
-                keyboard.append(row)
-                row = []
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        logger.info(f"Created keyboard with {len(keyboard)} rows for map challenge")
-
-        # Get the map path
-        map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country['name']}_locator_map.png")
+    async def _start_map_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, 
+                             country: Dict, user_id: int, chat_id: int, user_name: str) -> None:
+        """Start a map guessing game"""
+        # Get the map image path
+        map_path = country.get("map_image_link")
 
         # Check if map exists
-        if not os.path.exists(map_path):
+        if not map_path or not os.path.exists(map_path):
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"Sorry, I couldn't find a map for {country['name'].replace('_', ' ')}. Try another game!"
+                text="Sorry, I couldn't find a map for this country. Please try again."
             )
             # Clean up the game
             if user_id in self.active_games:
@@ -527,31 +388,67 @@ class GameHandler:
             await self._send_game_navigation(update, context)
             return
 
-        # Send the map image with answer options
+        # Get the correct answer (country name)
+        correct_country = country["name"]
+
+        # Get neighbor countries for options from the database
+        neighbor_countries = country.get("neighbors", [])[:MAX_HINT_COUNTRIES]
+
+        # Ensure we have enough options
+        options = [correct_country]
+
+        # Add neighbor countries first (if any)
+        for neighbor in neighbor_countries:
+            if neighbor not in options:
+                options.append(neighbor)
+
+        # If we still need more options, add random countries
+        while len(options) < MAX_HINT_COUNTRIES:
+            random_country_name = random.choice(self.all_countries)
+            if random_country_name not in options:
+                options.append(random_country_name)
+
+        # Shuffle options
+        random.shuffle(options)
+
+        # Create keyboard with country options
+        keyboard = []
+        row = []
+        for i, option in enumerate(options):
+            # Format displayed name (replace underscores with spaces)
+            display_name = option.replace("_", " ")
+
+            # Create callback data
+            callback_data = f"guess_{option}"
+
+            # Add button to current row
+            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
+
+            # Start a new row after every 2 buttons
+            if (i + 1) % 2 == 0 or (i + 1) == len(options):
+                keyboard.append(row)
+                row = []
+
+        # Create the inline keyboard markup
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        # Send the map image with options
         try:
             with open(map_path, 'rb') as photo:
-                photo_bytes = photo.read(1024)
-                if not photo_bytes:
-                    logger.error(f"Map file is empty or could not be read")
-                    raise ValueError("Map file is empty or could not be read")
-
-                # Seek back to beginning of file
-                photo.seek(0)
-
                 message = await context.bot.send_photo(
                     chat_id=chat_id,
                     photo=photo,
-                    caption=f"🌍 {user_name}, which country is shown on this map? (⏱️ {GAME_TIMEOUT}s)",
+                    caption=f"🌍 {user_name}, which country is highlighted on this map? (⏱️ {GAME_TIMEOUT}s)",
                     reply_markup=reply_markup
                 )
 
-                # Store the message ID for later reference
-                if user_id in self.active_games:
-                    self.active_games[user_id]["message_id"] = message.message_id
+            # Store the message ID for later reference
+            if user_id in self.active_games:
+                self.active_games[user_id]["message_id"] = message.message_id
 
-                logger.info(f"Successfully sent map challenge with message_id: {message.message_id}")
+            logger.info(f"Successfully sent map guessing challenge")
         except Exception as e:
-            logger.error(f"Error sending map challenge: {e}")
+            logger.error(f"Error sending map guessing challenge: {e}")
             await context.bot.send_message(
                 chat_id=chat_id,
                 text="Sorry, there was an error starting the game. Please try again."
@@ -561,44 +458,18 @@ class GameHandler:
                 del self.active_games[user_id]
             # Send game navigation
             await self._send_game_navigation(update, context)
-            return
 
-    async def _send_flag_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
-        """Send a flag challenge to the user with multiple-choice options"""
-        user_id = update.effective_user.id
-        chat_id = update.effective_chat.id
-        user_name = update.effective_user.first_name
-
-        logger.info(f"Sending flag challenge for country: {country['name']}")
-
-        # Generate answer options (1 correct + 9 others)
-        options = self.get_answer_options(country)
-
-        # Create inline keyboard with answer options
-        keyboard = []
-        row = []
-        for i, option in enumerate(options):
-            display_name = option["name"].replace("_", " ")
-            callback_data = f"guess_{option['name']}"
-            logger.info(f"Creating button for {display_name} with callback_data: {callback_data}")
-            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
-
-            # Create a new row after every 2 buttons
-            if (i + 1) % 2 == 0 or (i + 1) == len(options):
-                keyboard.append(row)
-                row = []
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        logger.info(f"Created keyboard with {len(keyboard)} rows for flag challenge")
-
-        # Get the flag path
-        flag_path = os.path.join("country_game", "images", "wiki_flag", f"{country['name']}_flag.png")
+    async def _start_flag_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, 
+                              country: Dict, user_id: int, chat_id: int, user_name: str) -> None:
+        """Start a flag guessing game"""
+        # Get the flag image path
+        flag_path = country.get("flag_image_link")
 
         # Check if flag exists
-        if not os.path.exists(flag_path):
+        if not flag_path or not os.path.exists(flag_path):
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"Sorry, I couldn't find a flag for {country['name'].replace('_', ' ')}. Try another game!"
+                text="Sorry, I couldn't find a flag for this country. Please try again."
             )
             # Clean up the game
             if user_id in self.active_games:
@@ -607,17 +478,53 @@ class GameHandler:
             await self._send_game_navigation(update, context)
             return
 
-        # Send the flag image with answer options
+        # Get the correct answer (country name)
+        correct_country = country["name"]
+
+        # Get neighbor countries for options from the database
+        neighbor_countries = country.get("neighbors", [])[:MAX_HINT_COUNTRIES]
+
+        # Ensure we have enough options
+        options = [correct_country]
+
+        # Add neighbor countries first (if any)
+        for neighbor in neighbor_countries:
+            if neighbor not in options:
+                options.append(neighbor)
+
+        # If we still need more options, add random countries
+        while len(options) < MAX_HINT_COUNTRIES:
+            random_country_name = random.choice(self.all_countries)
+            if random_country_name not in options:
+                options.append(random_country_name)
+
+        # Shuffle options
+        random.shuffle(options)
+
+        # Create keyboard with country options
+        keyboard = []
+        row = []
+        for i, option in enumerate(options):
+            # Format displayed name (replace underscores with spaces)
+            display_name = option.replace("_", " ")
+
+            # Create callback data
+            callback_data = f"guess_{option}"
+
+            # Add button to current row
+            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
+
+            # Start a new row after every 2 buttons
+            if (i + 1) % 2 == 0 or (i + 1) == len(options):
+                keyboard.append(row)
+                row = []
+
+        # Create the inline keyboard markup
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        # Send the flag image with options
         try:
             with open(flag_path, 'rb') as photo:
-                photo_bytes = photo.read(1024)
-                if not photo_bytes:
-                    logger.error(f"Flag file is empty or could not be read")
-                    raise ValueError("Flag file is empty or could not be read")
-
-                # Seek back to beginning of file
-                photo.seek(0)
-
                 message = await context.bot.send_photo(
                     chat_id=chat_id,
                     photo=photo,
@@ -625,81 +532,13 @@ class GameHandler:
                     reply_markup=reply_markup
                 )
 
-                # Store the message ID for later reference
-                if user_id in self.active_games:
-                    self.active_games[user_id]["message_id"] = message.message_id
-
-                logger.info(f"Successfully sent flag challenge with message_id: {message.message_id}")
-        except Exception as e:
-            logger.error(f"Error sending flag challenge: {e}")
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="Sorry, there was an error starting the game. Please try again."
-            )
-            # Clean up the game
-            if user_id in self.active_games:
-                del self.active_games[user_id]
-            # Send game navigation
-            await self._send_game_navigation(update, context)
-            return
-
-    async def _send_capital_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
-        """Send a capital challenge to the user with multiple-choice options"""
-        user_id = update.effective_user.id
-        chat_id = update.effective_chat.id
-        user_name = update.effective_user.first_name
-
-        logger.info(f"Sending capital challenge for country: {country['name']}")
-
-        # Make sure the country has a known capital
-        if not country.get("capital") or country["capital"] == "Unknown":
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=f"Sorry, I don't know the capital of {country['name'].replace('_', ' ')}. Try another game!"
-            )
-            # Clean up the game
-            if user_id in self.active_games:
-                del self.active_games[user_id]
-            # Send game navigation
-            await self._send_game_navigation(update, context)
-            return
-
-        # Generate answer options (1 correct + 9 others)
-        options = self.get_answer_options(country)
-
-        # Create inline keyboard with answer options
-        keyboard = []
-        row = []
-        for i, option in enumerate(options):
-            display_name = option["name"].replace("_", " ")
-            callback_data = f"guess_{option['name']}"
-            logger.info(f"Creating button for {display_name} with callback_data: {callback_data}")
-            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
-
-            # Create a new row after every 2 buttons
-            if (i + 1) % 2 == 0 or (i + 1) == len(options):
-                keyboard.append(row)
-                row = []
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        logger.info(f"Created keyboard with {len(keyboard)} rows for capital challenge")
-
-        # Send the capital question with answer options
-        try:
-            message = await context.bot.send_message(
-                chat_id=chat_id,
-                text=f"🏙️ {user_name}, which country has *{country['capital']}* as its capital? (⏱️ {GAME_TIMEOUT}s)",
-                parse_mode="Markdown",
-                reply_markup=reply_markup
-            )
-
             # Store the message ID for later reference
             if user_id in self.active_games:
                 self.active_games[user_id]["message_id"] = message.message_id
 
-            logger.info(f"Successfully sent capital challenge with message_id: {message.message_id}")
+            logger.info(f"Successfully sent flag guessing challenge")
         except Exception as e:
-            logger.error(f"Error sending capital challenge: {e}")
+            logger.error(f"Error sending flag guessing challenge: {e}")
             await context.bot.send_message(
                 chat_id=chat_id,
                 text="Sorry, there was an error starting the game. Please try again."
@@ -709,24 +548,21 @@ class GameHandler:
                 del self.active_games[user_id]
             # Send game navigation
             await self._send_game_navigation(update, context)
-            return
 
-    async def _send_capital_guessing_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
-        """Send a challenge where user sees a map and needs to identify the capital city"""
-        chat_id = update.effective_chat.id
-        user_id = update.effective_user.id
-        user_name = update.effective_user.first_name
+    async def _start_capital_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, 
+                                 country: Dict, user_id: int, chat_id: int, user_name: str) -> None:
+        """Start a capital guessing game"""
+        # Get map image for the country
+        map_path = country.get("map_image_link")
 
-        logger.info(f"Sending capital guessing challenge for country: {country['name']}")
+        # Get the correct answer (capital city)
+        correct_capital = country.get("capital", "Unknown")
 
-        # Get the map path for this country
-        map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country['name']}_locator_map.png")
-
-        # Check if the map exists
-        if not os.path.exists(map_path):
+        # Check if map exists and capital is known
+        if not map_path or not os.path.exists(map_path) or correct_capital == "Unknown":
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"Sorry, I couldn't find the map for this country. Try another game!"
+                text="Sorry, I couldn't find the necessary information for this country. Please try again."
             )
             # Clean up the game
             if user_id in self.active_games:
@@ -735,52 +571,28 @@ class GameHandler:
             await self._send_game_navigation(update, context)
             return
 
-        # Get the correct capital (answer)
-        correct_capital = country.get('capital', 'Unknown')
-        if correct_capital == 'Unknown':
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=f"Sorry, I don't know the capital of this country. Try another game!"
-            )
-            # Clean up the game
-            if user_id in self.active_games:
-                del self.active_games[user_id]
-            # Send game navigation
-            await self._send_game_navigation(update, context)
-            return
+        # Get neighbor capitals for options from the database
+        neighbor_capitals = country.get("neighbor_capitals", [])[:MAX_HINT_COUNTRIES]
 
-        # Collect capital options (1 correct + 9 from other countries)
+        # Collect capital options (1 correct + others from neighbors)
         capital_options = [correct_capital]
 
-        # Get capitals from other countries
-        other_capitals = []
-        for c in self.countries_data.values():
-            if c['name'] != country['name'] and c.get('capital') and c['capital'] != 'Unknown' and c['capital'] not in capital_options:
-                other_capitals.append(c['capital'])
+        # Add neighbor capitals to options
+        for capital in neighbor_capitals:
+            if capital and capital not in capital_options:
+                capital_options.append(capital)
 
-        # Ensure we have enough options
-        if len(other_capitals) < 9:
-            # If we don't have enough capitals from the database, add some hardcoded ones
-            fallback_capitals = [
-                "Paris", "London", "Berlin", "Rome", "Madrid", "Tokyo", "Beijing", 
-                "Moscow", "Cairo", "Bangkok", "Seoul", "Washington D.C.", "Ottawa", 
-                "Brasília", "Canberra", "New Delhi", "Riyadh", "Pretoria", "Stockholm"
-            ]
-            for capital in fallback_capitals:
-                if capital not in capital_options and capital not in other_capitals:
-                    other_capitals.append(capital)
+        # If we still need more options, add some random capitals
+        while len(capital_options) < MAX_HINT_COUNTRIES:
+            # Get a random country and its capital
+            random_country = self._select_random_country()
+            random_capital = random_country.get("capital", "")
 
-        # Shuffle and select 9 other capitals
-        random.shuffle(other_capitals)
-        capital_options.extend(other_capitals[:9])
+            if random_capital and random_capital not in capital_options:
+                capital_options.append(random_capital)
 
-        # Shuffle the final options
+        # Shuffle the options
         random.shuffle(capital_options)
-
-        # Log the options for debugging
-        logger.info(f"Generated {len(capital_options)} capital options")
-        logger.info(f"Capital options: {capital_options}")
-        logger.info(f"Correct capital: {correct_capital}")
 
         # Create keyboard with capital options
         keyboard = []
@@ -802,15 +614,6 @@ class GameHandler:
         # Send the map image with capital options
         try:
             with open(map_path, 'rb') as photo:
-                # Check if file is readable
-                photo_bytes = photo.read(1024)
-                if not photo_bytes:
-                    logger.error(f"Map file is empty or could not be read")
-                    raise ValueError("Map file is empty or could not be read")
-
-                # Seek back to beginning of file
-                photo.seek(0)
-
                 message = await context.bot.send_photo(
                     chat_id=chat_id,
                     photo=photo,
@@ -835,6 +638,44 @@ class GameHandler:
                 del self.active_games[user_id]
             # Send game navigation
             await self._send_game_navigation(update, context)
+
+    async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handles callback queries from inline keyboards."""
+        query = update.callback_query
+        user_id = update.effective_user.id
+
+        # Acknowledge the callback query
+        await query.answer()
+
+        # Check the callback data
+        callback_data = query.data
+        logger.info(f"Received callback query: {callback_data} from user {user_id}")
+
+        # Handle different callback types
+        if callback_data.startswith("guess_"):
+            # Extract country and capital from the callback data
+            parts = callback_data.split("_", 2)  # Split into at most 3 parts
+
+            if len(parts) == 2:  # Format: "guess_CountryName"
+                # This is a map or flag game guess
+                guessed_country = parts[1]
+                await self._handle_guess(update, context, callback_data)
+            elif len(parts) == 3:  # Format: "guess_CountryName_CapitalName"
+                # This is a capital guessing game
+                country_name = parts[1]
+                guessed_capital = parts[2]
+                await self._handle_capital_guess(update, context, country_name, guessed_capital)
+            else:
+                logger.error(f"Invalid callback data format: {callback_data}")
+
+        elif callback_data.startswith("play_"):
+            # Handle game navigation buttons
+            game_mode = callback_data.split("_")[1]
+            await self.start_game(update, context, game_mode)
+
+        elif callback_data == "show_leaderboard":
+            # Show the leaderboard
+            await self.show_leaderboard(update, context)
 
     async def _handle_guess(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str) -> None:
         """Handle a guess from the inline keyboard"""
@@ -883,11 +724,7 @@ class GameHandler:
 
             # Get region information
             region = correct_country.get("region", "Unknown")
-            subregion = correct_country.get("subregion", "")
-            result_message += f"🌍 Region: {region}"
-            if subregion:
-                result_message += f" ({subregion})"
-            result_message += "\n"
+            result_message += f"🌍 Region: {region}\n"
 
             # Get population and area information
             population = correct_country.get("population", 0)
@@ -906,11 +743,7 @@ class GameHandler:
 
             # Get region information
             region = correct_country.get("region", "Unknown")
-            subregion = correct_country.get("subregion", "")
-            result_message += f"🌍 Region: {region}"
-            if subregion:
-                result_message += f" ({subregion})"
-            result_message += "\n"
+            result_message += f"🌍 Region: {region}\n"
 
             # Get population and area information
             population = correct_country.get("population", 0)
@@ -979,66 +812,76 @@ class GameHandler:
             logger.warning(f"No active game found for user: {user_id}")
             await context.bot.send_message(
                 chat_id=chat_id,
-                text="No active game found. Start a new game with /g cap"
+                text="No active game found. Start a new game with /g"
             )
             return
 
+        # Get the game data
         game = self.active_games[user_id]
         correct_country = game["country"]
         current_mode = game.get("mode", "cap")
 
         # Get the correct capital
-        correct_capital = correct_country.get("capital", "Unknown")
+        correct_capital = correct_country.get("capital","Unknown")
 
         # Format country name for display (replace underscores with spaces)
         display_country_name = correct_country["name"].replace("_", " ")
 
-        # Check if guess is correct
+        # Calculate elapsed time
+        elapsed_time = round(time.time() - game["start_time"], 1)
+
+        # Check if the guess is correct
         is_correct = (guessed_capital == correct_capital)
 
-        # Prepare result message
+        # Prepare the result message
         if is_correct:
-            result_message = f"✅ Correct! {user_name}, You Are A Marveller!\n\n"
+            # For correct answer
+            result_message = f"✅ Correct! {user_name}, You Are A Marveller! (in {elapsed_time}s)\n\n"
+            result_message += f"🏙️ {guessed_capital} is indeed the capital of *{display_country_name}*!\n\n"
+
+            # Add country details
+            result_message += f"📊 Quick Facts:\n"
+            result_message += f"🌍 Region: {correct_country.get('region', 'Unknown')}\n"
+
+            # Add population and area
+            population = correct_country.get("population", 0)
+            area = correct_country.get("area", 0)
+            result_message += f"👥 Population: {self._format_population(population)}\n"
+            result_message += f"📏 Area: {self._format_area(area)}"
         else:
+            # For wrong answer
             result_message = f"❌ Wrong! {user_name}, You Are A VOZER : ))\n"
-            result_message += f"You selected: *{guessed_capital}*\n\n"
+            result_message += f"You selected *{guessed_capital}*.\n"
+            result_message += f"The capital of *{display_country_name}* is *{correct_capital}*.\n\n"
 
-        # Add country details in both cases
-        result_message += f"🏳️ *{display_country_name}*\n"
-        result_message += f"🏙️ Capital: *{correct_capital}*\n"
+            # Add country details
+            result_message += f"📊 Quick Facts:\n"
+            result_message += f"🌍 Region: {correct_country.get('region', 'Unknown')}\n"
 
-        # Get region information
-        region = correct_country.get("region", "Unknown")
-        subregion = correct_country.get("subregion", "")
-        result_message += f"🌍 Region: {region}"
-        if subregion:
-            result_message += f" ({subregion})"
-        result_message += "\n"
-
-        # Get population and area information
-        population = correct_country.get("population", 0)
-        area = correct_country.get("area", 0)
-        result_message += f"👥 Population: {self._format_population(population)}\n"
-        result_message += f"📏 Area: {self._format_area(area)}"
+            # Add population and area
+            population = correct_country.get("population", 0)
+            area = correct_country.get("area", 0)
+            result_message += f"👥 Population: {self._format_population(population)}\n"
+            result_message += f"📏 Area: {self._format_area(area)}"
 
         # Update user stats
         self._update_user_stats(user_id, is_correct, current_mode)
 
-        # Clean up the game
+        # Clean up the active game
         if user_id in self.active_games:
             del self.active_games[user_id]
 
-        # Cancel any active timer
+        # Cancel the timer
         self._cancel_timer(user_id)
 
-        # Try to edit the original message to show the result
+        # Try to update the original message
         try:
             message_id = game.get("message_id")
             if message_id:
-                await context.bot.edit_message_caption(
+                await context.bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=message_id,
-                    caption=result_message,
+                    text=result_message,
                     parse_mode="Markdown"
                 )
             else:
@@ -1060,131 +903,85 @@ class GameHandler:
         # Send game navigation buttons
         await self._send_game_navigation(update, context)
 
-    def get_answer_options(self, correct_country: Dict, num_options: int = 10) -> List[Dict]:
-        """
-        Get a list of answer options including the correct one and some decoys
+    def _format_population(self, population: int) -> str:
+        """Format population number for display"""
+        if not population:
+            return "Unknown"
 
-        Args:
-            correct_country: The correct country answer
-            num_options: Total number of options to return (default: 10)
+        if population >= 1000000000:
+            return f"{population/1000000000:.2f} billion"
+        elif population >= 1000000:
+            return f"{population/1000000:.2f} million"
+        elif population >= 1000:
+            return f"{population/1000:.1f} thousand"
+        else:
+            return str(population)
 
-        Returns:
-            List of country dictionaries to use as options
-        """
-        logger.info(f"Generating answer options for country: {correct_country['name']}")
+    def _format_area(self, area: float) -> str:
+        """Format area number for display"""
+        if not area:
+            return "Unknown"
 
-        # Start with the correct country
-        options = [correct_country]
-        logger.info(f"Added correct country: {correct_country['name']}")
+        # Format with commas for thousands separator
+        return f"{area:,.0f} km²"
 
-        # Try to get some neighbors
-        neighbors = correct_country.get('neighbors', [])
-        logger.info(f"Found {len(neighbors)} neighbors: {neighbors}")
+    def _update_user_stats(self, user_id: int, is_correct: bool, game_mode: str) -> None:
+        """Update user statistics for the game"""
+        # Initialize user stats if this is their first game
+        if user_id not in self.user_stats:
+            self.user_stats[user_id] = {}
 
-        # If we have neighbors, load their details and add them
-        neighbor_countries = []
-        for neighbor_name in neighbors:
-            # Load neighbor details
-            neighbor = self.load_country_details(neighbor_name)
-            if neighbor:
-                neighbor_countries.append(neighbor)
+        # Initialize stats for this mode if first time
+        if game_mode not in self.user_stats[user_id]:
+            self.user_stats[user_id][game_mode] = {
+                "total": 0,
+                "correct": 0
+            }
 
-        # Shuffle the neighbors and add them to options (up to 5 neighbors max)
-        random.shuffle(neighbor_countries)
-        for neighbor in neighbor_countries[:5]:  # Limit to 5 neighbors max
-            if len(options) < num_options:
-                options.append(neighbor)
-                logger.info(f"Added neighbor country: {neighbor['name']}")
+        # Update stats
+        self.user_stats[user_id][game_mode]["total"] += 1
+        if is_correct:
+            self.user_stats[user_id][game_mode]["correct"] += 1
 
-        # If we still need more countries to reach num_options (10)
-        if len(options) < num_options:
-            logger.info(f"Need {num_options - len(options)} more countries to reach {num_options}")
-
-            # Get all country names except those already in options
-            used_country_names = {country['name'] for country in options}
-            available_countries = [name for name in self.all_countries if name not in used_country_names]
-
-            # Make sure we have enough countries to choose from
-            if not available_countries:
-                logger.warning("No additional countries available, using fallback")
-                fallback_countries = self._get_fallback_countries()
-                for country in fallback_countries:
-                    if country['name'] not in used_country_names:
-                        available_countries.append(country['name'])
-
-            # Shuffle the available countries
-            random.shuffle(available_countries)
-            logger.info(f"Found {len(available_countries)} additional countries to choose from")
-
-            # Add countries until we reach the desired number
-            for country_name in available_countries:
-                if len(options) >= num_options:
-                    break
-
-                country = self.load_country_details(country_name)
-                if country:
-                    options.append(country)
-                    logger.info(f"Added additional country: {country_name}")
-
-        # If we still don't have enough options, use fallback countries
-        if len(options) < num_options:
-            logger.warning(f"Only have {len(options)} options, using fallback countries")
-            fallback_countries = self._get_fallback_countries()
-            for country in fallback_countries:
-                if country['name'] not in {c['name'] for c in options}:
-                    if len(options) < num_options:
-                        options.append(country)
-                        logger.info(f"Added fallback country: {country['name']}")
-                    else:
-                        break
-
-        # Ensure we don't exceed the requested number of options
-        options = options[:num_options]
-
-        # Shuffle the options to randomize the order
-        random.shuffle(options)
-
-        # Log the final options
-        logger.info(f"Final options count: {len(options)}")
-        logger.info(f"Option countries: {[country['name'] for country in options]}")
-
-        # Return exactly num_options options
-        return options
+        logger.info(f"Updated user stats for {user_id} in {game_mode} mode: {self.user_stats[user_id][game_mode]}")
 
     async def _send_game_navigation(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Sends navigation buttons for different game modes"""
-        logger.info(f"Sending game navigation buttons")
-        chat_id = update.effective_chat.id
-
-        # Create keyboard with game mode options
+        """Send buttons for navigating between game modes"""
+        # Create buttons for different game modes
         keyboard = [
             [
-                InlineKeyboardButton("🗺️ Play Map Game", callback_data="play_map"),
-                InlineKeyboardButton("🏳️ Play Flag Game", callback_data="play_flag")
+                InlineKeyboardButton("🗺️ Map Mode", callback_data="play_map"),
+                InlineKeyboardButton("🏳️ Flag Mode", callback_data="play_flag")
             ],
             [
-                InlineKeyboardButton("🏙️ Play Capital Game", callback_data="play_cap")
-            ],
-            [
-                InlineKeyboardButton("🏆 Leaderboard", callback_data="show_leaderboard")
+                InlineKeyboardButton("🏙️ Capital Mode", callback_data="play_capital"),
+                InlineKeyboardButton("📊 Leaderboard", callback_data="show_leaderboard")
             ]
         ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        # Send the navigation message
         await context.bot.send_message(
-            chat_id=chat_id,
+            chat_id=update.effective_chat.id,
             text="Choose a game mode:",
             reply_markup=reply_markup
         )
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Show help message for the game"""
-        from country_game.config import HELP_TEXT
+        help_text = """
+🌍 *Country Guessing Game Options* 🌍
 
-        # Add info about leaderboard to help text
-        help_text = HELP_TEXT.strip() + "\n\n*/g lb* - Show the leaderboard for all game modes"
+*/g help* - Show this help message
+*/g* or */g map* - Launch game in map mode (guess from a map)
+*/g flag* - Launch game in flag mode (guess from a flag)
+*/g capital* - Launch game in capital mode (guess from a capital city)
+*/g cap* - Launch game in capital guessing mode (see a map, guess the capital)
+*/g lb* - Show the leaderboard for all game modes
+
+To play: simply tap on the correct option from the choices provided.
+You have 60 seconds to answer each question.
+"""
 
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -1192,359 +989,74 @@ class GameHandler:
             parse_mode="Markdown"
         )
 
-        # After showing help, send game navigation buttons
-        await self._send_game_navigation(update, context)
-
-    async def handle_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle text answers (currently not used, all answers use callback buttons)"""
-        # This method is kept for potential future use with text-based answers
-        pass
-
     async def show_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Show the leaderboard for all game modes"""
-        chat_id = update.effective_chat.id
+        """Show the leaderboard for all players"""
+        # Check if we have any stats
+        if not self.user_stats:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="No games have been played yet. Be the first to play!"
+            )
+            return
 
-        # Create a dictionary to store user stats by mode
-        scores_by_mode = {
-            "map": [],
-            "flag": [],
-            "cap": []
-        }
+        # Calculate total stats and accuracy for each user
+        user_totals = {}
+        for user_id, modes in self.user_stats.items():
+            user_totals[user_id] = {
+                "total": 0,
+                "correct": 0,
+                "modes": {}
+            }
 
-        # Collect scores for each user
-        for user_id, stats in self.user_stats.items():
-            user = await context.bot.get_chat_member(chat_id, user_id)
-            user_name = user.user.first_name
+            # Calculate totals across all modes
+            for mode, stats in modes.items():
+                user_totals[user_id]["total"] += stats["total"]
+                user_totals[user_id]["correct"] += stats["correct"]
 
-            for mode, mode_stats in stats.items():
-                if mode in scores_by_mode:
-                    # Only include users who have played this mode
-                    if mode_stats["total"] > 0:
-                        accuracy = round((mode_stats["correct"] / mode_stats["total"]) * 100) if mode_stats["total"] > 0 else 0
-                        scores_by_mode[mode].append({
-                            "user_name": user_name,
-                            "correct": mode_stats["correct"],
-                            "total": mode_stats["total"],
-                            "accuracy": accuracy
-                        })
+                # Calculate accuracy for this mode
+                accuracy = (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
+                user_totals[user_id]["modes"][mode] = {
+                    "total": stats["total"],
+                    "correct": stats["correct"],
+                    "accuracy": accuracy
+                }
 
-        # Sort each mode's leaderboard by number of correct answers (descending)
-        for mode in scores_by_mode:
-            scores_by_mode[mode].sort(key=lambda x: (x["correct"], x["accuracy"]), reverse=True)
-            # Limit to top 10 players
-            scores_by_mode[mode] = scores_by_mode[mode][:10]
+            # Calculate overall accuracy
+            user_totals[user_id]["accuracy"] = (user_totals[user_id]["correct"] / user_totals[user_id]["total"] * 100) if user_totals[user_id]["total"] > 0 else 0
 
-        # Format the leaderboard message
-        message = "🏆 *COUNTRY GAME LEADERBOARD* 🏆\n\n"
+        # Sort users by overall accuracy (highest first)
+        sorted_users = sorted(user_totals.items(), key=lambda x: x[1]["accuracy"], reverse=True)
 
-        for mode, mode_name in [("map", "🗺️ Map Game"), ("flag", "🏳️ Flag Game"), ("cap", "🏙️ Capital Game")]:
-            scores = scores_by_mode[mode]
-            message += f"*{mode_name}*\n"
+        # Build leaderboard message
+        message = "🏆 *Country Game Leaderboard* 🏆\n\n"
 
-            if not scores:
-                message += "No players yet!\n\n"
-                continue
+        # Add top 10 users
+        for i, (user_id, stats) in enumerate(sorted_users[:10], 1):
+            # Try to get the user's name
+            try:
+                user = await context.bot.get_chat(user_id)
+                user_name = user.first_name
+            except Exception:
+                user_name = f"User {user_id}"
 
-            for i, score in enumerate(scores, 1):
-                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-                message += f"{medal} {score['user_name']}: {score['correct']} correct ({score['accuracy']}%)\n"
+            message += f"{i}. *{user_name}*: {stats['accuracy']:.1f}% ({stats['correct']}/{stats['total']})\n"
+
+            # Add breakdown by mode
+            for mode, mode_stats in stats["modes"].items():
+                mode_display = {
+                    "map": "🗺️ Map",
+                    "flag": "🏳️ Flag",
+                    "capital": "🏙️ Capital",
+                    "cap": "🏙️ Capital Guess"
+                }.get(mode, mode)
+
+                message += f"  {mode_display}: {mode_stats['accuracy']:.1f}% ({mode_stats['correct']}/{mode_stats['total']})\n"
 
             message += "\n"
 
         # Send the leaderboard
         await context.bot.send_message(
-            chat_id=chat_id,
+            chat_id=update.effective_chat.id,
             text=message,
             parse_mode="Markdown"
         )
-
-        # Send game navigation buttons after showing leaderboard
-        await self._send_game_navigation(update, context)
-
-    async def leaderboard_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle the /g lb command to show leaderboard"""
-        await self.show_leaderboard(update, context)
-
-    def _update_user_stats(self, user_id: int, is_correct: bool, game_mode: str = "map") -> None:
-        """Update user statistics for the specified game mode"""
-        # Initialize user stats if not existing
-        if user_id not in self.user_stats:
-            self.user_stats[user_id] = {
-                "map": {"total": 0, "correct": 0},
-                "flag": {"total": 0, "correct": 0},
-                "cap": {"total": 0, "correct": 0}
-            }
-
-        # Ensure the game mode stats exist
-        if game_mode not in self.user_stats[user_id]:
-            self.user_stats[user_id][game_mode] = {"total": 0, "correct": 0}
-
-        # Update the stats
-        self.user_stats[user_id][game_mode]["total"] += 1
-        if is_correct:
-            self.user_stats[user_id][game_mode]["correct"] += 1
-
-        # Log the updated stats
-        logger.info(f"Updated stats for user {user_id} in mode {game_mode}: {self.user_stats[user_id][game_mode]}")
-
-    def _format_population(self, population) -> str:
-        """Format population number for display"""
-        if not population:
-            return "Unknown"
-
-        try:
-            pop = int(population)
-            if pop >= 1_000_000_000:  # Billions
-                return f"{pop / 1_000_000_000:.1f} billion"
-            elif pop >= 1_000_000:  # Millions
-                return f"{pop / 1_000_000:.1f} million"
-            elif pop >= 1_000:  # Thousands
-                return f"{pop / 1_000:.1f} thousand"
-            else:
-                return str(pop)
-        except:
-            return str(population)
-
-    def _format_area(self, area) -> str:
-        """Format area for display"""
-        if not area:
-            return "Unknown"
-
-        try:
-            area_val = float(area)
-            return f"{area_val:,.0f} km²"
-        except:
-            return str(area)
-
-    def _get_fallback_countries(self) -> List[Dict]:
-        """Return a comprehensive list of countries as fallback with capitals and neighbors"""
-        # This is a comprehensive list with essential country data
-        countries = [
-            {
-                "name": "United_States",
-                "capital": "Washington D.C.",
-                "neighbors": ["Canada", "Mexico"],
-                "region": "Americas",
-                "subregion": "North America",
-                "population": 331002651,
-                "area": 9833517
-            },
-            {
-                "name": "United_Kingdom",
-                "capital": "London",
-                "neighbors": ["Ireland"],
-                "region": "Europe",
-                "subregion": "Northern Europe",
-                "population": 67886011,
-                "area": 242900
-            },
-            {
-                "name": "France",
-                "capital": "Paris",
-                "neighbors": ["Spain", "Andorra", "Monaco", "Italy", "Switzerland", "Germany", "Luxembourg", "Belgium"],
-                "region": "Europe",
-                "subregion": "Western Europe",
-                "population": 65273511,
-                "area": 551695
-            },
-            {
-                "name": "Germany",
-                "capital": "Berlin",
-                "neighbors": ["Denmark", "Poland", "Czech_Republic", "Austria", "Switzerland", "France", "Luxembourg", "Belgium", "Netherlands"],
-                "region": "Europe",
-                "subregion": "Western Europe",
-                "population": 83783942,
-                "area": 357114
-            },
-            {
-                "name": "Japan",
-                "capital": "Tokyo",
-                "neighbors": [],
-                "region": "Asia",
-                "subregion": "Eastern Asia",
-                "population": 126476461,
-                "area": 377975
-            },
-            {
-                "name": "Australia",
-                "capital": "Canberra",
-                "neighbors": [],
-                "region": "Oceania",
-                "subregion": "Australia and New Zealand",
-                "population": 25499884,
-                "area": 7692024
-            },
-            {
-                "name": "Brazil",
-                "capital": "Brasília",
-                "neighbors": ["Uruguay", "Argentina", "Paraguay", "Bolivia", "Peru", "Colombia", "Venezuela", "Guyana", "Suriname", "French_Guiana"],
-                "region": "Americas",
-                "subregion": "South America",
-                "population": 212559417,
-                "area": 8515767
-            },
-            {
-                "name": "Canada",
-                "capital": "Ottawa",
-                "neighbors": ["United_States"],
-                "region": "Americas",
-                "subregion": "North America",
-                "population": 37742154,
-                "area": 9984670
-            },
-            {
-                "name": "Mexico",
-                "capital": "Mexico City",
-                "neighbors": ["United_States", "Guatemala", "Belize"],
-                "region": "Americas",
-                "subregion": "North America",
-                "population": 128932753,
-                "area": 1964375
-            },
-            {
-                "name": "China",
-                "capital": "Beijing",
-                "neighbors": ["Russia", "Mongolia", "North_Korea", "Vietnam", "Laos", "Myanmar", "India", "Bhutan", "Nepal", "Pakistan", "Afghanistan", "Tajikistan", "Kyrgyzstan", "Kazakhstan"],
-                "region": "Asia",
-                "subregion": "Eastern Asia",
-                "population": 1439323776,
-                "area": 9640011
-            },
-            {
-                "name": "Egypt",
-                "capital": "Cairo",
-                "neighbors": ["Libya", "Sudan", "Israel"],
-                "region": "Africa",
-                "subregion": "Northern Africa",
-                "population": 102334404,
-                "area": 1002450
-            },
-            {
-                "name": "South_Korea",
-                "capital": "Seoul",
-                "neighbors": ["North_Korea"],
-                "region": "Asia",
-                "subregion": "Eastern Asia",
-                "population": 51269185,
-                "area": 100210
-            },
-            {
-                "name": "Argentina",
-                "capital": "Buenos Aires",
-                "neighbors": ["Chile", "Bolivia", "Paraguay", "Brazil", "Uruguay"],
-                "region": "Americas",
-                "subregion": "South America",
-                "population": 45195774,
-                "area": 2780400
-            },
-            {
-                "name": "Thailand",
-                "capital": "Bangkok",
-                "neighbors": ["Myanmar", "Laos", "Cambodia", "Malaysia"],
-                "region": "Asia",
-                "subregion": "South-Eastern Asia",
-                "population": 69799978,
-                "area": 513120
-            },
-            {
-                "name": "Turkey",
-                "capital": "Ankara",
-                "neighbors": ["Greece", "Bulgaria", "Georgia", "Armenia", "Azerbaijan", "Iran", "Iraq", "Syria"],
-                "region": "Asia/Europe",
-                "subregion": "Western Asia",
-                "population": 84339067,
-                "area": 783562
-            },
-            {
-                "name": "Poland",
-                "capital": "Warsaw",
-                "neighbors": ["Germany", "Czech_Republic", "Slovakia", "Ukraine", "Belarus", "Lithuania", "Russia"],
-                "region": "Europe",
-                "subregion": "Eastern Europe",
-                "population": 37846611,
-                "area": 312696
-            },
-            {
-                "name": "Sweden",
-                "capital": "Stockholm",
-                "neighbors": ["Norway", "Finland"],
-                "region": "Europe",
-                "subregion": "Northern Europe",
-                "population": 10099265,
-                "area": 450295
-            },
-            {
-                "name": "Ukraine",
-                "capital": "Kyiv",
-                "neighbors": ["Belarus", "Poland", "Slovakia", "Hungary", "Romania", "Moldova", "Russia"],
-                "region": "Europe",
-                "subregion": "Eastern Europe",
-                "population": 43733762,
-                "area": 603500
-            },
-            {
-                "name": "Greece",
-                "capital": "Athens",
-                "neighbors": ["Albania", "North_Macedonia", "Bulgaria", "Turkey"],
-                "region": "Europe",
-                "subregion": "Southern Europe",
-                "population": 10423054,
-                "area": 131957
-            },
-            {
-                "name": "Netherlands",
-                "capital": "Amsterdam",
-                "neighbors": ["Belgium", "Germany"],
-                "region": "Europe",
-                "subregion": "Western Europe",
-                "population": 17134872,
-                "area": 41850
-            },
-            {
-                "name": "Switzerland",
-                "capital": "Bern",
-                "neighbors": ["Germany", "France", "Italy", "Austria", "Liechtenstein"],
-                "region": "Europe",
-                "subregion": "Western Europe",
-                "population": 8654622,
-                "area": 41284
-            },
-            {
-                "name": "Indonesia",
-                "capital": "Jakarta",
-                "neighbors": ["Malaysia", "Papua_New_Guinea", "East_Timor"],
-                "region": "Asia",
-                "subregion": "South-Eastern Asia",
-                "population": 273523615,
-                "area": 1904569
-            },
-            {
-                "name": "Saudi_Arabia",
-                "capital": "Riyadh",
-                "neighbors": ["Jordan", "Iraq", "Kuwait", "Bahrain", "Qatar", "United_Arab_Emirates", "Oman", "Yemen"],
-                "region": "Asia",
-                "subregion": "Western Asia",
-                "population": 34813871,
-                "area": 2149690
-            },
-            {
-                "name": "New_Zealand",
-                "capital": "Wellington",
-                "neighbors": [],
-                "region": "Oceania",
-                "subregion": "Australia and New Zealand",
-                "population": 4822233,
-                "area": 270467
-            },
-            {
-                "name": "Singapore",
-                "capital": "Singapore",
-                "neighbors": [],
-                "region": "Asia",
-                "subregion": "South-Eastern Asia",
-                "population": 5850342,
-                "area": 710
-            }
-        ]
-
-        return countries
