@@ -423,9 +423,13 @@ def main() -> None:
             application.add_handler(CommandHandler("g", game_command))
 
             # Add a callback query handler for the game buttons
+            # Make sure it captures all callback query patterns used by the game
             application.add_handler(CallbackQueryHandler(
-                lambda update, context: context.bot_data['game_handler'].handle_callback_query(update, context)
+                lambda update, context: context.bot_data['game_handler'].handle_callback_query(update, context),
+                pattern="^(guess_|play_)"  # Only handle callbacks starting with these prefixes
             ))
+
+            logger.info("Game callback handler registered")
 
             # Add a message handler to process game answers and other messages
             application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
