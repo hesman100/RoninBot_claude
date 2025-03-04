@@ -68,7 +68,7 @@ number,name,neighbor_country,map_image_link,flag_image_link,capital,neighbor_cap
 67,Grenada,,country_game/images/wiki_all_map_400pi/Grenada_locator_map.png,country_game/images/wiki_flag/Grenada_flag.png,Unknown,,Unknown,,,1741093250
 68,Guatemala,,country_game/images/wiki_all_map_400pi/Guatemala_locator_map.png,country_game/images/wiki_flag/Guatemala_flag.png,Unknown,,Unknown,,,1741093250
 69,Guinea,,country_game/images/wiki_all_map_400pi/Guinea_locator_map.png,country_game/images/wiki_flag/Guinea_flag.png,Unknown,,Unknown,,,1741093250
-70,Guinea-Bissau,,country_game/images/wiki_all_map_400pi/Guinea-Bissau_locator_map.png,country_game/images/wiki_flag/GuineaBissau_flag.png,Unknown,,Unknown,,,1741093250
+70,Guinea-Bissau,,country_game/images/wiki_all_map_400pi/Guinea-Bissau_locator_map.png,,Unknown,,Unknown,,,1741093250
 71,Guyana,,country_game/images/wiki_all_map_400pi/Guyana_locator_map.png,country_game/images/wiki_flag/Guyana_flag.png,Unknown,,Unknown,,,1741093250
 72,Haiti,,country_game/images/wiki_all_map_400pi/Haiti_locator_map.png,country_game/images/wiki_flag/Haiti_flag.png,Unknown,,Unknown,,,1741093250
 73,Honduras,,country_game/images/wiki_all_map_400pi/Honduras_locator_map.png,country_game/images/wiki_flag/Honduras_flag.png,Unknown,,Unknown,,,1741093250
@@ -148,7 +148,7 @@ number,name,neighbor_country,map_image_link,flag_image_link,capital,neighbor_cap
 147,Saint_Vincent_and_the_Grenadines,,country_game/images/wiki_all_map_400pi/Saint_Vincent_and_the_Grenadines_locator_map.png,country_game/images/wiki_flag/Saint_Vincent_and_the_Grenadines_flag.png,Unknown,,Unknown,,,1741093251
 148,Samoa,,country_game/images/wiki_all_map_400pi/Samoa_locator_map.png,country_game/images/wiki_flag/Samoa_flag.png,Unknown,,Unknown,,,1741093251
 149,San_Marino,,country_game/images/wiki_all_map_400pi/San_Marino_locator_map.png,country_game/images/wiki_flag/San_Marino_flag.png,Unknown,,Unknown,,,1741093251
-150,São_Tomé_and_Príncipe,,country_game/images/wiki_all_map_400pi/São_Tomé_and_Príncipe_locator_map.png,country_game/images/wiki_flag/So_Tom_and_Prncipe_flag.png,Unknown,,Unknown,,,1741093251
+150,São_Tomé_and_Príncipe,,country_game/images/wiki_all_map_400pi/São_Tomé_and_Príncipe_locator_map.png,,Unknown,,Unknown,,,1741093251
 151,Saudi_Arabia,,country_game/images/wiki_all_map_400pi/Saudi_Arabia_locator_map.png,country_game/images/wiki_flag/Saudi_Arabia_flag.png,Unknown,,Unknown,,,1741093251
 152,Senegal,,country_game/images/wiki_all_map_400pi/Senegal_locator_map.png,country_game/images/wiki_flag/Senegal_flag.png,Unknown,,Unknown,,,1741093251
 153,Serbia,,country_game/images/wiki_all_map_400pi/Serbia_locator_map.png,country_game/images/wiki_flag/Serbia_flag.png,Unknown,,Unknown,,,1741093251
