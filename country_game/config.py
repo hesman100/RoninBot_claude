@@ -34,6 +34,7 @@ HELP_TEXT = """
 */g flag* - Launch game in flag mode (guess from a flag)
 */g capital* - Launch game in capital mode (guess from a capital city)
 */g cap* - Launch game in capital guessing mode (see a map, guess the capital)
+*/g lb* - Show the leaderboard for all game modes
 
 To play: simply tap on the correct option from the choices provided.
 You have 15 seconds to answer each question.

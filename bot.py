@@ -135,6 +135,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/vn - Get prices for popular Vietnam stocks\n"
             "/g <option> - Play country guessing game\n"
             "              (Example: /g map, /g flag, /g capital)\n"
+            "/g lb - View country game leaderboard\n" 
             "/help or /h - Show this help message\n\n"
             "💡 Tip: Anyone in the group can use these commands!"
         )
@@ -153,6 +154,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "/vn - Get prices for popular Vietnam stocks\n"
             "/g <option> - Play country guessing game\n"
             "              (Example: /g map, /g flag, /g capital)\n"
+            "/g lb - View country game leaderboard\n" 
             "/help or /h - Show this help message\n\n"
             "💡 To use in groups:\n"
             "1. Add me to your group\n"
@@ -348,6 +350,8 @@ async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await game_handler.help_command(update, context)
     elif subcommand in ["map", "flag", "capital", "cap"]:  # Added "cap" to the list of valid subcommands
         await game_handler.start_game(update, context, game_mode=subcommand)
+    elif subcommand in ["lb", "leaderboard"]:  # Added "lb" and "leaderboard" as valid subcommands
+        await game_handler.show_leaderboard(update, context)
     else:
         # Unknown subcommand, show help
         await update.message.reply_text(f"Unknown game option: {subcommand}. Try /g help for available options.")
@@ -426,7 +430,7 @@ def main() -> None:
             # Make sure it captures all callback query patterns used by the game
             application.add_handler(CallbackQueryHandler(
                 lambda update, context: context.bot_data['game_handler'].handle_callback_query(update, context),
-                pattern="^(guess_|play_)"  # Removed hint_ from the pattern
+                pattern="^(guess_|play_|show_leaderboard)"  # Added show_leaderboard to the pattern
             ))
 
             logger.info("Game callback handler registered")

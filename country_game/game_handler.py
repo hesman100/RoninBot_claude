@@ -29,8 +29,10 @@ class GameHandler:
 
         # Store active games by user_id
         self.active_games = {}
-        # Game stats by user_id
+
+        # Game stats by user_id - enhanced to track by game mode
         self.user_stats = {}
+
         # Timer tasks for active games
         self.timer_tasks = {}
         self.current_game_mode = None  # Added to track the current game mode
@@ -197,8 +199,11 @@ class GameHandler:
             correct_country = game["country"]
             correct_country_name = correct_country["name"].replace("_", " ")
 
+            # Get user's name for personalized message
+            user_name = update.effective_user.first_name
+
             # Build timeout message
-            timeout_msg = f"⏱️ Time's up! The correct answer was *{correct_country_name}*.\n\n"
+            timeout_msg = f"⏱️ Time's up! {user_name} speed up next time! The correct answer was *{correct_country_name}*.\n\n"
 
             # Add country details
             timeout_msg += f"🏳️ {correct_country_name}\n"
@@ -252,7 +257,7 @@ class GameHandler:
                 )
 
             # Update stats
-            self._update_user_stats(user_id, False)
+            self._update_user_stats(user_id, False, current_mode)
 
             # Remove the active game
             del self.active_games[user_id]
@@ -468,6 +473,9 @@ class GameHandler:
             else:
                 # Always allow starting a new game regardless of active_games state
                 await self.start_game(update, context, game_mode)
+        # Check if it's a leaderboard request
+        elif query.data == "show_leaderboard":
+            await self.show_leaderboard(update, context)
         else:
             logger.warning(f"Unrecognized callback data: {query.data}")
             await context.bot.send_message(
@@ -479,6 +487,7 @@ class GameHandler:
         """Send a map challenge to the user with multiple-choice options"""
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
+        user_name = update.effective_user.first_name
 
         logger.info(f"Sending map challenge for country: {country['name']}")
 
@@ -521,10 +530,18 @@ class GameHandler:
         # Send the map image with answer options
         try:
             with open(map_path, 'rb') as photo:
+                photo_bytes = photo.read(1024)
+                if not photo_bytes:
+                    logger.error(f"Map file is empty or could not be read")
+                    raise ValueError("Map file is empty or could not be read")
+
+                # Seek back to beginning of file
+                photo.seek(0)
+
                 message = await context.bot.send_photo(
                     chat_id=chat_id,
                     photo=photo,
-                    caption="🌍 Which country is shown on this map?",
+                    caption=f"🌍 {user_name}, which country is shown on this map? (⏱️ {GAME_TIMEOUT}s)",
                     reply_markup=reply_markup
                 )
 
@@ -550,6 +567,7 @@ class GameHandler:
         """Send a flag challenge to the user with multiple-choice options"""
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
+        user_name = update.effective_user.first_name
 
         logger.info(f"Sending flag challenge for country: {country['name']}")
 
@@ -592,10 +610,18 @@ class GameHandler:
         # Send the flag image with answer options
         try:
             with open(flag_path, 'rb') as photo:
+                photo_bytes = photo.read(1024)
+                if not photo_bytes:
+                    logger.error(f"Flag file is empty or could not be read")
+                    raise ValueError("Flag file is empty or could not be read")
+
+                # Seek back to beginning of file
+                photo.seek(0)
+
                 message = await context.bot.send_photo(
                     chat_id=chat_id,
                     photo=photo,
-                    caption="🏳️ Which country does this flag belong to?",
+                    caption=f"🏳️ {user_name}, which country does this flag belong to? (⏱️ {GAME_TIMEOUT}s)",
                     reply_markup=reply_markup
                 )
 
@@ -621,6 +647,7 @@ class GameHandler:
         """Send a capital challenge to the user with multiple-choice options"""
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
+        user_name = update.effective_user.first_name
 
         logger.info(f"Sending capital challenge for country: {country['name']}")
 
@@ -661,7 +688,7 @@ class GameHandler:
         try:
             message = await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"🏙️ Which country has *{country['capital']}* as its capital?",
+                text=f"🏙️ {user_name}, which country has *{country['capital']}* as its capital? (⏱️ {GAME_TIMEOUT}s)",
                 parse_mode="Markdown",
                 reply_markup=reply_markup
             )
@@ -688,6 +715,7 @@ class GameHandler:
         """Send a challenge where user sees a map and needs to identify the capital city"""
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
+        user_name = update.effective_user.first_name
 
         logger.info(f"Sending capital guessing challenge for country: {country['name']}")
 
@@ -721,137 +749,98 @@ class GameHandler:
             await self._send_game_navigation(update, context)
             return
 
-        # Collect capital options (1 correct + 9 from neighbors or random countries)
+        # Collect capital options (1 correct + 9 from other countries)
         capital_options = [correct_capital]
 
-        # Get neighboring countries' capitals
-        neighbor_capitals = []
-        for neighbor_name in country.get('neighbors', []):
-            # Find the neighbor in our countries list
-            for c in self.countries_data.values(): #use loaded data
-                if c['name'] == neighbor_name and c.get('capital') != 'Unknown':
-                    neighbor_capitals.append(c['capital'])
-                    break
+        # Get capitals from other countries
+        other_capitals = []
+        for c in self.countries_data.values():
+            if c['name'] != country['name'] and c.get('capital') and c['capital'] != 'Unknown' and c['capital'] not in capital_options:
+                other_capitals.append(c['capital'])
 
-        # Shuffle the neighbor capitals and add them to options
-        random.shuffle(neighbor_capitals)
-        capital_options.extend(neighbor_capitals[:9])  # Take up to 9 neighbor capitals
+        # Ensure we have enough options
+        if len(other_capitals) < 9:
+            # If we don't have enough capitals from the database, add some hardcoded ones
+            fallback_capitals = [
+                "Paris", "London", "Berlin", "Rome", "Madrid", "Tokyo", "Beijing", 
+                "Moscow", "Cairo", "Bangkok", "Seoul", "Washington D.C.", "Ottawa", 
+                "Brasília", "Canberra", "New Delhi", "Riyadh", "Pretoria", "Stockholm"
+            ]
+            for capital in fallback_capitals:
+                if capital not in capital_options and capital not in other_capitals:
+                    other_capitals.append(capital)
 
-        # If we don't have 10 options yet, add random capitals from other countries
-        if len(capital_options) < 10:
-            # Get random countries with known capitals
-            other_countries = [c for c in self.countries_data.values() #use loaded data
-                            if c['name'] != country['name'] 
-                            and c.get('capital') != 'Unknown'
-                            and c['capital'] not in capital_options]
+        # Shuffle and select 9 other capitals
+        random.shuffle(other_capitals)
+        capital_options.extend(other_capitals[:9])
 
-            # Shuffle them and take as many as needed
-            random.shuffle(other_countries)
-            needed = 10 - len(capital_options)
-            for i in range(min(needed, len(other_countries))):
-                capital_options.append(other_countries[i]['capital'])
-
-        # Ensure we have no more than 10 options
-        capital_options = capital_options[:10]
-
-        # Shuffle the options
+        # Shuffle the final options
         random.shuffle(capital_options)
 
-        # Add detailed logging
+        # Log the options for debugging
         logger.info(f"Generated {len(capital_options)} capital options")
         logger.info(f"Capital options: {capital_options}")
-        loggerinfo(f"Correct capital: {correct_capital}")
+        logger.info(f"Correct capital: {correct_capital}")
 
         # Create keyboard with capital options
         keyboard = []
         row = []
-
         for i, capital in enumerate(capital_options):
             # Create callback data for this option
             callback_data = f"guess_{country['name']}_{capital}"
-            logger.info(f"Creating button with callback_data: {callback_data}")
 
             # Add button to current row
             row.append(InlineKeyboardButton(capital, callback_data=callback_data))
 
-            # Start a new row after 2 buttons
+            # Start a new row after every 2 buttons
             if (i + 1) % 2 == 0 or (i + 1) == len(capital_options):
                 keyboard.append(row)
                 row = []
 
         reply_markup = InlineKeyboardMarkup(keyboard)
-        logger.info(f"Created keyboard with {len(keyboard)} rows")
 
         # Send the map image with capital options
         try:
-            logger.info(f"Attempting to send photo from path: {map_path}")
-            # Check if the map file exists and is readable
-            if os.path.exists(map_path) and os.access(map_path, os.R_OK):
-                logger.info(f"Map file exists and is readable")
-                with open(map_path, 'rb') as photo_file:
-                    # Try to read some bytes to confirm file is valid
-                    photo_bytes = photo_file.read(1024)
-                    if not photo_bytes:
-                        logger.error(f"Map file is empty or could not be read")
-                        raise ValueError("Map fileis empty or could not be read")
+            with open(map_path, 'rb') as photo:
+                # Check if file is readable
+                photo_bytes = photo.read(1024)
+                if not photo_bytes:
+                    logger.error(f"Map file is empty or could not be read")
+                    raise ValueError("Map file is empty or could not be read")
 
-                    # Seek back to beginning of file
-                    photo_file.seek(0)
+                # Seek back to beginning of file
+                photo.seek(0)
 
-                    message = await context.bot.send_photo(
-                        chat_id=chat_id,
-                        photo=photo_file,
-                        caption=f"🌍 *What is the capital city of this country?*\n\nChoose from the options below:",
-                        parse_mode="Markdown",
-                        reply_markup=reply_markup
-                    )
-
-                    # Store the message ID for later reference (e.g., for editing)
-                    if user_id in self.active_games:
-                        self.active_games[user_id]["message_id"] = message.message_id
-
-                    logger.info(f"Successfully sent photo and received message_id: {message.message_id}")
-            else:
-                # File doesn't exist or isn't readable
-                logger.error(f"Map file doesn't exist or isn't readable: {map_path}")
-                raise FileNotFoundError(f"Map file doesn't exist or isn't readable: {map_path}")
-
-        except Exception as e:
-            logger.error(f"Error sending capital guessing challenge: {str(e)}")
-            # Try an alternative approach
-            try:
-                logger.info(f"Trying alternative approach with InputFile")
-                with open(map_path, 'rb') as photo_file:
-                    message = await context.bot.send_photo(
-                        chat_id=chat_id,
-                        photo=photo_file.read(),
-                        caption=f"🌍 *What is the capital city of this country?*\n\nChoose from the options below:",
-                        parse_mode="Markdown",
-                        reply_markup=reply_markup
-                    )
-
-                    # Store the message ID for later reference
-                    if user_id in self.active_games:
-                        self.active_games[user_id]["message_id"] = message.message_id
-
-                    logger.info(f"Successfullysent photo using alternative approach")
-            except Exception as e2:
-                logger.error(f"Alternative approach also failed: {str(e2)}")
-                await context.bot.send_message(
+                message = await context.bot.send_photo(
                     chat_id=chat_id,
-                    text="Sorry, there was an error starting the game. Please try again."
+                    photo=photo,
+                    caption=f"🌍 {user_name}, what is the capital city of this country? (⏱️ {GAME_TIMEOUT}s)\n\nChoose from the options below:",
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup
                 )
-                # Clean up the game
+
+                # Store the message ID for later reference
                 if user_id in self.active_games:
-                    del self.active_games[user_id]
-                # Send game navigation
-                await self._send_game_navigation(update, context)
-                return
+                    self.active_games[user_id]["message_id"] = message.message_id
+
+                logger.info(f"Successfully sent capital guessing challenge")
+        except Exception as e:
+            logger.error(f"Error sending capital guessing challenge: {e}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Sorry, there was an error starting the game. Please try again."
+            )
+            # Clean up the game
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            # Send game navigation
+            await self._send_game_navigation(update, context)
 
     async def _handle_guess(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str) -> None:
         """Handle a guess from the inline keyboard"""
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
+        user_name = update.effective_user.first_name
 
         # Parse the callback data - format is "guess_CountryName"
         parts = callback_data.split("_", 1)
@@ -874,6 +863,7 @@ class GameHandler:
         # Get the game data
         game = self.active_games[user_id]
         correct_country = game["country"]
+        current_mode = game.get("mode", "map")
 
         # Check if the guess is correct
         is_correct = (guessed_country_name == correct_country["name"])
@@ -887,7 +877,7 @@ class GameHandler:
 
         # Prepare result message
         if is_correct:
-            result_message = f"✅ *Correct!* Well done! (in {elapsed_time}s)\n\n"
+            result_message = f"✅ Correct! {user_name}, You Are A Marveller! (in {elapsed_time}s)\n\n"
             result_message += f"🏳️ *{display_correct}*\n"
             result_message += f"🏙️ Capital: *{correct_country.get('capital', 'Unknown')}*\n"
 
@@ -905,199 +895,14 @@ class GameHandler:
             result_message += f"👥 Population: {self._format_population(population)}\n"
             result_message += f"📏 Area: {self._format_area(area)}"
         else:
-            # For wrong answer, just indicate it's wrong
-            result_message = f"❌ That's not correct. You selected *{display_guessed}*."
+            # For wrong answer, immediately show the correct answer with details
+            result_message = f"❌ Wrong! {user_name}, You Are A VOZER : ))\n"
+            result_message += f"You selected *{display_guessed}*.\n"
+            result_message += f"The correct answer was *{display_correct}*.\n\n"
 
-            # If this was the last attempt, show the correct answer
-            game["attempts"] = game.get("attempts", 0) + 1
-            if game["attempts"] >= 3:
-                result_message += f"\nThe correct answer was *{display_correct}*."
-
-                # Add some details about the correct country
-                result_message += f"\n\n🏳️ *{display_correct}*\n"
-                result_message += f"🏙️ Capital: *{correct_country.get('capital', 'Unknown')}*\n"
-
-                # Get region information
-                region = correct_country.get("region", "Unknown")
-                result_message += f"🌍 Region: {region}\n"
-
-                # Clean up the game after max attempts
-                del self.active_games[user_id]
-
-                # Cancel the timer if it exists
-                self._cancel_timer(user_id)
-
-                # Try to update the original message, then send navigation buttons
-                try:
-                    message_id = game.get("message_id")
-                    if message_id:
-                        current_mode = game.get("mode", "map")
-                        if current_mode in ["map", "flag"]:
-                            await context.bot.edit_message_caption(
-                                chat_id=chat_id,
-                                message_id=message_id,
-                                caption=result_message,
-                                parse_mode="Markdown"
-                            )
-                        else:
-                            await context.bot.edit_message_text(
-                                chat_id=chat_id,
-                                message_id=message_id,
-                                text=result_message,
-                                parse_mode="Markdown"
-                            )
-                    else:
-                        # If we don't have the message ID, send a new message
-                        await context.bot.send_message(
-                            chat_id=chat_id,
-                            text=result_message,
-                            parse_mode="Markdown"
-                        )
-                except Exception as e:
-                    logger.error(f"Error updating message with result: {e}")
-                    # Fallback to sending a new message
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=result_message,
-                        parse_mode="Markdown"
-                    )
-
-                # Send game navigation buttons after showing the correct answer
-                await self._send_game_navigation(update, context)
-                return
-
-        # Update user stats
-        self._update_user_stats(user_id, is_correct)
-
-        # If the answer was correct, end the game and show details
-        if is_correct:
-            # Clean up the game
-            del self.active_games[user_id]
-
-            # Cancel the timer if it exists
-            self._cancel_timer(user_id)
-
-            # Try to update the original message, then send navigation buttons
-            try:
-                message_id = game.get("message_id")
-                if message_id:
-                    current_mode = game.get("mode", "map")
-                    if current_mode in ["map", "flag"]:
-                        await context.bot.edit_message_caption(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            caption=result_message,
-                            parse_mode="Markdown"
-                        )
-                    else:
-                        await context.bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            text=result_message,
-                            parse_mode="Markdown"
-                        )
-                else:
-                    # If we don't have the message ID, send a new message
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=result_message,
-                        parse_mode="Markdown"
-                    )
-            except Exception as e:
-                logger.error(f"Error updating message with result: {e}")
-                # Fallback to sending a new message
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=result_message,
-                    parse_mode="Markdown"
-                )
-
-            # Send game navigation buttons after correct answer
-            await self._send_game_navigation(update, context)
-        else:
-            # If the answer was wrong but not the last attempt, update the message with the wrong answer
-            try:
-                message_id = game.get("message_id")
-                if message_id:
-                    current_mode = game.get("mode", "map")
-                    if current_mode in ["map", "flag"]:
-                        await context.bot.edit_message_caption(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            caption=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
-                            parse_mode="Markdown"
-                        )
-                    else:
-                        await context.bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            text=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
-                            parse_mode="Markdown"
-                        )
-                else:
-                    # If we don't have the message ID, send a new message
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
-                        parse_mode="Markdown"
-                    )
-            except Exception as e:
-                logger.error(f"Error updating message with result: {e}")
-                # Fallback to sending a new message
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
-                    parse_mode="Markdown"
-                )
-
-            # Reset the game timer since the user made a wrong guess
-            self._cancel_timer(user_id)
-            self.timer_tasks[user_id] = asyncio.create_task(
-                self._game_timeout_callback(update, context, user_id)
-            )
-
-    async def _handle_capital_guess(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country_name: str, guessed_capital: str) -> None:
-        """Handle a guess for the capital city challenge"""
-        user_id = update.effective_user.id
-        chat_id = update.effective_chat.id
-
-        logger.info(f"Handling capital guess: {guessed_capital} for country: {country_name} by user: {user_id}")
-
-        # Check if user has an active game
-        if user_id not in self.active_games:
-            logger.warning(f"No active game found for user: {user_id}")
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="No active game found. Start a new game with /g cap"
-            )
-            return
-
-        game = self.active_games[user_id]
-        correct_country = game["country"]
-
-        # Verify this guess is for the current game's country
-        if correct_country["name"] != country_name:
-            logger.warning(f"Guess for wrong country: expected {correct_country['name']}, got {country_name}")
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="Sorry, this answer is for a different game. Please start a new game."
-            )
-            return
-
-        # Get the correct capital
-        correct_capital = correct_country.get("capital", "Unknown")
-
-        # Format country name for display (replace underscores with spaces)
-        display_country_name = correct_country["name"].replace("_", " ")
-
-        # Check if guess is correct
-        is_correct = (guessed_capital == correct_capital)
-
-        # Prepare result message
-        if is_correct:
-            result_message = f"✅ *Correct!* {display_country_name}'s capital is indeed *{correct_capital}*.\n\n"
-            result_message += f"🏳️ *{display_country_name}*\n"
-            result_message += f"🏙️ Capital: *{correct_capital}*\n"
+            # Add details about the correct country
+            result_message += f"🏳️ *{display_correct}*\n"
+            result_message += f"🏙️ Capital: *{correct_country.get('capital', 'Unknown')}*\n"
 
             # Get region information
             region = correct_country.get("region", "Unknown")
@@ -1112,12 +917,119 @@ class GameHandler:
             area = correct_country.get("area", 0)
             result_message += f"👥 Population: {self._format_population(population)}\n"
             result_message += f"📏 Area: {self._format_area(area)}"
-        else:
-            result_message = f"❌ Incorrect. The capital of *{display_country_name}* is *{correct_capital}*.\n"
-            result_message += f"You selected: *{guessed_capital}*"
 
         # Update user stats
-        self._update_user_stats(user_id, is_correct)
+        self._update_user_stats(user_id, is_correct, current_mode)
+
+        # Always clean up the game after showing the result
+        if user_id in self.active_games:
+            del self.active_games[user_id]
+
+        # Cancel the timer if it exists
+        self._cancel_timer(user_id)
+
+        # Try to update the original message
+        try:
+            message_id = game.get("message_id")
+            if message_id:
+                current_mode = game.get("mode", "map")
+                if current_mode in ["map", "flag"]:
+                    await context.bot.edit_message_caption(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        caption=result_message,
+                        parse_mode="Markdown"
+                    )
+                else:
+                    await context.bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=result_message,
+                        parse_mode="Markdown"
+                    )
+            else:
+                # If we don't have the message ID, send a new message
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=result_message,
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            logger.error(f"Error updating message with result: {e}")
+            # Fallback to sending a new message
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=result_message,
+                parse_mode="Markdown"
+            )
+
+        # Always send game navigation buttons after answering
+        await self._send_game_navigation(update, context)
+
+    async def _handle_capital_guess(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country_name: str, guessed_capital: str) -> None:
+        """Handle a guess for the capital city challenge"""
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+        user_name = update.effective_user.first_name
+
+        logger.info(f"Handling capital guess: {guessed_capital} for country: {country_name} by user: {user_id}")
+
+        # Check if user has an active game
+        if user_id not in self.active_games:
+            logger.warning(f"No active game found for user: {user_id}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="No active game found. Start a new game with /g cap"
+            )
+            return
+
+        game = self.active_games[user_id]
+        correct_country = game["country"]
+        current_mode = game.get("mode", "cap")
+
+        # Get the correct capital
+        correct_capital = correct_country.get("capital", "Unknown")
+
+        # Format country name for display (replace underscores with spaces)
+        display_country_name = correct_country["name"].replace("_", " ")
+
+        # Check if guess is correct
+        is_correct = (guessed_capital == correct_capital)
+
+        # Prepare result message
+        if is_correct:
+            result_message = f"✅ Correct! {user_name}, You Are A Marveller!\n\n"
+        else:
+            result_message = f"❌ Wrong! {user_name}, You Are A VOZER : ))\n"
+            result_message += f"You selected: *{guessed_capital}*\n\n"
+
+        # Add country details in both cases
+        result_message += f"🏳️ *{display_country_name}*\n"
+        result_message += f"🏙️ Capital: *{correct_capital}*\n"
+
+        # Get region information
+        region = correct_country.get("region", "Unknown")
+        subregion = correct_country.get("subregion", "")
+        result_message += f"🌍 Region: {region}"
+        if subregion:
+            result_message += f" ({subregion})"
+        result_message += "\n"
+
+        # Get population and area information
+        population = correct_country.get("population", 0)
+        area = correct_country.get("area", 0)
+        result_message += f"👥 Population: {self._format_population(population)}\n"
+        result_message += f"📏 Area: {self._format_area(area)}"
+
+        # Update user stats
+        self._update_user_stats(user_id, is_correct, current_mode)
+
+        # Clean up the game
+        if user_id in self.active_games:
+            del self.active_games[user_id]
+
+        # Cancel any active timer
+        self._cancel_timer(user_id)
 
         # Try to edit the original message to show the result
         try:
@@ -1144,13 +1056,6 @@ class GameHandler:
                 text=result_message,
                 parse_mode="Markdown"
             )
-
-        # Clean up the game
-        if user_id in self.active_games:
-            del self.active_games[user_id]
-
-        # Cancel any active timer
-        self._cancel_timer(user_id)
 
         # Send game navigation buttons
         await self._send_game_navigation(update, context)
@@ -1184,7 +1089,7 @@ class GameHandler:
             if neighbor:
                 neighbor_countries.append(neighbor)
 
-        # Shuffle the neighbors and add them to options (up to 5 neighbors)
+        # Shuffle the neighbors and add them to options (up to 5 neighbors max)
         random.shuffle(neighbor_countries)
         for neighbor in neighbor_countries[:5]:  # Limit to 5 neighbors max
             if len(options) < num_options:
@@ -1259,6 +1164,9 @@ class GameHandler:
             ],
             [
                 InlineKeyboardButton("🏙️ Play Capital Game", callback_data="play_cap")
+            ],
+            [
+                InlineKeyboardButton("🏆 Leaderboard", callback_data="show_leaderboard")
             ]
         ]
 
@@ -1275,9 +1183,12 @@ class GameHandler:
         """Show help message for the game"""
         from country_game.config import HELP_TEXT
 
+        # Add info about leaderboard to help text
+        help_text = HELP_TEXT.strip() + "\n\n*/g lb* - Show the leaderboard for all game modes"
+
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=HELP_TEXT,
+            text=help_text,
             parse_mode="Markdown"
         )
 
@@ -1289,17 +1200,92 @@ class GameHandler:
         # This method is kept for potential future use with text-based answers
         pass
 
-    def _update_user_stats(self, user_id: int, is_correct: bool) -> None:
-        """Update user statistics"""
+    async def show_leaderboard(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Show the leaderboard for all game modes"""
+        chat_id = update.effective_chat.id
+
+        # Create a dictionary to store user stats by mode
+        scores_by_mode = {
+            "map": [],
+            "flag": [],
+            "cap": []
+        }
+
+        # Collect scores for each user
+        for user_id, stats in self.user_stats.items():
+            user = await context.bot.get_chat_member(chat_id, user_id)
+            user_name = user.user.first_name
+
+            for mode, mode_stats in stats.items():
+                if mode in scores_by_mode:
+                    # Only include users who have played this mode
+                    if mode_stats["total"] > 0:
+                        accuracy = round((mode_stats["correct"] / mode_stats["total"]) * 100) if mode_stats["total"] > 0 else 0
+                        scores_by_mode[mode].append({
+                            "user_name": user_name,
+                            "correct": mode_stats["correct"],
+                            "total": mode_stats["total"],
+                            "accuracy": accuracy
+                        })
+
+        # Sort each mode's leaderboard by number of correct answers (descending)
+        for mode in scores_by_mode:
+            scores_by_mode[mode].sort(key=lambda x: (x["correct"], x["accuracy"]), reverse=True)
+            # Limit to top 10 players
+            scores_by_mode[mode] = scores_by_mode[mode][:10]
+
+        # Format the leaderboard message
+        message = "🏆 *COUNTRY GAME LEADERBOARD* 🏆\n\n"
+
+        for mode, mode_name in [("map", "🗺️ Map Game"), ("flag", "🏳️ Flag Game"), ("cap", "🏙️ Capital Game")]:
+            scores = scores_by_mode[mode]
+            message += f"*{mode_name}*\n"
+
+            if not scores:
+                message += "No players yet!\n\n"
+                continue
+
+            for i, score in enumerate(scores, 1):
+                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                message += f"{medal} {score['user_name']}: {score['correct']} correct ({score['accuracy']}%)\n"
+
+            message += "\n"
+
+        # Send the leaderboard
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=message,
+            parse_mode="Markdown"
+        )
+
+        # Send game navigation buttons after showing leaderboard
+        await self._send_game_navigation(update, context)
+
+    async def leaderboard_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle the /g lb command to show leaderboard"""
+        await self.show_leaderboard(update, context)
+
+    def _update_user_stats(self, user_id: int, is_correct: bool, game_mode: str = "map") -> None:
+        """Update user statistics for the specified game mode"""
+        # Initialize user stats if not existing
         if user_id not in self.user_stats:
             self.user_stats[user_id] = {
-                "total": 0,
-                "correct": 0
+                "map": {"total": 0, "correct": 0},
+                "flag": {"total": 0, "correct": 0},
+                "cap": {"total": 0, "correct": 0}
             }
 
-        self.user_stats[user_id]["total"] += 1
+        # Ensure the game mode stats exist
+        if game_mode not in self.user_stats[user_id]:
+            self.user_stats[user_id][game_mode] = {"total": 0, "correct": 0}
+
+        # Update the stats
+        self.user_stats[user_id][game_mode]["total"] += 1
         if is_correct:
-            self.user_stats[user_id]["correct"] += 1
+            self.user_stats[user_id][game_mode]["correct"] += 1
+
+        # Log the updated stats
+        logger.info(f"Updated stats for user {user_id} in mode {game_mode}: {self.user_stats[user_id][game_mode]}")
 
     def _format_population(self, population) -> str:
         """Format population number for display"""
@@ -1423,52 +1409,6 @@ class GameHandler:
                 "subregion": "Eastern Asia",
                 "population": 1439323776,
                 "area": 9640011
-            },
-            # Additional countries to ensure good variety
-            {
-                "name": "India",
-                "capital": "New Delhi",
-                "neighbors": ["Pakistan", "China", "Nepal", "Bhutan", "Myanmar", "Bangladesh"],
-                "region": "Asia",
-                "subregion": "Southern Asia",
-                "population": 1380004385,
-                "area": 3287590
-            },
-            {
-                "name": "Russia",
-                "capital": "Moscow",
-                "neighbors": ["Norway", "Finland", "Estonia", "Latvia", "Belarus", "Ukraine", "Georgia", "Azerbaijan", "Kazakhstan", "China", "Mongolia", "North_Korea"],
-                "region": "Europe/Asia",
-                "subregion": "Eastern Europe",
-                "population": 145934462,
-                "area": 17098246
-            },
-            {
-                "name": "South_Africa",
-                "capital": "Pretoria",
-                "neighbors": ["Namibia", "Botswana", "Zimbabwe", "Mozambique", "Eswatini", "Lesotho"],
-                "region": "Africa",
-                "subregion": "Southern Africa",
-                "population": 59308690,
-                "area": 1221037
-            },
-            {
-                "name": "Italy",
-                "capital": "Rome",
-                "neighbors": ["France", "Switzerland", "Austria", "Slovenia"],
-                "region": "Europe",
-                "subregion": "Southern Europe",
-                "population": 60461826,
-                "area": 301336
-            },
-            {
-                "name": "Spain",
-                "capital": "Madrid",
-                "neighbors": ["Portugal", "France", "Andorra"],
-                "region": "Europe",
-                "subregion": "Southern Europe",
-                "population": 46754778,
-                "area": 505992
             },
             {
                 "name": "Egypt",
@@ -1608,485 +1548,3 @@ class GameHandler:
         ]
 
         return countries
-
-    async def _handle_guess(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str) -> None:
-        """Handle a guess from the inline keyboard"""
-        user_id = update.effective_user.id
-        chat_id = update.effective_chat.id
-
-        # Parse the callback data - format is "guess_CountryName"
-        parts = callback_data.split("_", 1)
-        if len(parts) != 2:
-            logger.error(f"Invalid callback data format: {callback_data}")
-            return
-
-        guessed_country_name = parts[1]
-        logger.info(f"User {user_id} guessed {guessed_country_name}")
-
-        # Check if user has an active game
-        if user_id not in self.active_games:
-            logger.warning(f"No active game found for user {user_id}")
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="No active game found. Start a new game with /g"
-            )
-            return
-
-        # Get the game data
-        game = self.active_games[user_id]
-        correct_country = game["country"]
-
-        # Check if the guess is correct
-        is_correct = (guessed_country_name == correct_country["name"])
-
-        # Format country names for display (replace underscores with spaces)
-        display_guessed = guessed_country_name.replace("_", " ")
-        display_correct = correct_country["name"].replace("_", " ")
-
-        # Calculate elapsed time
-        elapsed_time = round(time.time() - game["start_time"], 1)
-
-        # Prepare result message
-        if is_correct:
-            result_message = f"✅ *Correct!* Well done! (in {elapsed_time}s)\n\n"
-            result_message += f"🏳️ *{display_correct}*\n"
-            result_message += f"🏙️ Capital: *{correct_country.get('capital', 'Unknown')}*\n"
-
-            # Get region information
-            region = correct_country.get("region", "Unknown")
-            subregion = correct_country.get("subregion", "")
-            result_message += f"🌍 Region: {region}"
-            if subregion:
-                result_message += f" ({subregion})"
-            result_message += "\n"
-
-            # Get population and area information
-            population = correct_country.get("population", 0)
-            area = correct_country.get("area", 0)
-            result_message += f"👥 Population: {self._format_population(population)}\n"
-            result_message += f"📏 Area: {self._format_area(area)}"
-        else:
-            # For wrong answer, just indicate it's wrong
-            result_message = f"❌ That's not correct. You selected *{display_guessed}*."
-
-            # If this was the last attempt, show the correct answer
-            game["attempts"] = game.get("attempts", 0) + 1
-            if game["attempts"] >= 3:
-                result_message += f"\nThe correct answer was *{display_correct}*."
-
-                # Add some details about the correct country
-                result_message += f"\n\n🏳️ *{display_correct}*\n"
-                result_message += f"🏙️ Capital: *{correct_country.get('capital', 'Unknown')}*\n"
-
-                # Get region information
-                region = correct_country.get("region", "Unknown")
-                result_message += f"🌍 Region: {region}\n"
-
-                # Clean up the game after max attempts
-                del self.active_games[user_id]
-
-                # Cancel the timer if it exists
-                self._cancel_timer(user_id)
-
-                # Try to update the original message, then send navigation buttons
-                try:
-                    message_id = game.get("message_id")
-                    if message_id:
-                        current_mode = game.get("mode", "map")
-                        if current_mode in ["map", "flag"]:
-                            await context.bot.edit_message_caption(
-                                chat_id=chat_id,
-                                message_id=message_id,
-                                caption=result_message,
-                                parse_mode="Markdown"
-                            )
-                        else:
-                            await context.bot.edit_message_text(
-                                chat_id=chat_id,
-                                message_id=message_id,
-                                text=result_message,
-                                parse_mode="Markdown"
-                            )
-                    else:
-                        # If we don't have the message ID, send a new message
-                        await context.bot.send_message(
-                            chat_id=chat_id,
-                            text=result_message,
-                            parse_mode="Markdown"
-                        )
-                except Exception as e:
-                    logger.error(f"Error updating message with result: {e}")
-                    # Fallback to sending a new message
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=result_message,
-                        parse_mode="Markdown"
-                    )
-
-                # Send game navigation buttons after showing the correct answer
-                await self._send_game_navigation(update, context)
-                return
-
-        # Update user stats
-        self._update_user_stats(user_id, is_correct)
-
-        # If the answer was correct, end the game and show details
-        if is_correct:
-            # Clean up the game
-            del self.active_games[user_id]
-
-            # Cancel the timer if it exists
-            self._cancel_timer(user_id)
-
-            # Try to update the original message, then send navigation buttons
-            try:
-                message_id = game.get("message_id")
-                if message_id:
-                    current_mode = game.get("mode", "map")
-                    if current_mode in ["map", "flag"]:
-                        await context.bot.edit_message_caption(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            caption=result_message,
-                            parse_mode="Markdown"
-                        )
-                    else:
-                        await context.bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            text=result_message,
-                            parse_mode="Markdown"
-                        )
-                else:
-                    # If we don't have the message ID, send a new message
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=result_message,
-                        parse_mode="Markdown"
-                    )
-            except Exception as e:
-                logger.error(f"Error updating message with result: {e}")
-                # Fallback to sending a new message
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=result_message,
-                    parse_mode="Markdown"
-                )
-
-            # Send game navigation buttons after correct answer
-            await self._send_game_navigation(update, context)
-        else:
-            # If the answer was wrong but not the last attempt, update the message with the wrong answer
-            try:
-                message_id = game.get("message_id")
-                if message_id:
-                    current_mode = game.get("mode", "map")
-                    if current_mode in ["map", "flag"]:
-                        await context.bot.edit_message_caption(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            caption=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
-                            parse_mode="Markdown"
-                        )
-                    else:
-                        await context.bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            text=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
-                            parse_mode="Markdown"
-                        )
-                else:
-                    # If we don't have the message ID, send a new message
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
-                        parse_mode="Markdown"
-                    )
-            except Exception as e:
-                logger.error(f"Error updating message with result: {e}")
-                # Fallback to sending a new message
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
-                    parse_mode="Markdown"
-                )
-
-            # Reset the game timer since the user made a wrong guess
-            self._cancel_timer(user_id)
-            self.timer_tasks[user_id] = asyncio.create_task(
-                self._game_timeout_callback(update, context, user_id)
-            )
-
-    async def _handle_capital_guess(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country_name: str, guessed_capital: str) -> None:
-        """Handle a guess for the capital city challenge"""
-        user_id = update.effective_user.id
-        chat_id = update.effective_chat.id
-
-        logger.info(f"Handling capital guess: {guessed_capital} for country: {country_name} by user: {user_id}")
-
-        # Check if user has an active game
-        if user_id not in self.active_games:
-            logger.warning(f"No active game found for user: {user_id}")
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="No active game found. Start a new game with /g cap"
-            )
-            return
-
-        game = self.active_games[user_id]
-        correct_country = game["country"]
-
-        # Verify this guess is for the current game's country
-        if correct_country["name"] != country_name:
-            logger.warning(f"Guess for wrong country: expected {correct_country['name']}, got {country_name}")
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="Sorry, this answer is for a different game. Please start a new game."
-            )
-            return
-
-        # Get the correct capital
-        correct_capital = correct_country.get("capital", "Unknown")
-
-        # Format country name for display (replace underscores with spaces)
-        display_country_name = correct_country["name"].replace("_", " ")
-
-        # Check if guess is correct
-        is_correct = (guessed_capital == correct_capital)
-
-        # Prepare result message
-        if is_correct:
-            result_message = f"✅ *Correct!* {display_country_name}'s capital is indeed *{correct_capital}*.\n\n"
-            result_message += f"🏳️ *{display_country_name}*\n"
-            result_message += f"🏙️ Capital: *{correct_capital}*\n"
-
-            # Get region information
-            region = correct_country.get("region", "Unknown")
-            subregion = correct_country.get("subregion", "")
-            result_message += f"🌍 Region: {region}"
-            if subregion:
-                result_message += f" ({subregion})"
-            result_message += "\n"
-
-            # Get population and area information
-            population = correct_country.get("population", 0)
-            area = correct_country.get("area", 0)
-            result_message += f"👥 Population: {self._format_population(population)}\n"
-            result_message += f"📏 Area: {self._format_area(area)}"
-        else:
-            result_message = f"❌ Incorrect. The capital of *{display_country_name}* is *{correct_capital}*.\n"
-            result_message += f"You selected: *{guessed_capital}*"
-
-        # Update user stats
-        self._update_user_stats(user_id, is_correct)
-
-        # Try to edit the original message to show the result
-        try:
-            message_id = game.get("message_id")
-            if message_id:
-                await context.bot.edit_message_caption(
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    caption=result_message,
-                    parse_mode="Markdown"
-                )
-            else:
-                # If we don't have the message ID, send a new message
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=result_message,
-                    parse_mode="Markdown"
-                )
-        except Exception as e:
-            logger.error(f"Error updating message with result: {e}")
-            # Fallback to sending a new message
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=result_message,
-                parse_mode="Markdown"
-            )
-
-        # Clean up the game
-        if user_id in self.active_games:
-            del self.active_games[user_id]
-
-        # Cancel any active timer
-        self._cancel_timer(user_id)
-
-        # Send game navigation buttons
-        await self._send_game_navigation(update, context)
-
-    def get_answer_options(self, correct_country: Dict, num_options: int = 10) -> List[Dict]:
-        """
-        Get a list of answer options including the correct one and some decoys
-
-        Args:
-            correct_country: The correct country answer
-            num_options: Total number of options to return (default: 10)
-
-        Returns:
-            List of country dictionaries to use as options
-        """
-        logger.info(f"Generating answer options for country: {correct_country['name']}")
-
-        # Start with the correct country
-        options = [correct_country]
-        logger.info(f"Added correct country: {correct_country['name']}")
-
-        # Try to get some neighbors
-        neighbors = correct_country.get('neighbors', [])
-        logger.info(f"Found {len(neighbors)} neighbors: {neighbors}")
-
-        # If we have neighbors, load their details and add them
-        neighbor_countries = []
-        for neighbor_name in neighbors:
-            # Load neighbor details
-            neighbor = self.load_country_details(neighbor_name)
-            if neighbor:
-                neighbor_countries.append(neighbor)
-
-        # Shuffle the neighbors and add them to options (up to 5 neighbors)
-        random.shuffle(neighbor_countries)
-        for neighbor in neighbor_countries[:5]:  # Limit to 5 neighbors max
-            if len(options) < num_options:
-                options.append(neighbor)
-                logger.info(f"Added neighbor country: {neighbor['name']}")
-
-        # If we still need more countries to reach num_options (10)
-        if len(options) < num_options:
-            logger.info(f"Need {num_options - len(options)} more countries to reach {num_options}")
-
-            # Get all country names except those already in options
-            used_country_names = {country['name'] for country in options}
-            available_countries = [name for name in self.all_countries if name not in used_country_names]
-
-            # Make sure we have enough countries to choose from
-            if not available_countries:
-                logger.warning("No additional countries available, using fallback")
-                fallback_countries = self._get_fallback_countries()
-                for country in fallback_countries:
-                    if country['name'] not in used_country_names:
-                        available_countries.append(country['name'])
-
-            # Shuffle the available countries
-            random.shuffle(available_countries)
-            logger.info(f"Found {len(available_countries)} additional countries to choose from")
-
-            # Add countries until we reach the desired number
-            for country_name in available_countries:
-                if len(options) >= num_options:
-                    break
-
-                country = self.load_country_details(country_name)
-                if country:
-                    options.append(country)
-                    logger.info(f"Added additional country: {country_name}")
-
-        # If we still don't have enough options, use fallback countries
-        if len(options) < num_options:
-            logger.warning(f"Only have {len(options)} options, using fallback countries")
-            fallback_countries = self._get_fallback_countries()
-            for country in fallback_countries:
-                if country['name'] not in {c['name'] for c in options}:
-                    if len(options) < num_options:
-                        options.append(country)
-                        logger.info(f"Added fallback country: {country['name']}")
-                    else:
-                        break
-
-        # Ensure we don't exceed the requested number of options
-        options = options[:num_options]
-
-        # Shuffle the options to randomize the order
-        random.shuffle(options)
-
-        # Log the final options
-        logger.info(f"Final options count: {len(options)}")
-        logger.info(f"Option countries: {[country['name'] for country in options]}")
-
-        # Return exactly num_options options
-        return options
-
-    async def _send_game_navigation(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Sends navigation buttons for different game modes"""
-        logger.info(f"Sending game navigation buttons")
-        chat_id = update.effective_chat.id
-
-        # Create keyboard with game mode options
-        keyboard = [
-            [
-                InlineKeyboardButton("🗺️ Play Map Game", callback_data="play_map"),
-                InlineKeyboardButton("🏳️ Play Flag Game", callback_data="play_flag")
-            ],
-            [
-                InlineKeyboardButton("🏙️ Play Capital Game", callback_data="play_cap")
-            ]
-        ]
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        # Send the navigation message
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Choose a game mode:",
-            reply_markup=reply_markup
-        )
-
-    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Show help message for the game"""
-        from country_game.config import HELP_TEXT
-
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=HELP_TEXT,
-            parse_mode="Markdown"
-        )
-
-        # After showing help, send game navigation buttons
-        await self._send_game_navigation(update, context)
-
-    async def handle_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle text answers (currently not used, all answers use callback buttons)"""
-        # This method is kept for potential future use with text-based answers
-        pass
-
-    def _update_user_stats(self, user_id: int, is_correct: bool) -> None:
-        """Update user statistics"""
-        if user_id not in self.user_stats:
-            self.user_stats[user_id] = {
-                "total": 0,
-                "correct": 0
-            }
-
-        self.user_stats[user_id]["total"] += 1
-        if is_correct:
-            self.user_stats[user_id]["correct"] += 1
-
-    def _format_population(self, population) -> str:
-        """Format population number for display"""
-        if not population:
-            return "Unknown"
-
-        try:
-            pop = int(population)
-            if pop >= 1_000_000_000:  # Billions
-                return f"{pop / 1_000_000_000:.1f} billion"
-            elif pop >= 1_000_000:  # Millions
-                return f"{pop / 1_000_000:.1f} million"
-            elif pop >= 1_000:  # Thousands
-                return f"{pop / 1_000:.1f} thousand"
-            else:
-                return str(pop)
-        except:
-            return str(population)
-
-    def _format_area(self, area) -> str:
-        """Format area for display"""
-        if not area:
-            return "Unknown"
-
-        try:
-            area_val = float(area)
-            return f"{area_val:,.0f} km²"
-        except:
-            return str(area)
