@@ -346,7 +346,7 @@ async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     if subcommand == "help":
         await game_handler.help_command(update, context)
-    elif subcommand in ["map", "flag", "capital"]:
+    elif subcommand in ["map", "flag", "capital", "cap"]:  # Added "cap" to the list of valid subcommands
         await game_handler.start_game(update, context, game_mode=subcommand)
     else:
         # Unknown subcommand, show help

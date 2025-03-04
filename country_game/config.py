@@ -33,7 +33,8 @@ HELP_TEXT = """
 */g* or */g map* - Launch game in map mode (guess from a map)
 */g flag* - Launch game in flag mode (guess from a flag)
 */g capital* - Launch game in capital mode (guess from a capital city)
+*/g cap* - Launch game in capital guessing mode (see a map, guess the capital)
 
-To play: simply tap on the correct country from the options provided.
+To play: simply tap on the correct option from the choices provided.
 You have 15 seconds to answer each question.
 """

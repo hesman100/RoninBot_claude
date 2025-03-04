@@ -28,30 +28,38 @@ class GameHandler:
         self.user_stats = {}
         # Timer tasks for active games
         self.timer_tasks = {}
-        self.current_game_mode = None # Added to track the current game mode
+        self.current_game_mode = None  # Added to track the current game mode
+
+    def _cancel_timer(self, user_id: int) -> None:
+        """Cancel any active timer for a user"""
+        if user_id in self.timer_tasks:
+            task = self.timer_tasks.pop(user_id)
+            if not task.done() and not task.cancelled():
+                task.cancel()
+                logger.info(f"Cancelled timer for user {user_id}")
 
     async def _game_timeout_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
         """Handle game timeout"""
         try:
             await asyncio.sleep(GAME_TIMEOUT)
-            
+
             # Check if the game is still active
             if user_id not in self.active_games:
                 return
-                
+
             # Get the game data
             game = self.active_games[user_id]
             correct_country = game["country"]
             correct_country_name = correct_country["name"].replace("_", " ")
-            
+
             # Build timeout message
             timeout_msg = f"⏱️ Time's up! The correct answer was *{correct_country_name}*.\n\n"
-            
+
             # Add country details
             timeout_msg += f"🏳️ {correct_country_name}\n"
             timeout_msg += f"📊 Quick Facts:\n"
             timeout_msg += f"🏙️ Capital: {correct_country.get('capital', 'Unknown')}\n"
-            
+
             # Get region information
             region = self._get_mock_region(correct_country["name"])
             subregion = self._get_mock_subregion(correct_country["name"])
@@ -59,7 +67,7 @@ class GameHandler:
             if subregion:
                 timeout_msg += f" ({subregion})"
             timeout_msg += "\n"
-            
+
             # Get population and area information
             population = self._get_mock_population(correct_country["name"])
             area = self._get_mock_area(correct_country["name"])
@@ -68,14 +76,14 @@ class GameHandler:
 
             # Send timeout message
             chat_id = update.effective_chat.id
-            
+
             # Get message ID and mode
             message_id = game.get("message_id")
             current_mode = game.get("mode", "map")
-            
+
             # Try to edit the existing message with the timeout information
             try:
-                if current_mode in ["map", "flag"]:
+                if current_mode in ["map", "flag", "cap"]:
                     await context.bot.edit_message_caption(
                         chat_id=chat_id,
                         message_id=message_id,
@@ -97,894 +105,107 @@ class GameHandler:
                     text=timeout_msg,
                     parse_mode="Markdown"
                 )
-                
+
             # Update stats
             self._update_user_stats(user_id, False)
-            
+
             # Remove the active game
             del self.active_games[user_id]
-            
+
             # Send navigation buttons for next game
             await self._send_game_navigation(update, context)
-                
+
         except asyncio.CancelledError:
             logger.info(f"Timer for user {user_id} was cancelled")
         except Exception as e:
             logger.error(f"Error in game timeout callback: {e}")
 
-    def _get_random_country(self, game_mode: str = "map") -> Dict:
-        """
-        Get a random country that has appropriate assets for the specified game mode
-        """
-        logger.info(f"Getting random country for game mode: {game_mode}")
-        
-        # Filter countries based on game mode
-        suitable_countries = []
-        
-        if game_mode == "map":
-            # For map mode, check if country has a map image
-            for country in self.countries:
-                map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country['name']}_locator_map.png")
-                if os.path.exists(map_path):
-                    suitable_countries.append(country)
-                    
-        elif game_mode == "flag":
-            # For flag mode, check if country has a flag image
-            for country in self.countries:
-                flag_path = os.path.join("country_game", "images", "wiki_flag", f"{country['name']}_flag.png")
-                if os.path.exists(flag_path):
-                    suitable_countries.append(country)
-                    
-        elif game_mode == "capital":
-            # For capital mode, only include countries with known capitals
-            for country in self.countries:
-                if country.get("capital") and country["capital"] != "Unknown":
-                    suitable_countries.append(country)
-        
-        # Log the number of suitable countries
-        logger.info(f"Found {len(suitable_countries)} suitable countries for {game_mode} mode")
-        
-        # If no suitable countries were found, return None
-        if not suitable_countries:
-            logger.warning(f"No suitable countries found for {game_mode} mode")
-            return None
-            
-        # Pick a random country from the suitable ones
-        country = random.choice(suitable_countries)
-        logger.info(f"Selected random country: {country['name']}")
-        
-        return country
-
-
-    def load_countries(self) -> List[Dict]:
-        """Load countries from database or fall back to sample data"""
-        try:
-            # Try to open the SQLite database
-            db_path = os.path.join("country_game", "database", "countries.db")
-            if os.path.exists(db_path):
-                conn = sqlite3.connect(db_path)
-                cur = conn.cursor()
-                # Check if countries table exists
-                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='countries'")
-                if cur.fetchone():
-                    # Get countries with their data, including neighbors
-                    cur.execute("SELECT name, capital, population, area, region, neighbors FROM countries")
-                    rows = cur.fetchall()
-                    conn.close()
-
-                    # Return a list of dictionaries with country info
-                    countries = []
-                    for row in rows:
-                        if row[0]:  # Ensure country name exists
-                            neighbors = row[5].split(",") if row[5] else []
-                            countries.append({
-                                "name": row[0],
-                                "capital": row[1] if row[1] else "Unknown",
-                                "population": row[2] if row[2] else "Unknown",
-                                "area": row[3] if row[3] else "Unknown",
-                                "region": row[4] if row[4] else "Unknown",
-                                "neighbors": [n.strip() for n in neighbors]
-                            })
-
-                    logger.info(f"Loaded {len(countries)} countries from database")
-                    return countries
-
-            # If we get here, either the database doesn't exist or the table is missing
-            logger.warning("Countries table not found in database. Using fallback data.")
-            return self._get_fallback_countries()
-
-        except Exception as e:
-            logger.error(f"Database error: {e}. Falling back to sample data.")
-            return self._get_fallback_countries()
-
-    def _get_fallback_countries(self) -> List[Dict]:
-        """Return a comprehensive list of countries as fallback with capitals and neighbors"""
-        # This is a more comprehensive list of countries with capitals and some neighbors
-        return [
-            {"name": "Afghanistan", "capital": "Kabul", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Iran", "Pakistan", "Turkmenistan", "Uzbekistan", "Tajikistan", "China"]},
-            {"name": "Albania", "capital": "Tirana", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Montenegro", "Kosovo", "North_Macedonia", "Greece"]},
-            {"name": "Algeria", "capital": "Algiers", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Tunisia", "Libya", "Niger", "Mali", "Mauritania", "Morocco"]},
-            {"name": "Andorra", "capital": "Andorra la Vella", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["France", "Spain"]},
-            {"name": "Angola", "capital": "Luanda", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Namibia", "Zambia", "Democratic_Republic_of_the_Congo", "Republic_of_the_Congo"]},
-            {"name": "Argentina", "capital": "Buenos Aires", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Chile", "Bolivia", "Paraguay", "Brazil", "Uruguay"]},
-            {"name": "Armenia", "capital": "Yerevan", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Georgia", "Azerbaijan", "Iran", "Turkey"]},
-            {"name": "Australia", "capital": "Canberra", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["New_Zealand", "Indonesia", "Papua_New_Guinea"]},
-            {"name": "Austria", "capital": "Vienna", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Germany", "Czech_Republic", "Slovakia", "Hungary", "Slovenia", "Italy", "Switzerland", "Liechtenstein"]},
-            {"name": "Azerbaijan", "capital": "Baku", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Russia", "Georgia", "Armenia", "Iran", "Turkey"]},
-            {"name": "Bahamas", "capital": "Nassau", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["United_States", "Cuba"]},
-            {"name": "Bahrain", "capital": "Manama", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Saudi_Arabia", "Qatar"]},
-            {"name": "Bangladesh", "capital": "Dhaka", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["India", "Myanmar"]},
-            {"name": "Barbados", "capital": "Bridgetown", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Saint_Lucia", "Saint_Vincent_and_the_Grenadines"]},
-            {"name": "Belarus", "capital": "Minsk", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Russia", "Ukraine", "Poland", "Lithuania", "Latvia"]},
-            {"name": "Belgium", "capital": "Brussels", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Netherlands", "Germany", "Luxembourg", "France"]},
-            {"name": "Belize", "capital": "Belmopan", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Mexico", "Guatemala"]},
-            {"name": "Benin", "capital": "Porto-Novo", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Nigeria", "Togo", "Burkina_Faso", "Niger"]},
-            {"name": "Bhutan", "capital": "Thimphu", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["India", "China"]},
-            {"name": "Bolivia", "capital": "Sucre", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Brazil", "Paraguay", "Argentina", "Chile", "Peru"]},
-            {"name": "Bosnia_and_Herzegovina", "capital": "Sarajevo", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Croatia", "Serbia", "Montenegro"]},
-            {"name": "Botswana", "capital": "Gaborone", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["South_Africa", "Namibia", "Zimbabwe", "Zambia"]},
-            {"name": "Brazil", "capital": "Brasilia", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Argentina", "Paraguay", "Uruguay", "Bolivia", "Peru", "Colombia", "Venezuela", "Guyana", "Suriname", "French_Guiana"]},
-            {"name": "Brunei", "capital": "Bandar Seri Begawan", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Malaysia"]},
-            {"name": "Bulgaria", "capital": "Sofia", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Romania", "Serbia", "North_Macedonia", "Greece", "Turkey"]},
-            {"name": "Burkina_Faso", "capital": "Ouagadougou", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Mali", "Niger", "Benin", "Togo", "Ghana", "Ivory_Coast"]},
-            {"name": "Burundi", "capital": "Gitega", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Rwanda", "Tanzania", "Democratic_Republic_of_the_Congo"]},
-            {"name": "Cambodia", "capital": "Phnom Penh", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Thailand", "Laos", "Vietnam"]},
-            {"name": "Cameroon", "capital": "Yaoundé", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Nigeria", "Chad", "Central_African_Republic", "Republic_of_the_Congo", "Gabon", "Equatorial_Guinea"]},
-            {"name": "Canada", "capital": "Ottawa", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["United_States"]},
-            {"name": "Central_African_Republic", "capital": "Bangui", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Chad", "Sudan", "South_Sudan", "Democratic_Republic_of_the_Congo", "Republic_of_the_Congo", "Cameroon"]},
-            {"name": "Chad", "capital": "N'Djamena", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Libya", "Sudan", "Central_African_Republic", "Cameroon", "Nigeria", "Niger"]},
-            {"name": "Chile", "capital": "Santiago", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Peru", "Bolivia", "Argentina"]},
-            {"name": "China", "capital": "Beijing", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Russia", "Mongolia", "North_Korea", "Vietnam", "Laos", "Myanmar", "India", "Bhutan", "Nepal", "Pakistan", "Afghanistan", "Tajikistan", "Kyrgyzstan", "Kazakhstan"]},
-            {"name": "Colombia", "capital": "Bogotá", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Venezuela", "Brazil", "Peru", "Ecuador", "Panama"]},
-            {"name": "Comoros", "capital": "Moroni", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Madagascar", "Mozambique", "Tanzania"]},
-            {"name": "Congo", "capital": "Brazzaville", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Democratic_Republic_of_the_Congo", "Angola", "Gabon", "Cameroon", "Central_African_Republic"]},
-            {"name": "Costa_Rica", "capital": "San José", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Nicaragua", "Panama"]},
-            {"name": "Croatia", "capital": "Zagreb", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Slovenia", "Hungary", "Serbia", "Bosnia_and_Herzegovina", "Montenegro"]},
-            {"name": "Cuba", "capital": "Havana", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["United_States"]},
-            {"name": "Cyprus", "capital": "Nicosia", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Turkey", "Greece"]},
-            {"name": "Czech_Republic", "capital": "Prague", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Germany", "Poland", "Slovakia", "Austria"]},
-            {"name": "Democratic_Republic_of_the_Congo", "capital": "Kinshasa", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Republic_of_the_Congo", "Central_African_Republic", "South_Sudan", "Uganda", "Rwanda", "Burundi", "Tanzania", "Zambia", "Angola"]},
-            {"name": "Denmark", "capital": "Copenhagen", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Germany", "Sweden", "Norway"]},
-            {"name": "Djibouti", "capital": "Djibouti", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Eritrea", "Ethiopia", "Somalia"]},
-            {"name": "Dominican_Republic", "capital": "Santo Domingo", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Haiti"]},
-            {"name": "Ecuador", "capital": "Quito", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Colombia", "Peru"]},
-            {"name": "Egypt", "capital": "Cairo", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Libya", "Sudan", "Israel", "Palestine"]},
-            {"name": "El_Salvador", "capital": "San Salvador", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Guatemala", "Honduras"]},
-            {"name": "Equatorial_Guinea", "capital": "Malabo", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Cameroon", "Gabon"]},
-            {"name": "Eritrea", "capital": "Asmara", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Sudan", "Ethiopia", "Djibouti"]},
-            {"name": "Estonia", "capital": "Tallinn", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Russia", "Latvia"]},
-            {"name": "Eswatini", "capital": "Mbabane", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["South_Africa", "Mozambique"]},
-            {"name": "Ethiopia", "capital": "Addis Ababa", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Eritrea", "Djibouti", "Somalia", "Kenya", "South_Sudan", "Sudan"]},
-            {"name": "Fiji", "capital": "Suva", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Vanuatu", "Tonga", "Samoa"]},
-            {"name": "Finland", "capital": "Helsinki", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Sweden", "Norway", "Russia"]},
-            {"name": "France", "capital": "Paris", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Belgium", "Luxembourg", "Germany", "Switzerland", "Italy", "Monaco", "Spain", "Andorra"]},
-            {"name": "Gabon", "capital": "Libreville", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Equatorial_Guinea", "Cameroon", "Republic_of_the_Congo"]},
-            {"name": "Gambia", "capital": "Banjul", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Senegal"]},
-            {"name": "Georgia", "capital": "Tbilisi", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Russia", "Azerbaijan", "Armenia", "Turkey"]},
-            {"name": "Germany", "capital": "Berlin", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Denmark", "Poland", "Czech_Republic", "Austria", "Switzerland", "France", "Luxembourg", "Belgium", "Netherlands"]},
-            {"name": "Ghana", "capital": "Accra", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Burkina_Faso", "Ivory_Coast", "Togo"]},
-            {"name": "Greece", "capital": "Athens", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Albania", "North_Macedonia", "Bulgaria", "Turkey"]},
-            {"name": "Guatemala", "capital": "Guatemala City", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Mexico", "Belize", "Honduras", "El_Salvador"]},
-            {"name": "Guinea", "capital": "Conakry", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Guinea-Bissau", "Senegal", "Mali", "Ivory_Coast", "Liberia", "Sierra_Leone"]},
-            {"name": "Guinea-Bissau", "capital": "Bissau", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Senegal", "Guinea"]},
-            {"name": "Guyana", "capital": "Georgetown", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Venezuela", "Brazil", "Suriname"]},
-            {"name": "Haiti", "capital": "Port-au-Prince", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Dominican_Republic"]},
-            {"name": "Honduras", "capital": "Tegucigalpa", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Guatemala", "El_Salvador", "Nicaragua"]},
-            {"name": "Hungary", "capital": "Budapest", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Slovakia", "Ukraine", "Romania", "Serbia", "Croatia", "Slovenia", "Austria"]},
-            {"name": "Iceland", "capital": "Reykjavik", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Norway", "Denmark", "United_Kingdom"]},
-            {"name": "India", "capital": "New Delhi", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Pakistan", "China", "Nepal", "Bhutan", "Bangladesh", "Myanmar", "Sri_Lanka"]},
-            {"name": "Indonesia", "capital": "Jakarta", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Papua_New_Guinea", "Malaysia", "East_Timor", "Australia"]},
-            {"name": "Iran", "capital": "Tehran", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Iraq", "Turkey", "Armenia", "Azerbaijan", "Turkmenistan", "Afghanistan", "Pakistan"]},
-            {"name": "Iraq", "capital": "Baghdad", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Iran", "Turkey", "Syria", "Jordan", "Saudi_Arabia", "Kuwait"]},
-            {"name": "Ireland", "capital": "Dublin", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["United_Kingdom"]},
-            {"name": "Israel", "capital": "Jerusalem", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Lebanon", "Syria", "Jordan", "Egypt", "Palestine"]},
-            {"name": "Italy", "capital": "Rome", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["France", "Switzerland", "Austria", "Slovenia", "San_Marino", "Vatican_City"]},
-            {"name": "Ivory_Coast", "capital": "Yamoussoukro", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Liberia", "Guinea", "Mali", "Burkina_Faso", "Ghana"]},
-            {"name": "Jamaica", "capital": "Kingston", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Cuba", "Haiti"]},
-            {"name": "Japan", "capital": "Tokyo", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["South_Korea", "China", "Russia"]},
-            {"name": "Jordan", "capital": "Amman", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Syria", "Iraq", "Saudi_Arabia", "Israel", "Palestine"]},
-            {"name": "Kazakhstan", "capital": "Nur-Sultan", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Russia", "China", "Kyrgyzstan", "Uzbekistan", "Turkmenistan"]},
-            {"name": "Kenya", "capital": "Nairobi", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Ethiopia", "Somalia", "South_Sudan", "Uganda", "Tanzania"]},
-            {"name": "Kiribati", "capital": "Tarawa", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Marshall_Islands", "Nauru"]},
-            {"name": "Kosovo", "capital": "Pristina", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Serbia", "North_Macedonia", "Albania", "Montenegro"]},
-            {"name": "Kuwait", "capital": "Kuwait City", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Iraq", "Saudi_Arabia"]},
-            {"name": "Kyrgyzstan", "capital": "Bishkek", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Kazakhstan", "China", "Tajikistan", "Uzbekistan"]},
-            {"name": "Laos", "capital": "Vientiane", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["China", "Vietnam", "Cambodia", "Thailand", "Myanmar"]},
-            {"name": "Latvia", "capital": "Riga", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Estonia", "Russia", "Belarus", "Lithuania"]},
-            {"name": "Lebanon", "capital": "Beirut", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Syria", "Israel"]},
-            {"name": "Lesotho", "capital": "Maseru", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["South_Africa"]},
-            {"name": "Liberia", "capital": "Monrovia", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Sierra_Leone", "Guinea", "Ivory_Coast"]},
-            {"name": "Libya", "capital": "Tripoli", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Egypt", "Sudan", "Chad", "Niger", "Algeria", "Tunisia"]},
-            {"name": "Liechtenstein", "capital": "Vaduz", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Switzerland", "Austria"]},
-            {"name": "Lithuania", "capital": "Vilnius", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Latvia", "Belarus", "Poland", "Russia"]},
-            {"name": "Luxembourg", "capital": "Luxembourg City", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Belgium", "France", "Germany"]},
-            {"name": "Madagascar", "capital": "Antananarivo", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Comoros", "Mauritius", "Reunion"]},
-            {"name": "Malawi", "capital": "Lilongwe", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Tanzania", "Mozambique", "Zambia"]},
-            {"name": "Malaysia", "capital": "Kuala Lumpur", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Thailand", "Indonesia", "Brunei", "Singapore"]},
-            {"name": "Maldives", "capital": "Malé", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Sri_Lanka", "India"]},
-            {"name": "Mali", "capital": "Bamako", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Algeria", "Niger", "Burkina_Faso", "Ivory_Coast", "Guinea", "Senegal", "Mauritania"]},
-            {"name": "Malta", "capital": "Valletta", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Italy", "Tunisia"]},
-            {"name": "Marshall_Islands", "capital": "Majuro", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Kiribati", "Micronesia"]},
-            {"name": "Mauritania", "capital": "Nouakchott", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Western_Sahara", "Algeria", "Mali", "Senegal"]},
-            {"name": "Mauritius", "capital": "Port Louis", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Madagascar", "Reunion"]},
-            {"name": "Mexico", "capital": "Mexico City", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["United_States", "Guatemala", "Belize"]},
-            {"name": "Micronesia", "capital": "Palikir", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Marshall_Islands", "Palau"]},
-            {"name": "Moldova", "capital": "Chișinău", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Romania", "Ukraine"]},
-            {"name": "Monaco", "capital": "Monaco", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["France"]},
-            {"name": "Mongolia", "capital": "Ulaanbaatar", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Russia", "China"]},
-            {"name": "Montenegro", "capital": "Podgorica", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Croatia", "Bosnia_and_Herzegovina", "Serbia", "Kosovo", "Albania"]},
-            {"name": "Morocco", "capital": "Rabat", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Algeria", "Western_Sahara", "Spain"]},
-            {"name": "Mozambique", "capital": "Maputo", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Tanzania", "Malawi", "Zambia", "Zimbabwe", "South_Africa", "Eswatini"]},
-            {"name": "Myanmar", "capital": "Naypyidaw", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Bangladesh", "India", "China", "Laos", "Thailand"]},
-            {"name": "Namibia", "capital": "Windhoek", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Angola", "Zambia", "Botswana", "South_Africa"]},
-            {"name": "Nauru", "capital": "Yaren", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Kiribati", "Marshall_Islands"]},
-            {"name": "Nepal", "capital": "Kathmandu", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["India", "China"]},
-            {"name": "Netherlands", "capital": "Amsterdam", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Germany", "Belgium"]},
-            {"name": "New_Zealand", "capital": "Wellington", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Australia", "Fiji"]},
-            {"name": "Nicaragua", "capital": "Managua", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Honduras", "Costa_Rica"]},
-            {"name": "Niger", "capital": "Niamey", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Algeria", "Libya", "Chad", "Nigeria", "Benin", "Burkina_Faso", "Mali"]},
-            {"name": "Seychelles", "capital": "Victoria", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Madagascar", "Mauritius"]},
-            {"name": "Sierra_Leone", "capital": "Freetown", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Guinea", "Liberia"]},
-            {"name": "Singapore", "capital": "Singapore", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Malaysia", "Indonesia"]},
-            {"name": "Slovakia", "capital": "Bratislava", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Poland", "Hungary", "Austria", "Czech_Republic", "Ukraine"]},
-            {"name": "Slovenia", "capital": "Ljubljana", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Italy", "Austria", "Hungary", "Croatia"]},
-            {"name": "Solomon_Islands", "capital": "Honiara", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Papua_New_Guinea", "Vanuatu"]},
-            {"name": "Nigeria", "capital": "Abuja", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Niger", "Chad", "Cameroon", "Benin"]},
-            {"name": "North_Korea", "capital": "Pyongyang", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["China", "South_Korea", "Russia"]},
-            {"name": "North_Macedonia", "capital": "Skopje", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Kosovo", "Serbia", "Bulgaria", "Greece", "Albania"]},
-            {"name": "Norway", "capital": "Oslo", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Sweden", "Finland", "Russia"]},
-            {"name": "Oman", "capital": "Muscat", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["United_Arab_Emirates", "Saudi_Arabia", "Yemen"]},
-            {"name": "Pakistan", "capital": "Islamabad", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Iran", "Afghanistan", "China", "India"]},
-            {"name": "Palau", "capital": "Ngerulmud", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Philippines", "Micronesia"]},
-            {"name": "Palestine", "capital": "Ramallah", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Israel", "Jordan", "Egypt"]},
-            {"name": "Panama", "capital": "Panama City", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Costa_Rica", "Colombia"]},
-            {"name": "Papua_New_Guinea", "capital": "Port Moresby", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Indonesia", "Australia"]},
-            {"name": "Paraguay", "capital": "Asunción", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Bolivia", "Brazil", "Argentina"]},
-            {"name": "Peru", "capital": "Lima", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Ecuador", "Colombia", "Brazil", "Bolivia", "Chile"]},
-            {"name": "Philippines", "capital": "Manila", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Taiwan", "Indonesia", "Malaysia"]},
-            {"name": "Poland", "capital": "Warsaw", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Germany", "Czech_Republic", "Slovakia", "Ukraine", "Belarus", "Lithuania", "Russia"]},
-            {"name": "Portugal", "capital": "Lisbon", "population": "Unknown","area": "Unknown", "region": "Europe",
-             "neighbors": ["Spain"]},
-            {"name": "Qatar", "capital": "Doha", "population": "Unknown","area": "Unknown", "region": "Asia",
-             "neighbors": ["Saudi_Arabia", "United_Arab_Emirates", "Bahrain"]},
-            {"name": "Romania", "capital": "Bucharest", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Moldova", "Ukraine", "Hungary", "Serbia", "Bulgaria"]},
-            {"name": "Russia", "capital": "Moscow", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Norway", "Finland", "Estonia", "Latvia", "Lithuania", "Poland", "Belarus", "Ukraine", "Georgia", "Azerbaijan", "Kazakhstan", "China", "Mongolia", "North_Korea"]},
-            {"name": "Rwanda", "capital": "Kigali", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Uganda", "Tanzania", "Burundi", "Democratic_Republic_of_the_Congo"]},
-            {"name": "Saint_Kitts_and_Nevis", "capital": "Basseterre", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Antigua_and_Barbuda", "Saint_Lucia"]},
-            {"name": "Saint_Lucia", "capital": "Castries", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Saint_Vincent_and_the_Grenadines", "Barbados"]},
-            {"name": "Saint_Vincent_and_the_Grenadines", "capital": "Kingstown", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Saint_Lucia", "Barbados"]},
-            {"name": "Samoa", "capital": "Apia", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Fiji", "Tonga"]},
-            {"name": "San_Marino", "capital": "San Marino", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Italy"]},
-            {"name": "Saudi_Arabia", "capital": "Riyadh", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Jordan", "Iraq", "Kuwait", "Bahrain", "Qatar", "United_Arab_Emirates", "Oman", "Yemen"]},
-            {"name": "Senegal", "capital": "Dakar", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Mauritania", "Mali", "Guinea", "Guinea-Bissau", "Gambia"]},
-            {"name": "Serbia", "capital": "Belgrade", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Hungary", "Romania", "Bulgaria", "North_Macedonia", "Kosovo", "Montenegro", "Bosnia_and_Herzegovina", "Croatia"]},
-            {"name": "Seychelles", "capital": "Victoria", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Madagascar", "Mauritius"]},
-            {"name": "Sierra_Leone", "capital": "Freetown", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Guinea", "Liberia"]},
-            {"name": "Singapore", "capital": "Singapore", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Malaysia", "Indonesia"]},
-            {"name": "Slovakia", "capital": "Bratislava", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Poland", "Ukraine", "Hungary", "Austria", "Czech_Republic"]},
-            {"name": "Slovenia", "capital": "Ljubljana", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Italy", "Austria", "Hungary", "Croatia"]},
-            {"name": "Solomon_Islands", "capital": "Honiara", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Papua_New_Guinea", "Vanuatu"]},
-            {"name": "Somalia", "capital": "Mogadishu", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Ethiopia", "Kenya", "Djibouti"]},
-            {"name": "South_Africa", "capital": "Pretoria", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Namibia", "Botswana", "Zimbabwe", "Mozambique", "Eswatini", "Lesotho"]},
-            {"name": "South_Korea", "capital": "Seoul", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["North_Korea", "Japan"]},
-            {"name": "South_Sudan", "capital": "Juba", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Sudan", "Ethiopia", "Kenya", "Uganda", "Democratic_Republic_of_the_Congo", "Central_African_Republic"]},
-            {"name": "Spain", "capital": "Madrid", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Portugal", "France", "Andorra", "Morocco"]},
-            {"name": "Sri_Lanka", "capital": "Colombo", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["India", "Maldives"]},
-            {"name": "Sudan", "capital": "Khartoum", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Egypt", "Libya", "Chad", "Central_African_Republic", "South_Sudan", "Ethiopia", "Eritrea"]},
-            {"name": "Suriname", "capital": "Paramaribo", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Guyana", "Brazil", "French_Guiana"]},
-            {"name": "Sweden", "capital": "Stockholm", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Norway", "Finland", "Denmark"]},
-            {"name": "Switzerland", "capital": "Bern", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["France", "Germany", "Austria", "Liechtenstein", "Italy"]},
-            {"name": "Syria", "capital": "Damascus", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Turkey", "Iraq", "Jordan", "Israel", "Lebanon"]},
-            {"name": "Taiwan", "capital": "Taipei", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["China", "Japan", "Philippines"]},
-            {"name": "Tajikistan", "capital": "Dushanbe", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Uzbekistan", "Kyrgyzstan", "China", "Afghanistan"]},
-            {"name": "Tanzania", "capital": "Dodoma", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Kenya", "Uganda", "Rwanda", "Burundi", "Democratic_Republic_of_the_Congo", "Zambia", "Malawi", "Mozambique"]},
-            {"name": "Thailand", "capital": "Bangkok", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Myanmar", "Laos", "Cambodia", "Malaysia"]},
-            {"name": "Timor-Leste", "capital": "Dili", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Indonesia"]},
-            {"name": "Togo", "capital": "Lomé", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Ghana", "Burkina_Faso", "Benin"]},
-            {"name": "Tonga", "capital": "Nukuʻalofa", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Fiji", "Samoa"]},
-            {"name": "Trinidad_and_Tobago", "capital": "Port of Spain", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Venezuela"]},
-            {"name": "Tunisia", "capital": "Tunis", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Algeria", "Libya"]},
-            {"name": "Turkey", "capital": "Ankara", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Greece", "Bulgaria", "Georgia", "Armenia", "Azerbaijan", "Iran", "Iraq", "Syria"]},
-            {"name": "Turkmenistan", "capital": "Ashgabat", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Kazakhstan", "Uzbekistan", "Afghanistan", "Iran"]},
-            {"name": "Tuvalu", "capital": "Funafuti", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Fiji", "Kiribati"]},
-            {"name": "Uganda", "capital": "Kampala", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Kenya", "South_Sudan", "Democratic_Republic_of_the_Congo", "Rwanda", "Tanzania"]},
-            {"name": "Ukraine", "capital": "Kyiv", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Belarus", "Russia", "Moldova", "Romania", "Hungary", "Slovakia", "Poland"]},
-            {"name": "United_Arab_Emirates", "capital": "Abu Dhabi", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Saudi_Arabia", "Oman"]},
-            {"name": "United_Kingdom", "capital": "London", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Ireland", "France", "Iceland"]},
-            {"name": "United_States", "capital": "Washington, D.C.", "population": "Unknown", "area": "Unknown", "region": "North America",
-             "neighbors": ["Canada", "Mexico"]},
-            {"name": "Uruguay", "capital": "Montevideo", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Argentina", "Brazil"]},
-            {"name": "Uzbekistan", "capital": "Tashkent", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Kazakhstan", "Kyrgyzstan", "Tajikistan", "Afghanistan", "Turkmenistan"]},
-            {"name": "Vanuatu", "capital": "Port Vila", "population": "Unknown", "area": "Unknown", "region": "Oceania",
-             "neighbors": ["Solomon_Islands", "Fiji"]},
-            {"name": "Vatican_City", "capital": "Vatican City", "population": "Unknown", "area": "Unknown", "region": "Europe",
-             "neighbors": ["Italy"]},
-            {"name": "Venezuela", "capital": "Caracas", "population": "Unknown", "area": "Unknown", "region": "South America",
-             "neighbors": ["Colombia", "Brazil", "Guyana", "Trinidad_and_Tobago"]},
-            {"name": "Vietnam", "capital": "Hanoi", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["China", "Laos", "Cambodia"]},
-            {"name": "Western_Sahara", "capital": "El Aaiún", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Morocco", "Algeria", "Mauritania"]},
-            {"name": "Yemen", "capital": "Sana'a", "population": "Unknown", "area": "Unknown", "region": "Asia",
-             "neighbors": ["Saudi_Arabia", "Oman"]},
-            {"name": "Zambia", "capital": "Lusaka", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Democratic_Republic_of_the_Congo", "Tanzania", "Malawi", "Mozambique", "Zimbabwe", "Botswana", "Namibia", "Angola"]},
-            {"name": "Zimbabwe", "capital": "Harare", "population": "Unknown", "area": "Unknown", "region": "Africa",
-             "neighbors": ["Zambia", "Mozambique", "South_Africa", "Botswana"]}
-        ]
-
-    def get_random_country(self) -> Dict:
-        """Return a random country from the loaded countries"""
-        # If we're running in capital mode, any country is fine
-        if hasattr(self, 'current_game_mode') and self.current_game_mode == "capital":
-            return random.choice(self.countries)
-
-        # For map and flag modes, we need to make sure the image exists
-        valid_countries = []
-        for country in self.countries:
-            country_name = country['name']
-
-            # Check if flag image exists for this country
-            flag_path = os.path.join("country_game", "images", "wiki_flag", f"{country_name}_flag.png")
-
-            # Check if map image exists for this country
-            map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country_name}_locator_map.png")
-
-            # If we're in flag mode, we only need the flag image
-            if hasattr(self, 'current_game_mode') and self.current_game_mode == "flag" and os.path.exists(flag_path):
-                valid_countries.append(country)
-            # If we're in map mode, we only need the map image
-            elif hasattr(self, 'current_game_mode') and self.current_game_mode == "map" and os.path.exists(map_path):
-                valid_countries.append(country)
-            # If game mode isn't set yet, add countries that have at least one image
-            elif not hasattr(self, 'current_game_mode') and (os.path.exists(flag_path) or os.path.exists(map_path)):
-                valid_countries.append(country)
-
-        # If we have valid countries with images, return one of those
-        if valid_countries:
-            return random.choice(valid_countries)
-
-        # Fallback to any country if no valid ones with images are found
-        return random.choice(self.countries)
-
-    def get_answer_options(self, correct_country: Dict) -> List[Dict]:
-        """Generate a list of answer options (1 correct + up to 9 others)"""
-        options = []
-
-        # Add the correct country
-        options.append(correct_country)
-
-        # Try to add neighbors first
-        neighbors = correct_country.get("neighbors", [])
-        neighbor_countries = []
-
-        for neighbor_name in neighbors:
-            # Clean up the name by replacing underscores
-            clean_name = neighbor_name.replace("_", " ")
-            # Find matching countries
-            for country in self.countries:
-                if country["name"].replace("_", " ").lower() == clean_name.lower():
-                    neighbor_countries.append(country)
-                    break
-
-        # Add unique neighbors to options
-        for country in neighbor_countries:
-            if len(options) < NUM_OPTIONS and country["name"] != correct_country["name"]:
-                options.append(country)
-
-        # If we don't have enough options, add random countries
-        other_countries = [c for c in self.countries if c["name"] != correct_country["name"]
-                          and c not in options]
-        random.shuffle(other_countries)
-
-        for country in other_countries:
-            if len(options) < NUM_OPTIONS:
-                options.append(country)
-            else:
-                break
-
-        # Shuffle options to randomize button positions
-        random.shuffle(options)
-        return options
-
-    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Display help information for the game"""
-        help_text = (
-            "🌍 *Country Guessing Game Options* 🌍\n\n"
-            "*/g help* - Show this help message\n"
-            "*/g* or */g map* - Launch game in map mode (guess from a map)\n"
-            "*/g flag* - Launch game in flag mode (guess from a flag)\n"
-            "*/g capital* - Launch game in capital mode (guess from a capital city)\n\n"
-            "To play: simply tap on the correct country from the options provided.\n"
-            "You have 15 seconds to answer each question."
-        )
-        await update.message.reply_text(help_text, parse_mode="Markdown")
-
     async def start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game_mode: str = "map") -> None:
-        """Start a new game with the specified mode"""
-        # Get user ID
+        """Start a new country guessing game"""
         user_id = update.effective_user.id
-
-        # Get a random country with suitable images
-        country = self._get_random_country(game_mode)
-        if not country:
-            await update.message.reply_text(f"Sorry, I couldn't find any suitable countries for the {game_mode} game mode.")
-            return
+        chat_id = update.effective_chat.id
+        logger.info(f"Starting new game for user {user_id} in chat {chat_id} with mode {game_mode}")
 
         # Cancel any existing timer for this user
         self._cancel_timer(user_id)
 
-        # Get answer options (including the correct one)
-        options = self.get_answer_options(country)
+        # Get a random country based on game mode
+        country = self._get_random_country(game_mode)
 
-        # Create inline keyboard for answers
-        keyboard = []
-        row = []
-        for i, option in enumerate(options):
-            display_name = option["name"].replace("_", " ")
-            callback_data = f"guess_{option['name']}"
-            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
-
-            # Create a new row after every 2 buttons
-            if (i + 1) % 2 == 0 or (i + 1) == len(options):
-                keyboard.append(row)
-                row = []
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        # Create game state
-        game_data = {
-            "country": country,
-            "start_time": time.time(),
-            "attempts": 0,
-            "mode": game_mode,  # Store the game mode
-            "hints_used": 0     # Track how many hints were used
-        }
-
-        # Store the game state
-        self.active_games[user_id] = game_data
-
-        # Send game question based on mode
-        if game_mode == "map":
-            # Map mode - send country map
-            map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country['name']}_locator_map.png")
-            
-            if os.path.exists(map_path):
-                message = await context.bot.send_photo(
-                    chat_id=update.effective_chat.id,
-                    photo=open(map_path, 'rb'),
-                    caption="🌍 Which country is shown on this map?",
-                    reply_markup=reply_markup
-                )
-                # Store the message ID for later updating
-                game_data["message_id"] = message.message_id
-            else:
-                await context.bot.send_message(
-                    chat_id=update.effective_chat.id,
-                    text=f"Sorry, I couldn't find a map for {country['name'].replace('_', ' ')}. Try another game!"
-                )
-                del self.active_games[user_id]
-                await self._send_game_navigation(update, context)
-                return
-                
-        elif game_mode == "flag":
-            # Flag mode - send country flag
-            flag_path = os.path.join("country_game", "images", "wiki_flag", f"{country['name']}_flag.png")
-            
-            if os.path.exists(flag_path):
-                message = await context.bot.send_photo(
-                    chat_id=update.effective_chat.id,
-                    photo=open(flag_path, 'rb'),
-                    caption="🏳️ Which country does this flag belong to?",
-                    reply_markup=reply_markup
-                )
-                # Store the message ID for later updating
-                game_data["message_id"] = message.message_id
-            else:
-                await context.bot.send_message(
-                    chat_id=update.effective_chat.id,
-                    text=f"Sorry, I couldn't find a flag for {country['name'].replace('_', ' ')}. Try another game!"
-                )
-                del self.active_games[user_id]
-                await self._send_game_navigation(update, context)
-                return
-                
-        elif game_mode == "capital":
-            # Capital mode - send capital name
-            message = await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"🏙️ Which country has *{country['capital']}* as its capital?",
-                reply_markup=reply_markup,
-                parse_mode="Markdown"
-            )
-            # Store the message ID for later updating
-            game_data["message_id"] = message.message_id
-            
-        else:
+        if not country:
             await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="Invalid game mode. Use /g help for options."
+                chat_id=chat_id,
+                text=f"Sorry, I couldn't find any countries for the {game_mode} game mode. Please try a different mode."
             )
-            del self.active_games[user_id]
             return
 
-        # Log the game start
-        logger.info(f"Starting {game_mode} game for user {user_id} with country {country['name']}")
+        # Set up a new game for this user with start_time
+        self.active_games[user_id] = {
+            "country": country,
+            "attempts": 0,
+            "mode": game_mode,
+            "start_time": time.time()  # Add start_time to fix the KeyError
+        }
+        logger.info(f"Created new game for user {user_id} with country {country['name']}")
+
+        # Send the appropriate challenge based on game mode
+        if game_mode == "map":
+            await self._send_map_challenge(update, context, country)
+        elif game_mode == "flag":
+            await self._send_flag_challenge(update, context, country)
+        elif game_mode == "capital":
+            await self._send_capital_challenge(update, context, country)
+        elif game_mode == "cap":
+            await self._send_capital_guessing_challenge(update, context, country)
+        else:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"Unknown game mode: {game_mode}. Try /g help for available options."
+            )
+            # Clean up the game if we couldn't start it
+            if user_id in self.active_games:
+                del self.active_games[user_id]
 
         # Set a timer for this game that actually waits GAME_TIMEOUT seconds
         self.timer_tasks[user_id] = asyncio.create_task(
             self._game_timeout_callback(update, context, user_id)
         )
 
-    def _cancel_timer(self, user_id: int) -> None:
-        """Cancel the timer for a specific user if it exists"""
-        if user_id in self.timer_tasks:
-            task = self.timer_tasks.pop(user_id)
-            if not task.done():
-                task.cancel()
-
-
-
-    async def _send_map_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
-        """Send a map challenge to the user with multiple-choice options"""
-        country_name = country["name"]
-        image_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country_name}_locator_map.png")
-
-        try:
-            # Generate answer options (1 correct + 9 others)
-            options = self.get_answer_options(country)
-
-            # Create inline keyboard with answer options
-            keyboard = []
-            row = []
-            for i, option in enumerate(options):
-                display_name = option["name"].replace("_", " ")
-                # Ensure consistency by using the exact country name as stored in the database
-                callback_data = f"guess_{option['name']}"
-                logger.info(f"Creating button for {display_name} with callback_data: {callback_data}")
-                row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
-
-                # Create a new row after every 2 buttons
-                if (i + 1) % 2 == 0 or (i + 1) == len(options):
-                    keyboard.append(row)
-                    row = []
-
-            reply_markup = InlineKeyboardMarkup(keyboard)
-
-            with open(image_path, "rb") as photo_file:
-                caption = "🗺️ *Guess the country from this map!*\nYou have 15 seconds to answer."
-                message = await context.bot.send_photo(
-                    chat_id=update.effective_chat.id,
-                    photo=photo_file,
-                    caption=caption,
-                    parse_mode="Markdown",
-                    reply_markup=reply_markup
-                )
-
-                # Store the message_id for potential cleanup later
-                self.active_games[update.effective_user.id]["message_id"] = message.message_id
-
-                # Set a timer for this game that actually waits GAME_TIMEOUT seconds
-                self.timer_tasks[update.effective_user.id] = asyncio.create_task(
-                    self._game_timeout_callback(update, context, update.effective_user.id)
-                )
-
-        except FileNotFoundError:
-            logger.error(f"Map image not found for {country_name}: {image_path}")
-            await update.message.reply_text(
-                f"Sorry, I couldn't find the map for this country. Try another game!"
-            )
-            # Clean up the game state
-            if update.effective_user.id in self.active_games:
-                del self.active_games[update.effective_user.id]
-
-    async def _send_flag_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
-        """Send a flag challenge to the user with multiple-choice options"""
-        country_name = country["name"]
-        image_path = os.path.join("country_game", "images", "wiki_flag", f"{country_name}_flag.png")
-
-        try:
-            # Generate answer options (1 correct + 9 others)
-            options = self.get_answer_options(country)
-
-            # Create inline keyboard with answer options
-            keyboard = []
-            row = []
-            for i, option in enumerate(options):
-                display_name = option["name"].replace("_", " ")
-                # Ensure consistency by using the exact country name as stored in the database
-                callback_data = f"guess_{option['name']}"
-                logger.info(f"Creating button for {display_name} with callback_data: {callback_data}")
-                row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
-
-                # Create a new row after every 2 buttons
-                if (i + 1) % 2 == 0 or (i + 1) == len(options):
-                    keyboard.append(row)
-                    row = []
-
-            reply_markup = InlineKeyboardMarkup(keyboard)
-
-            with open(image_path, "rb") as photo_file:
-                caption = "🏳️ *Guess the country from this flag!*\nYou have 15 seconds to answer."
-                message = await context.bot.send_photo(
-                    chat_id=update.effective_chat.id,
-                    photo=photo_file,
-                    caption=caption,
-                    parse_mode="Markdown",
-                    reply_markup=reply_markup
-                )
-
-                # Store the message_id for potential cleanup later
-                self.active_games[update.effective_user.id]["message_id"] = message.message_id
-
-                # Set a timer for this game that actually waits GAME_TIMEOUT seconds
-                self.timer_tasks[update.effective_user.id] = asyncio.create_task(
-                    self._game_timeout_callback(update, context, update.effective_user.id)
-                )
-
-        except FileNotFoundError:
-            logger.error(f"Flag image not found for {country_name}: {image_path}")
-            await update.message.reply_text(
-                f"Sorry, I couldn't find the flag for this country. Try another game!"
-            )
-            # Clean up the game state
-            if update.effective_user.id in self.active_games:
-                del self.active_games[update.effective_user.id]
-
-    async def _send_capital_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
-        """Send a capital challenge to the user with multiple-choice options"""
-        capital = country.get("capital", "Unknown")
-
-        # Generate answer options (1 correct + 9 others)
-        options = self.get_answer_options(country)
-
-        # Create inline keyboard with answer options
-        keyboard = []
-        row = []
-        for i, option in enumerate(options):
-            display_name = option["name"].replace("_", " ")
-            # Ensure consistency by using the exact country name as stored in the database
-            callback_data = f"guess_{option['name']}"
-            logger.info(f"Creating button for {display_name} with callback_data: {callback_data}")
-            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
-
-            # Create a new row after every 2 buttons
-            if (i + 1) % 2 == 0 or (i + 1) == len(options):
-                keyboard.append(row)
-                row = []
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        message = await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"🏙️ *Guess the country whose capital is:* {capital}\nYou have 15 seconds to answer.",
-            parse_mode="Markdown",
-            reply_markup=reply_markup
-        )
-
-        # Store the message_id for potential cleanup later
-        self.active_games[update.effective_user.id]["message_id"] = message.message_id
-
-        # Set a timer for this game that actually waits GAME_TIMEOUT seconds
-        self.timer_tasks[update.effective_user.id] = asyncio.create_task(
-            self._game_timeout_callback(update, context, update.effective_user.id)
-        )
-
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handles callback queries from inline keyboards."""
         query = update.callback_query
         user_id = update.effective_user.id
-        
+
         # Add detailed logging to help debug navigation buttons
         logger.info(f"Received callback query with data: {query.data} from user {user_id}")
 
-        # Cancel the timer for this game if it exists
+        # Cancel any timer when user interacts
         self._cancel_timer(user_id)
 
         await query.answer()  # Acknowledge the button press to Telegram
-        
+
         # Check if it's a game guess
         if query.data.startswith("guess_"):
             logger.info(f"Processing guess: {query.data}")
-            # Only process guesses if there's an active game
-            if user_id in self.active_games:
-                await self._handle_guess(update, context, query)
+            # Check if this is a capital guessing game
+            if user_id in self.active_games and self.active_games[user_id].get("mode") == "cap":
+                # For cap mode, format is "guess_CountryName_CapitalName" 
+                parts = query.data.split("_", 2)
+                if len(parts) == 3:
+                    country_name = parts[1]
+                    guessed_capital = parts[2]
+                    await self._handle_capital_guess(update, context, country_name, guessed_capital)
+                else:
+                    logger.error(f"Invalid guess data format: {query.data}")
+                    await context.bot.send_message(
+                        chat_id=update.effective_chat.id,
+                        text="Sorry, there was an error processing your answer. Please try again."
+                    )
+                    # Send game navigation buttons
+                    await self._send_game_navigation(update, context)
             else:
-                logger.warning(f"Received guess but no active game for user {user_id}")
-                await context.bot.send_message(
-                    chat_id=update.effective_chat.id,
-                    text="No active game found. Start a new game with /g"
-                )
-                # Send game navigation buttons
-                await self._send_game_navigation(update, context)
+                # For other modes, handle as normal country guess
+                await self._handle_guess(update, context, query.data)
         # Check if it's a navigation button
         elif query.data.startswith("play_"):
             game_mode = query.data.split("_")[1]
@@ -998,506 +219,1018 @@ class GameHandler:
             logger.warning(f"Unrecognized callback data: {query.data}")
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="Unrecognized button. Try /g to start a new game."
+                text="Sorry, I didn't understand that command. Try /g help for options."
             )
 
-    async def _handle_guess(self, update: Update, context: ContextTypes.DEFAULT_TYPE, query) -> None:
-        """Handle a guess from the inline keyboard"""
+    async def _send_map_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
+        """Send a map challenge to the user with multiple-choice options"""
         user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
 
-        # Make sure this user has an active game
-        if user_id not in self.active_games:
-            await query.answer("No active game found. Start a new game with /g")
+        logger.info(f"Sending map challenge for country: {country['name']}")
+
+        # Generate answer options (1 correct + 9 others)
+        options = self.get_answer_options(country)
+
+        # Create inline keyboard with answer options
+        keyboard = []
+        row = []
+        for i, option in enumerate(options):
+            display_name = option["name"].replace("_", " ")
+            callback_data = f"guess_{option['name']}"
+            logger.info(f"Creating button for {display_name} with callback_data: {callback_data}")
+            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
+
+            # Create a new row after every 2 buttons
+            if (i + 1) % 2 == 0 or (i + 1) == len(options):
+                keyboard.append(row)
+                row = []
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        logger.info(f"Created keyboard with {len(keyboard)} rows for map challenge")
+
+        # Get the map path
+        map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country['name']}_locator_map.png")
+
+        # Check if map exists
+        if not os.path.exists(map_path):
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"Sorry, I couldn't find a map for {country['name'].replace('_', ' ')}. Try another game!"
+            )
+            # Clean up the game
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            # Send game navigation
+            await self._send_game_navigation(update, context)
             return
 
-        # Get game data
-        game = self.active_games[user_id]
-        correct_country = game["country"]["name"]
-        guess = query.data.replace("guess_", "")
-        current_mode = game.get("mode", "map")  # Default to map mode if not specified
+        # Send the map image with answer options
+        try:
+            with open(map_path, 'rb') as photo:
+                message = await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=photo,
+                    caption="🌍 Which country is shown on this map?",
+                    reply_markup=reply_markup
+                )
 
-        # Get chat ID for responding
+                # Store the message ID for later reference
+                if user_id in self.active_games:
+                    self.active_games[user_id]["message_id"] = message.message_id
+
+                logger.info(f"Successfully sent map challenge with message_id: {message.message_id}")
+        except Exception as e:
+            logger.error(f"Error sending map challenge: {e}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Sorry, there was an error starting the game. Please try again."
+            )
+            # Clean up the game
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            # Send game navigation
+            await self._send_game_navigation(update, context)
+            return
+
+    async def _send_flag_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
+        """Send a flag challenge to the user with multiple-choice options"""
+        user_id = update.effective_user.id
         chat_id = update.effective_chat.id
+
+        logger.info(f"Sending flag challenge for country: {country['name']}")
+
+        # Generate answer options (1 correct + 9 others)
+        options = self.get_answer_options(country)
+
+        # Create inline keyboard with answer options
+        keyboard = []
+        row = []
+        for i, option in enumerate(options):
+            display_name = option["name"].replace("_", " ")
+            callback_data = f"guess_{option['name']}"
+            logger.info(f"Creating button for {display_name} with callback_data: {callback_data}")
+            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
+
+            # Create a new row after every 2 buttons
+            if (i + 1) % 2 == 0 or (i + 1) == len(options):
+                keyboard.append(row)
+                row = []
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        logger.info(f"Created keyboard with {len(keyboard)} rows for flag challenge")
+
+        # Get the flag path
+        flag_path = os.path.join("country_game", "images", "wiki_flag", f"{country['name']}_flag.png")
+
+        # Check if flag exists
+        if not os.path.exists(flag_path):
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"Sorry, I couldn't find a flag for {country['name'].replace('_', ' ')}. Try another game!"
+            )
+            # Clean up the game
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            # Send game navigation
+            await self._send_game_navigation(update, context)
+            return
+
+        # Send the flag image with answer options
+        try:
+            with open(flag_path, 'rb') as photo:
+                message = await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=photo,
+                    caption="🏳️ Which country does this flag belong to?",
+                    reply_markup=reply_markup
+                )
+
+                # Store the message ID for later reference
+                if user_id in self.active_games:
+                    self.active_games[user_id]["message_id"] = message.message_id
+
+                logger.info(f"Successfully sent flag challenge with message_id: {message.message_id}")
+        except Exception as e:
+            logger.error(f"Error sending flag challenge: {e}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Sorry, there was an error starting the game. Please try again."
+            )
+            # Clean up the game
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            # Send game navigation
+            await self._send_game_navigation(update, context)
+            return
+
+    async def _send_capital_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
+        """Send a capital challenge to the user with multiple-choice options"""
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+
+        logger.info(f"Sending capital challenge for country: {country['name']}")
+
+        # Make sure the country has a known capital
+        if not country.get("capital") or country["capital"] == "Unknown":
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"Sorry, I don't know the capital of {country['name'].replace('_', ' ')}. Try another game!"
+            )
+            # Clean up the game
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            # Send game navigation
+            await self._send_game_navigation(update, context)
+            return
+
+        # Generate answer options (1 correct + 9 others)
+        options = self.get_answer_options(country)
+
+        # Create inline keyboard with answer options
+        keyboard = []
+        row = []
+        for i, option in enumerate(options):
+            display_name = option["name"].replace("_", " ")
+            callback_data = f"guess_{option['name']}"
+            logger.info(f"Creating button for {display_name} with callback_data: {callback_data}")
+            row.append(InlineKeyboardButton(display_name, callback_data=callback_data))
+
+            # Create a new row after every 2 buttons
+            if (i + 1) % 2 == 0 or (i + 1) == len(options):
+                keyboard.append(row)
+                row = []
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        logger.info(f"Created keyboard with {len(keyboard)} rows for capital challenge")
+
+        # Send the capital question with answer options
+        try:
+            message = await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"🏙️ Which country has *{country['capital']}* as its capital?",
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+
+            # Store the message ID for later reference
+            if user_id in self.active_games:
+                self.active_games[user_id]["message_id"] = message.message_id
+
+            logger.info(f"Successfully sent capital challenge with message_id: {message.message_id}")
+        except Exception as e:
+            logger.error(f"Error sending capital challenge: {e}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Sorry, there was an error starting the game. Please try again."
+            )
+            # Clean up the game
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            # Send game navigation
+            await self._send_game_navigation(update, context)
+            return
+
+    async def _send_capital_guessing_challenge(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict) -> None:
+        """Send a challenge where user sees a map and needs to identify the capital city"""
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+
+        logger.info(f"Sending capital guessing challenge for country: {country['name']}")
+
+        # Get the map path for this country
+        map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country['name']}_locator_map.png")
+
+        # Check if the map exists
+        if not os.path.exists(map_path):
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"Sorry, I couldn't find the map for this country. Try another game!"
+            )
+            # Clean up the game
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            # Send game navigation
+            await self._send_game_navigation(update, context)
+            return
+
+        # Get the correct capital (answer)
+        correct_capital = country.get('capital', 'Unknown')
+        if correct_capital == 'Unknown':
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"Sorry, I don't know the capital of this country. Try another game!"
+            )
+            # Clean up the game
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            # Send game navigation
+            await self._send_game_navigation(update, context)
+            return
+
+        # Collect capital options (1 correct + 9 from neighbors or random countries)
+        capital_options = [correct_capital]
+
+        # Get neighboring countries' capitals
+        neighbor_capitals = []
+        for neighbor_name in country.get('neighbors', []):
+            # Find the neighbor in our countries list
+            for c in self.countries:
+                if c['name'] == neighbor_name and c.get('capital') != 'Unknown':
+                    neighbor_capitals.append(c['capital'])
+                    break
+
+        # Shuffle the neighbor capitals and add them to options
+        random.shuffle(neighbor_capitals)
+        capital_options.extend(neighbor_capitals[:9])  # Take up to 9 neighbor capitals
+
+        # If we don't have 10 options yet, add random capitals from other countries
+        if len(capital_options) < 10:
+            # Get random countries with known capitals
+            other_countries = [c for c in self.countries 
+                            if c['name'] != country['name'] 
+                            and c.get('capital') != 'Unknown'
+                            and c['capital'] not in capital_options]
+
+            # Shuffle them and take as many as needed
+            random.shuffle(other_countries)
+            needed = 10 - len(capital_options)
+            for i in range(min(needed, len(other_countries))):
+                capital_options.append(other_countries[i]['capital'])
+
+        # Ensure we have no more than 10 options
+        capital_options = capital_options[:10]
+
+        # Shuffle the options
+        random.shuffle(capital_options)
+
+        # Add detailed logging
+        logger.info(f"Generated {len(capital_options)} capital options")
+        logger.info(f"Capital options: {capital_options}")
+        logger.info(f"Correct capital: {correct_capital}")
+
+        # Create keyboard with capital options
+        keyboard = []
+        row = []
+
+        for i, capital in enumerate(capital_options):
+            # Create callback data for this option
+            callback_data = f"guess_{country['name']}_{capital}"
+            logger.info(f"Creating button with callback_data: {callback_data}")
+
+            # Add button to current row
+            row.append(InlineKeyboardButton(capital, callback_data=callback_data))
+
+            # Start a new row after 2 buttons
+            if (i + 1) % 2 == 0 or (i + 1) == len(capital_options):
+                keyboard.append(row)
+                row = []
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        logger.info(f"Created keyboard with {len(keyboard)} rows")
+
+        # Send the map image with capital options
+        try:
+            logger.info(f"Attempting to send photo from path: {map_path}")
+            # Check if the map file exists and is readable
+            if os.path.exists(map_path) and os.access(map_path, os.R_OK):
+                logger.info(f"Map file exists and is readable")
+                with open(map_path, 'rb') as photo_file:
+                    # Try to read some bytes to confirm file is valid
+                    photo_bytes = photo_file.read(1024)
+                    if not photo_bytes:
+                        logger.error(f"Map file is empty or could not be read")
+                        raise ValueError("Map file is empty or could not be read")
+
+                    # Seek back to beginning of file
+                    photo_file.seek(0)
+
+                    message = await context.bot.send_photo(
+                        chat_id=chat_id,
+                        photo=photo_file,
+                        caption=f"🌍 *What is the capital city of this country?*\n\nChoose from the options below:",
+                        parse_mode="Markdown",
+                        reply_markup=reply_markup
+                    )
+
+                    # Store the message ID for later reference (e.g., for editing)
+                    if user_id in self.active_games:
+                        self.active_games[user_id]["message_id"] = message.message_id
+
+                    logger.info(f"Successfully sent photo and received message_id: {message.message_id}")
+            else:
+                # File doesn't exist or isn't readable
+                logger.error(f"Map file doesn't exist or isn't readable: {map_path}")
+                raise FileNotFoundError(f"Map file doesn't exist or isn't readable: {map_path}")
+
+        except Exception as e:
+            logger.error(f"Error sending capital guessing challenge: {str(e)}")
+            # Try an alternative approach
+            try:
+                logger.info(f"Trying alternative approach with InputFile")
+                with open(map_path, 'rb') as photo_file:
+                    message = await context.bot.send_photo(
+                        chat_id=chat_id,
+                        photo=photo_file.read(),
+                        caption=f"🌍 *What is the capital city of this country?*\n\nChoose from the options below:",
+                        parse_mode="Markdown",
+                        reply_markup=reply_markup
+                    )
+
+                    # Store the message ID for later reference
+                    if user_id in self.active_games:
+                        self.active_games[user_id]["message_id"] = message.message_id
+
+                    logger.info(f"Successfully sent photo using alternative approach")
+            except Exception as e2:
+                logger.error(f"Alternative approach also failed: {str(e2)}")
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="Sorry, there was an error starting the game. Please try again."
+                )
+                # Clean up the game
+                if user_id in self.active_games:
+                    del self.active_games[user_id]
+                # Send game navigation
+                await self._send_game_navigation(update, context)
+                return
+
+    async def _handle_guess(self, update: Update, context: ContextTypes.DEFAULT_TYPE, callback_data: str) -> None:
+        """Handle a guess from the inline keyboard"""
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+
+        # Parse the callback data - format is "guess_CountryName"
+        parts = callback_data.split("_", 1)
+        if len(parts) != 2:
+            logger.error(f"Invalid callback data format: {callback_data}")
+            return
+
+        guessed_country_name = parts[1]
+        logger.info(f"User {user_id} guessed {guessed_country_name}")
+
+        # Check if user has an active game
+        if user_id not in self.active_games:
+            logger.warning(f"No active game found for user {user_id}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="No active game found. Start a new game with /g"
+            )
+            return
+
+        # Get the game data
+        game = self.active_games[user_id]
+        correct_country = game["country"]
+
+        # Check if the guess is correct
+        is_correct = (guessed_country_name == correct_country["name"])
+
+        # Format country names for display (replace underscores with spaces)
+        display_guessed = guessed_country_name.replace("_", " ")
+        display_correct = correct_country["name"].replace("_", " ")
 
         # Calculate elapsed time
         elapsed_time = round(time.time() - game["start_time"], 1)
 
-        # Debug logs to help diagnose comparison issues
-        logger.info(f"Comparing guess '{guess}' with correct answer '{correct_country}'")
-        logger.info(f"After normalization: '{guess.lower().replace('_', '')}' vs '{correct_country.lower().replace('_', '')}'")
-
-        # Fix: Normalize both strings for comparison to avoid false negatives
-        # This makes the comparison more robust against format differences
-        is_correct = guess.lower().replace("_", "") == correct_country.lower().replace("_", "")
-        logger.info(f"Is correct: {is_correct}")
-
-        # Get the message ID from the game state
-        message_id = game.get("message_id")
-
-        # Find the details of both the correct country and the guessed country
-        correct_country_data = next((c for c in self.countries if c["name"] == correct_country), None)
-        guessed_country_data = next((c for c in self.countries if c["name"] == guess), None)
-
-        # Get the country population and area (mock data as this isn't in our database)
-        population = self._get_mock_population(correct_country)
-        area = self._get_mock_area(correct_country)
-        region = self._get_mock_region(correct_country)
-        subregion = self._get_mock_subregion(correct_country)
-
-        # Get the map image path for the correct country
-        map_path = f"country_game/images/wiki_all_map_400pi/{correct_country}_locator_map.png"
-        flag_path = f"country_game/images/wiki_flag/{correct_country}_flag.png"
-
+        # Prepare result message
         if is_correct:
-            # User got it right
-            correct_msg = f"✅ Correct! The answer is indeed {correct_country.replace('_', ' ')}!\n\n"
-            correct_msg += f"🎯 Impressive geography skills,  You are a Marveller!\n\n"
-            correct_msg += f"👥 Population: {population:,}\n"
-            correct_msg += f"🗺️ Area: {area:,.1f} km²\n"
-            correct_msg += f"🏙️ Capital: {correct_country_data.get('capital', 'Unknown')}\n"
-            correct_msg += f"🌎 Region: {region}"
+            result_message = f"✅ *Correct!* Well done! (in {elapsed_time}s)\n\n"
+            result_message += f"🏳️ *{display_correct}*\n"
+            result_message += f"🏙️ Capital: *{correct_country.get('capital', 'Unknown')}*\n"
+
+            # Get region information
+            region = self._get_mock_region(correct_country["name"])
+            subregion = self._get_mock_subregion(correct_country["name"])
+            result_message += f"🌍 Region: {region}"
             if subregion:
-                correct_msg += f" ({subregion})"
-            correct_msg += "\n"
+                result_message += f" ({subregion})"
+            result_message += "\n"
 
-            # Add neighbors if available
-            neighbors = correct_country_data.get("neighbors", [])
-            if neighbors:
-                formatted_neighbors = [n.replace("_", " ") for n in neighbors]
-                correct_msg += f"🏘️ Neighbors: {', '.join(formatted_neighbors)}"
-
-            # Try to edit the message with the image
-            try:
-                if current_mode in ["map", "flag"]:
-                    await context.bot.edit_message_caption(
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        caption=correct_msg,
-                        parse_mode="Markdown"
-                    )
-                else:  # Capital mode
-                    await context.bot.edit_message_text(
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        text=correct_msg,
-                        parse_mode="Markdown"
-                    )
-            except Exception as e:
-                logger.error(f"Error editing message: {e}")
-                # Fallback to sending a new message
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=correct_msg,
-                    parse_mode="Markdown"
-                )
-
-            # Acknowledge the callback query
-            await query.answer("✅ Correct!")
-
-            # Update stats
-            self._update_user_stats(user_id, True)
-
+            # Get population and area information
+            population = self._get_mock_population(correct_country["name"])
+            area = self._get_mock_area(correct_country["name"])
+            result_message += f"👥 Population: {self._format_population(population)}\n"
+            result_message += f"📏 Area: {self._format_area(area)}"
         else:
-            # User got it wrong
-            guessed_country_name = guess.replace('_', ' ')
-            correct_country_name = correct_country.replace('_', ' ')
+            # For wrong answer, just indicate it's wrong
+            result_message = f"❌ That's not correct. You selected *{display_guessed}*."
 
-            wrong_msg = f"❌ Wrong answer! You are a VOZER. 😢\n\n"
-            wrong_msg += f"You selected: {guessed_country_name}\n"
-            wrong_msg += f"Correct answer: {correct_country_name}\n\n"
+            # If this was the last attempt, show the correct answer
+            game["attempts"] = game.get("attempts", 0) + 1
+            if game["attempts"] >= 3:
+                result_message += f"\nThe correct answer was *{display_correct}*."
 
-            # Add flag emoji and country details
-            wrong_msg += f"🏳️ {correct_country_name}\n"
-            wrong_msg += f"📊 Quick Facts:\n"
-            wrong_msg += f"🏙️ Capital: {correct_country_data.get('capital', 'Unknown')}\n"
-            wrong_msg += f"🌍 Region: {region}"
-            if subregion:
-                wrong_msg += f" ({subregion})"
-            wrong_msg += "\n"
-            wrong_msg += f"👥 Population: {self._format_population(population)}\n"
-            wrong_msg += f"📏 Area: {self._format_area(area)}"
+                # Add some details about the correct country
+                result_message += f"\n\n🏳️ *{display_correct}*\n"
+                result_message += f"🏙️ Capital: *{correct_country.get('capital', 'Unknown')}*\n"
 
-            # Try to edit the message with the image
-            try:
-                if current_mode in ["map", "flag"]:
-                    await context.bot.edit_message_caption(
+                # Get region information
+                region = self._get_mock_region(correct_country["name"])
+                result_message += f"🌍 Region: {region}\n"
+
+                # Clean up the game after max attempts
+                del self.active_games[user_id]
+
+                # Cancel the timer if it exists
+                self._cancel_timer(user_id)
+
+                # Try to update the original message, then send navigation buttons
+                try:
+                    message_id = game.get("message_id")
+                    if message_id:
+                        game_mode = game.get("mode", "map")
+                        if game_mode in ["map", "flag"]:
+                            await context.bot.edit_message_caption(
+                                chat_id=chat_id,
+                                message_id=message_id,
+                                caption=result_message,
+                                parse_mode="Markdown"
+                            )
+                        else:
+                            await context.bot.edit_message_text(
+                                chat_id=chat_id,
+                                message_id=message_id,
+                                text=result_message,
+                                parse_mode="Markdown"
+                            )
+                    else:
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text=result_message,
+                            parse_mode="Markdown"
+                        )
+                except Exception as e:
+                    logger.error(f"Error updating message: {e}")
+                    await context.bot.send_message(
                         chat_id=chat_id,
-                        message_id=message_id,
-                        caption=wrong_msg,
+                        text=result_message,
                         parse_mode="Markdown"
                     )
-                else:  # Capital mode
-                    await context.bot.edit_message_text(
+
+                # Send game navigation buttons after showing the correct answer
+                await self._send_game_navigation(update, context)
+                return
+
+        # Update user stats
+        self._update_user_stats(user_id, is_correct)
+
+        # If the answer was correct, end the game and show details
+        if is_correct:
+            # Clean up the game
+            del self.active_games[user_id]
+
+            # Cancel the timer if it exists
+            self._cancel_timer(user_id)
+
+            # Try to update the original message, then send navigation buttons
+            try:
+                message_id = game.get("message_id")
+                if message_id:
+                    game_mode = game.get("mode", "map")
+                    if game_mode in ["map", "flag"]:
+                        await context.bot.edit_message_caption(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            caption=result_message,
+                            parse_mode="Markdown"
+                        )
+                    else:
+                        await context.bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=result_message,
+                            parse_mode="Markdown"
+                        )
+                else:
+                    await context.bot.send_message(
                         chat_id=chat_id,
-                        message_id=message_id,
-                        text=wrong_msg,
+                        text=result_message,
                         parse_mode="Markdown"
                     )
             except Exception as e:
-                logger.error(f"Error editing message: {e}")
-                # Fallback to sending a new message
+                logger.error(f"Error updating message: {e}")
                 await context.bot.send_message(
                     chat_id=chat_id,
-                    text=wrong_msg,
+                    text=result_message,
                     parse_mode="Markdown"
                 )
 
-            # Acknowledge the callback query
-            await query.answer("❌ Incorrect")
+            # Send game navigation buttons after correct answer
+            await self._send_game_navigation(update, context)
+        else:
+            # For wrong answers that aren't the last attempt, let the user try again
+            # Just update the original message to show it was wrong
+            try:
+                message_id = game.get("message_id")
+                if message_id:
+                    # Get the original message with its keyboard
+                    if game.get("mode") in ["map", "flag"]:
+                        # For map and flag modes, update the caption
+                        await context.bot.edit_message_caption(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            caption=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
+                            parse_mode="Markdown",
+                            reply_markup=update.callback_query.message.reply_markup
+                        )
+                    else:
+                        # For text-based modes, update the text
+                        await context.bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
+                            parse_mode="Markdown",
+                            reply_markup=update.callback_query.message.reply_markup
+                        )
+                else:
+                    # If we don't have message_id for some reason, send a new message
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
+                        parse_mode="Markdown"
+                    )
+            except Exception as e:
+                logger.error(f"Error updating message for wrong answer: {e}")
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{result_message}\n\nYou have {3 - game['attempts']} attempts remaining.",
+                    parse_mode="Markdown"
+                )
 
-            # Update stats
-            self._update_user_stats(user_id, False)
+            # Reset the game timer since the user made a wrong guess
+            self._cancel_timer(user_id)
+            self.timer_tasks[user_id] = asyncio.create_task(
+                self._game_timeout_callback(update, context, user_id)
+            )
 
-        # Game is completed, let's clean up
-        # Remove the active game state
-        del self.active_games[user_id]
+    async def _handle_capital_guess(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country_name: str, guessed_capital: str) -> None:
+        """Handle a guess for the capital city challenge"""
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
 
-        # Cancel any existing timer
+        logger.info(f"Handling capital guess: {guessed_capital} for country: {country_name} by user: {user_id}")
+
+        # Check if user has an active game
+        if user_id not in self.active_games:
+            logger.warning(f"No active game found for user: {user_id}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="No active game found. Start a new game with /g cap"
+            )
+            return
+
+        game = self.active_games[user_id]
+        correct_country = game["country"]
+
+        # Verify this guess is for the current game's country
+        if correct_country["name"] != country_name:
+            logger.warning(f"Guess for wrong country: expected {correct_country['name']}, got {country_name}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Sorry, this answer is for a different game. Please start a new game."
+            )
+            return
+
+        # Get the correct capital
+        correct_capital = correct_country.get("capital", "Unknown")
+
+        # Format country name for display (replace underscores with spaces)
+        display_country_name = correct_country["name"].replace("_", " ")
+
+        # Check if guess is correct
+        is_correct = (guessed_capital == correct_capital)
+
+        # Prepare result message
+        if is_correct:
+            result_message = f"✅ *Correct!* {display_country_name}'s capital is indeed *{correct_capital}*.\n\n"
+            result_message += f"🏳️ *{display_country_name}*\n"
+            result_message += f"🏙️ Capital: *{correct_capital}*\n"
+
+            # Get region information
+            region = self._get_mock_region(correct_country["name"])
+            subregion = self._get_mock_subregion(correct_country["name"])
+            result_message += f"🌍 Region: {region}"
+            if subregion:
+                result_message += f" ({subregion})"
+            result_message += "\n"
+
+            # Get population and area information
+            population = self._get_mock_population(correct_country["name"])
+            area = self._get_mock_area(correct_country["name"])
+            result_message += f"👥 Population: {self._format_population(population)}\n"
+            result_message += f"📏 Area: {self._format_area(area)}"
+        else:
+            result_message = f"❌ Incorrect. The capital of *{display_country_name}* is *{correct_capital}*.\n"
+            result_message += f"You selected: *{guessed_capital}*"
+
+        # Update user stats
+        self._update_user_stats(user_id, is_correct)
+
+        # Try to edit the original message to show the result
+        try:
+            message_id = game.get("message_id")
+            if message_id:
+                await context.bot.edit_message_caption(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    caption=result_message,
+                    parse_mode="Markdown"
+                )
+            else:
+                # If we don't have the message ID, send a new message
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=result_message,
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            logger.error(f"Error updating message with result: {e}")
+            # Fallback to sending a new message
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=result_message,
+                parse_mode="Markdown"
+            )
+
+        # Clean up the game
+        if user_id in self.active_games:
+            del self.active_games[user_id]
+
+        # Cancel any active timer
         self._cancel_timer(user_id)
 
         # Send game navigation buttons
         await self._send_game_navigation(update, context)
 
+    def _get_random_country(self, game_mode: str = "map") -> Dict:
+        """
+        Get a random country that has appropriate assets for the specified game mode
+        """
+        logger.info(f"Getting random country for game mode: {game_mode}")
 
+        # Filter countries based on game mode
+        suitable_countries = []
 
-    def _format_population(self, population: int) -> str:
-        """Format population number for better readability"""
-        if population >= 1000000000:
-            return f"{population/1000000000:.1f}B"
-        elif population >= 1000000:
-            return f"{population/1000000:.1f}M"
-        elif population >= 1000:
-            return f"{population/1000:.1f}K"
-        return str(population)
+        if game_mode == "map":
+            # For map mode, check if country has a map image
+            for country in self.countries:
+                map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country['name']}_locator_map.png")
+                if os.path.exists(map_path):
+                    suitable_countries.append(country)
 
-    def _get_mock_population(self, country_name: str) -> int:
-        """Return mock population data for a country"""
-        # This is mock data for demonstration purposes
-        populations = {
-            "United_States": 331002651,
-            "China": 1444216107,
-            "India": 1393409038,
-            "Brazil": 213993437,
-            "Russia": 145912025,
-            "Japan": 126050804,
-            "Germany": 83149300,
-            "United_Kingdom": 67886011,
-            "France": 65426179,
-            "Italy": 60367477,
-            "Mexico": 130262216,
-            "Canada": 38008005,
-            "Australia": 25687041,
-            "Nigeria": 211400708,
-            "Egypt": 102334404,
-            "South_Africa": 59308690,
-            "Kenya": 53771296,
-            "Saudi_Arabia": 34813871,
-            "Argentina": 45376763,
-            "Algeria": 44616624,
-            "Sudan": 43849260,
-            "Ukraine": 43733762,
-            "Iraq": 40222493,
-            "Poland": 37846611,
-            "Iran": 83992949,
-            "Spain": 46754778,
-            "Turkey": 84339067,
-            "Vietnam": 97338579,
-            "Comoros": 869601,
-            "Bahrain": 1701575,
-        }
+        elif game_mode == "flag":
+            # For flag mode, check if country has a flag image
+            for country in self.countries:
+                flag_path = os.path.join("country_game", "images", "wiki_flag", f"{country['name']}_flag.png")
+                if os.path.exists(flag_path):
+                    suitable_countries.append(country)
 
-        # Return a population if we have it, or a random believable number if not
-        return populations.get(country_name, random.randint(500000, 200000000))
+        elif game_mode == "capital" or game_mode == "cap":
+            # For capital modes, only include countries with known capitals
+            for country in self.countries:
+                if country.get("capital") and country["capital"] != "Unknown":
+                    # For cap mode, also need map
+                    if game_mode == "cap":
+                        map_path = os.path.join("country_game", "images", "wiki_all_map_400pi", f"{country['name']}_locator_map.png")
+                        if os.path.exists(map_path):
+                            suitable_countries.append(country)
+                    else:
+                        suitable_countries.append(country)
 
-    def _get_mock_area(self, country_name: str) -> float:
-        """Return mock area data for a country in km²"""
-        # This is mock data for demonstration purposes
-        areas = {
-            "United_States": 9372610.0,
-            "China": 9706961.0,
-            "India": 3287263.0,
-            "Brazil": 8515767.0,
-            "Russia": 17098246.0,
-            "Japan": 377930.0,
-            "Germany": 357022.0,
-            "United_Kingdom": 242900.0,
-            "France": 551695.0,
-            "Italy": 301340.0,
-            "Mexico": 1964375.0,
-            "Canada": 9984670.0,
-            "Australia": 7692024.0,
-            "Nigeria": 923768.0,
-            "Egypt": 1001450.0,
-            "South_Africa": 1221037.0,
-            "Kenya": 580367.0,
-            "Saudi_Arabia": 2149690.0,
-            "Argentina": 2780400.0,
-            "Algeria": 2381741.0,
-            "Sudan": 1886068.0,
-            "Ukraine": 603500.0,
-            "Iraq": 438317.0,
-            "Poland": 312696.0,
-            "Iran": 1648195.0,
-            "Spain": 505990.0,
-            "Turkey": 783562.0,
-            "Vietnam": 331212.0,
-            "Comoros": 1862.0,
-            "Bahrain": 765.3,
-        }
+        # Log the number of suitable countries
+        logger.info(f"Found {len(suitable_countries)} suitable countries for {game_mode} mode")
 
-        # Return an area if we have it, or a random believable number if not
-        return areas.get(country_name, random.uniform(1000.0, 1000000.0))
+        # If no suitable countries were found, return a random country
+        if not suitable_countries:
+            logger.warning(f"No suitable countries found for {game_mode} mode, returning random country")
+            return random.choice(self.countries)
 
-    def _get_mock_region(self, country_name: str) -> str:
-        """Return mock region data for a country"""
-        # This is mock data for demonstration purposes
-        regions = {
-            "United_States": "Americas",
-            "China": "Asia",
-            "India": "Asia",
-            "Brazil": "Americas",
-            "Russia": "Europe",
-            "Japan": "Asia",
-            "Germany": "Europe",
-            "United_Kingdom": "Europe",
-            "France": "Europe",
-            "Italy": "Europe",
-            "Mexico": "Americas",
-            "Canada": "Americas",
-            "Australia": "Oceania",
-            "Nigeria": "Africa",
-            "Egypt": "Africa",
-            "South_Africa": "Africa",
-            "Kenya": "Africa",
-            "Saudi_Arabia": "Asia",
-            "Argentina": "Americas",
-            "Algeria": "Africa",
-            "Sudan": "Africa",
-            "Ukraine": "Europe",
-            "Iraq": "Asia",
-            "Poland": "Europe",
-            "Iran": "Asia",
-            "Spain": "Europe",
-            "Turkey": "Asia",
-            "Vietnam": "Asia",
-            "Comoros": "Africa",
-            "Bahrain": "Asia",
-        }
+        # Pick a random country from the suitable ones
+        country = random.choice(suitable_countries)
+        logger.info(f"Selected random country: {country['name']}")
 
-        # Map continents to regions as a fallback
-        continent_mapping = {
-            "Afghanistan": "Asia", "Albania": "Europe", "Algeria": "Africa", "Andorra": "Europe",
-            "Angola": "Africa", "Argentina": "Americas", "Armenia": "Asia", "Australia": "Oceania",
-            "Austria": "Europe", "Azerbaijan": "Asia", "Bahamas": "Americas", "Bahrain": "Asia",
-            "Bangladesh": "Asia", "Barbados": "Americas", "Belarus": "Europe", "Belgium": "Europe",
-            "Belize": "Americas", "Benin": "Africa", "Bhutan": "Asia", "Bolivia": "Americas",
-            "Bosnia_and_Herzegovina": "Europe", "Botswana": "Africa", "Brazil": "Americas", "Brunei": "Asia",
-            "Bulgaria": "Europe", "Burkina_Faso": "Africa", "Burundi": "Africa", "Cambodia": "Asia",
-            "Cameroon": "Africa", "Canada": "Americas", "Central_African_Republic": "Africa", "Chad": "Africa",
-            "Chile": "Americas", "China": "Asia", "Colombia": "Americas", "Comoros": "Africa",
-            "Congo": "Africa", "Costa_Rica": "Americas", "Croatia": "Europe", "Cuba": "Americas",
-            "Cyprus": "Europe", "Czech_Republic": "Europe", "Democratic_Republic_of_the_Congo": "Africa",
-            "Denmark": "Europe", "Djibouti": "Africa", "Dominican_Republic": "Americas", "Ecuador": "Americas",
-            "Egypt": "Africa", "El_Salvador": "Americas", "Equatorial_Guinea": "Africa", "Eritrea": "Africa",
-            "Estonia": "Europe", "Eswatini": "Africa", "Ethiopia": "Africa", "Fiji": "Oceania",
-            "Finland": "Europe", "France": "Europe", "Gabon": "Africa", "Gambia": "Africa",
-            "Georgia": "Asia", "Germany": "Europe", "Ghana": "Africa", "Greece": "Europe",
-            "Guatemala": "Americas", "Guinea": "Africa", "Guinea-Bissau": "Africa", "Guyana": "Americas",
-            "Haiti": "Americas", "Honduras": "Americas", "Hungary": "Europe", "Iceland": "Europe",
-            "India": "Asia", "Indonesia": "Asia", "Iran": "Asia", "Iraq": "Asia",
-            "Ireland": "Europe", "Israel": "Asia", "Italy": "Europe", "Ivory_Coast": "Africa",
-            "Jamaica": "Americas", "Japan": "Asia", "Jordan": "Asia", "Kazakhstan": "Asia",
-            "Kenya": "Africa", "Kiribati": "Oceania", "Kosovo": "Europe", "Kuwait": "Asia",
-            "Kyrgyzstan": "Asia", "Laos": "Asia", "Latvia": "Europe", "Lebanon": "Asia",
-            "Lesotho": "Africa", "Liberia": "Africa", "Libya": "Africa", "Liechtenstein": "Europe",
-            "Lithuania": "Europe", "Luxembourg": "Europe", "Madagascar": "Africa", "Malawi": "Africa",
-            "Malaysia": "Asia", "Maldives": "Asia", "Mali": "Africa", "Malta": "Europe",
-            "Marshall_Islands": "Oceania", "Mauritania": "Africa", "Mauritius": "Africa", "Mexico": "Americas",
-            "Micronesia": "Oceania", "Moldova": "Europe", "Monaco": "Europe", "Mongolia": "Asia",
-            "Montenegro": "Europe", "Morocco": "Africa", "Mozambique": "Africa", "Myanmar": "Asia",
-            "Namibia": "Africa", "Nauru": "Oceania", "Nepal": "Asia", "Netherlands": "Europe",
-            "New_Zealand": "Oceania", "Nicaragua": "Americas", "Niger": "Africa", "Nigeria": "Africa",
-            "North_Korea": "Asia", "North_Macedonia": "Europe", "Norway": "Europe", "Oman": "Asia",
-            "Pakistan": "Asia", "Palau": "Oceania", "Palestine": "Asia", "Panama": "Americas",
-            "Papua_New_Guinea": "Oceania", "Paraguay": "Americas", "Peru": "Americas", "Philippines": "Asia",
-            "Poland": "Europe", "Portugal": "Europe", "Qatar": "Asia", "Romania": "Europe",
-            "Russia": "Europe", "Rwanda": "Africa", "Saint_Kitts_and_Nevis": "Americas", "Saint_Lucia": "Americas",
-            "Saint_Vincent_and_the_Grenadines": "Americas", "Samoa": "Oceania", "San_Marino": "Europe",
-            "Saudi_Arabia": "Asia", "Senegal": "Africa", "Serbia": "Europe", "Seychelles": "Africa",
-            "Sierra_Leone": "Africa", "Singapore": "Asia", "Slovakia": "Europe", "Slovenia": "Europe",
-            "Solomon_Islands": "Oceania", "Somalia": "Africa", "South_Africa": "Africa", "South_Korea": "Asia",
-            "South_Sudan": "Africa", "Spain": "Europe", "Sri_Lanka": "Asia", "Sudan": "Africa",
-            "Suriname": "Americas", "Sweden": "Europe", "Switzerland": "Europe", "Syria": "Asia",
-            "Taiwan": "Asia", "Tajikistan": "Asia", "Tanzania": "Africa", "Thailand": "Asia",
-            "Timor-Leste": "Asia", "Togo": "Africa", "Tonga": "Oceania", "Trinidad_and_Tobago": "Americas",
-            "Tunisia": "Africa", "Turkey": "Asia", "Turkmenistan": "Asia", "Tuvalu": "Oceania",
-            "Uganda": "Africa", "Ukraine": "Europe", "United_Arab_Emirates": "Asia", "United_Kingdom": "Europe",
-            "United_States": "Americas", "Uruguay": "Americas", "Uzbekistan": "Asia", "Vanuatu": "Oceania",
-            "Vatican_City": "Europe", "Venezuela": "Americas", "Vietnam": "Asia", "Western_Sahara": "Africa",
-            "Yemen": "Asia", "Zambia": "Africa", "Zimbabwe": "Africa"
-        }
-
-        # Return a region if we have it, or use the continent mapping, or "Unknown" as a last resort
-        return regions.get(country_name, continent_mapping.get(country_name, "Unknown"))
-
-    def _get_mock_subregion(self, country_name: str) -> str:
-        """Return mock subregion data for a country"""
-        # This is mock data for demonstration purposes
-        subregions = {
-            "United_States": "North America",
-            "China": "Eastern Asia",
-            "India": "Southern Asia",
-            "Brazil": "South America",
-            "Russia": "Eastern Europe",
-            "Japan": "Eastern Asia",
-            "Germany": "Western Europe",
-            "United_Kingdom": "Northern Europe",
-            "France": "Western Europe",
-            "Italy": "Southern Europe",
-            "Mexico": "North America",
-            "Canada": "North America",
-            "Australia": "Australia and New Zealand",
-            "Nigeria": "Western Africa",
-            "Egypt": "Northern Africa",
-            "South_Africa": "Southern Africa",
-            "Kenya": "Eastern Africa",
-            "Saudi_Arabia": "Western Asia",
-            "Argentina": "South America",
-            "Algeria": "Northern Africa",
-            "Sudan": "Northern Africa",
-            "Ukraine": "Eastern Europe",
-            "Iraq": "Western Asia",
-            "Poland": "Eastern Europe",
-            "Iran": "Southern Asia",
-            "Spain": "Southern Europe",
-            "Turkey": "Western Asia",
-            "Vietnam": "South-Eastern Asia",
-            "Comoros": "Eastern Africa",
-            "Bahrain": "Western Asia",
-        }
-
-        # Return a subregion if we have it, or an empty string if not
-        return subregions.get(country_name, "")
-
-    def _format_population(self, population: int) -> str:
-        """Format population to be more readable"""
-        if population >= 1000000:
-            return f"{population / 1000000:.1f} million"
-        elif population >= 1000:
-            return f"{population / 1000:.1f} thousand"
-        else:
-            return str(population)
-
-    def _format_area(self, area: float) -> str:
-        """Format area to be more readable"""
-        if area >= 1000000:
-            return f"{area / 1000000:.1f} million km²"
-        elif area >= 1000:
-            return f"{area:,.0f} km²"
-        else:
-            return f"{area:.1f} km²"
+        return country
 
     async def _send_game_navigation(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Send navigation buttons to select the next game mode"""
-        logger.info("Sending game navigation buttons")
-        
+        """Sends navigation buttons for different game modes"""
+        logger.info(f"Sending game navigation buttons")
+        chat_id = update.effective_chat.id
+
+        # Create keyboard with game mode options
         keyboard = [
             [
                 InlineKeyboardButton("🗺️ Play Map Game", callback_data="play_map"),
                 InlineKeyboardButton("🏳️ Play Flag Game", callback_data="play_flag")
             ],
             [
-                InlineKeyboardButton("🏙️ Play Capital Game", callback_data="play_capital")
+                InlineKeyboardButton("🏙️ Play Capital Game", callback_data="play_capital"),
+                InlineKeyboardButton("🏛️ Guess Capital Game", callback_data="play_cap")
             ]
         ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
 
+        # Send the navigation message
         await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="🌍 Choose your next geography challenge:",
+            chat_id=chat_id,
+            text="Choose a game mode to play:",
             reply_markup=reply_markup
         )
 
-    async def handle_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Legacy handler for text answers (we now use inline keyboards)"""
-        user_id = update.effective_user.id
+    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Show help information for the game"""
+        from country_game.config import HELP_TEXT
+        await update.message.reply_text(HELP_TEXT, parse_mode="Markdown")
 
-        # Check if user has an active game
-        if user_id not in self.active_games:
-            return
+    def _update_user_stats(self, user_id: int, correct: bool) -> None:
+        """Update user stats for the game"""
+        if user_id not in self.user_stats:
+            self.user_stats[user_id] = {"correct": 0, "total": 0}
 
-        # Get the active game
-        game = self.active_games[user_id]
-        correct_country = game["country"]["name"].replace("_", " ")
-        user_answer = update.message.text.strip()
+        self.user_stats[user_id]["total"] += 1
+        if correct:
+            self.user_stats[user_id]["correct"] += 1
 
-        # Cancel the timer for this game
-        self._cancel_timer(user_id)
+    def get_answer_options(self, correct_country: Dict, num_options: int = 10) -> List[Dict]:
+        """
+        Get a list of answer options including the correct one and some decoys
+        Parameters:
+            correct_country: The correct country dict 
+            num_options: Number of total options to provide (default: 10)
+        Returns:
+            A list of country dicts to use as options
+        """
+        # Ensure the correct country is in the options
+        options = [correct_country]
 
-        # Increment attempts
-        game["attempts"] += 1
+        # Try to include neighboring countries first
+        neighbor_countries = []
+        neighbors = correct_country.get('neighbors', [])
+        random.shuffle(neighbors)  # Randomize neighbor order
 
-        # Check if the answer is correct (case insensitive comparison)
-        is_correct = user_answer.lower() == correct_country.lower()
+        for neighbor_name in neighbors:
+            # Find the neighbor country in our list
+            for country in self.countries:
+                if country['name'] == neighbor_name:
+                    # Add this neighbor to our options
+                    neighbor_countries.append(country)
+                    break
 
-        if is_correct:
-            # User got it right
-            await update.message.reply_text(
-                f"✅ *Correct!* The country is indeed *{correct_country}*!",
-                parse_mode="Markdown"
-            )
+        # Add as many neighbors as possible (up to num_options - 1)
+        options.extend(neighbor_countries[:num_options - 1])
 
-            # Update stats
-            self._update_user_stats(user_id, True)
+        # If we need more options, add random countries
+        if len(options) < num_options:
+            # Get countries that aren't already in options
+            remaining_countries = [c for c in self.countries 
+                                if c['name'] != correct_country['name'] 
+                                and c['name'] not in [o['name'] for o in options]]
 
-            # Clean up
-            del self.active_games[user_id]
+            # Shuffle them and take as many as needed
+            random.shuffle(remaining_countries)
+            needed = num_options - len(options)
+            options.extend(remaining_countries[:needed])
 
-            # Offer to play again with navigation buttons
-            await self._send_game_navigation(update, context)
+        # Shuffle the options
+        random.shuffle(options)
 
+        # Return the shuffled options
+        return options[:num_options]  # Ensure we return exactly num_options
+
+    def _get_mock_region(self, country_name: str) -> str:
+        """Get the region for a country (placeholder until proper data is available)"""
+        # This would be replaced with proper data from database
+        regions = {
+            "United_States": "North America",
+            "Canada": "North America",
+            "United_Kingdom": "Europe",
+            "France": "Europe",
+            "Germany": "Europe",
+            "Japan": "Asia",
+            "China": "Asia",
+            "Australia": "Oceania",
+            "Brazil": "South America",
+            "South_Africa": "Africa"
+        }
+        return regions.get(country_name, "Unknown Region")
+
+    def _get_mock_subregion(self, country_name: str) -> Optional[str]:
+        """Get the subregion for a country (placeholder until proper data is available)"""
+        # This would be replaced with proper data from database
+        subregions = {
+            "United_States": "Northern America",
+            "Canada": "Northern America",
+            "United_Kingdom": "Northern Europe",
+            "France": "Western Europe",
+            "Germany": "Western Europe",
+            "Japan": "Eastern Asia",
+            "China": "Eastern Asia",
+            "Australia": "Australia and New Zealand",
+            "Brazil": "Latin America",
+            "South_Africa": "Southern Africa"
+        }
+        return subregions.get(country_name)
+
+    def _get_mock_population(self, country_name: str) -> int:
+        """Get the population for a country (placeholder until proper data is available)"""
+        # This would be replaced with proper data from database
+        populations = {
+            "United_States": 331002651,
+            "Canada": 37742154,
+            "United_Kingdom": 67886011,
+            "France": 65273511,
+            "Germany": 83783942,
+            "Japan": 126476461,
+            "China": 1439323776,
+            "Australia": 25499884,
+            "Brazil": 212559417,
+            "South_Africa": 59308690
+        }
+        return populations.get(country_name, 10000000)  # Default value
+
+    def _get_mock_area(self, country_name: str) -> int:
+        """Get the area (in km²) for a country (placeholder until proper data is available)"""
+        # This would be replaced with proper data from database
+        areas = {
+            "United_States": 9372610,
+            "Canada": 9984670,
+            "United_Kingdom": 242900,
+            "France": 551695,
+            "Germany": 357022,
+            "Japan": 377915,
+            "China": 9596960,
+            "Australia": 7692024,
+            "Brazil": 8515767,
+            "South_Africa": 1221037
+        }
+        return areas.get(country_name, 500000)  # Default value
+
+    def _format_population(self, population: int) -> str:
+        """Format population number for display"""
+        if population >= 1000000000:
+            return f"{population / 1000000000:.2f} billion"
+        elif population >= 1000000:
+            return f"{population / 1000000:.1f} million"
+        elif population >= 1000:
+            return f"{population / 1000:.1f} thousand"
         else:
-            # Wrong answer
-            if game["attempts"] >= 3:
-                # Too many attempts, reveal the answer
-                await update.message.reply_text(
-                    f"❌ Sorry, that's not correct. The country was *{correct_country}*.",
-                    parse_mode="Markdown"
-                )
+            return str(population)
 
-                # Update stats
-                self._update_user_stats(user_id, False)
+    def _format_area(self, area: int) -> str:
+        """Format area for display"""
+        if area >= 1000000:
+            return f"{area / 1000000:.2f} million km²"
+        elif area >= 1000:
+            return f"{area / 1000:.1f} thousand km²"
+        else:
+            return f"{area} km²"
 
-                # Clean up
-                del self.active_games[user_id]
+    def load_countries(self) -> List[Dict]:
+        """Load countries from database or fall back to sample data"""
+        try:
+            # Try to load countries from the SQLite database
+            # Connect to the database
+            conn = sqlite3.connect("country_game/database/countries.db")
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
 
-                # Offer to play again with navigation buttons
-                await self._send_game_navigation(update, context)
+            # Query for all countries
+            cursor.execute("SELECT * FROM countries")
+            rows = cursor.fetchall()
 
-            else:
-                # Still has attempts left
-                await update.message.reply_text(
-                    f"❌ That's not correct. Try again! ({game['attempts']}/3 attempts)",
-                    parse_mode="Markdown"
-                )
+            # Create country objects with neighbors
+            countries = []
+            for row in rows:
+                country = {
+                    "name": row["name"],
+                    "capital": row["capital"] if row["capital"] else "Unknown",
+                    "region": row["region"] if row["region"] else "Unknown",
+                    "neighbors": []
+                }
 
-    def _update_user_stats(self, user_id: int, is_correct: bool) -> None:
-        """Update game statistics for a user"""
-        if str(user_id) not in self.user_stats:
-            self.user_stats[str(user_id)] = {
-                "games_played": 0,
-                "correct": 0,
-                "streak": 0,
-                "max_streak": 0
+                # Get neighbors
+                cursor.execute("SELECT neighbor_name FROM neighbors WHERE country_name = ?", (country["name"],))
+                neighbor_rows = cursor.fetchall()
+                for neighbor_row in neighbor_rows:
+                    country["neighbors"].append(neighbor_row["neighbor_name"])
+
+                countries.append(country)
+
+            conn.close()
+
+            # If we got countries from the database, return them
+            if countries:
+                logger.info(f"Loaded {len(countries)} countries from database")
+                return countries
+
+            # Otherwise, fall back to sample data
+            logger.warning("No countries found in database, falling back to sample data")
+            return self._get_fallback_countries()
+
+        except Exception as e:
+            logger.error(f"Database error: {e}. Falling back to sample data.")
+            return self._get_fallback_countries()
+
+    def _get_fallback_countries(self) -> List[Dict]:
+        """Return a comprehensive list of countries as fallback with capitals and neighbors"""
+        # This is a simplified list just for demo purposes
+        countries = [
+            {
+                "name": "United_States",
+                "capital": "Washington D.C.",
+                "neighbors": ["Canada", "Mexico"]
+            },
+            {
+                "name": "Canada",
+                "capital": "Ottawa",
+                "neighbors": ["United_States"]
+            },
+            {
+                "name": "Mexico",
+                "capital": "Mexico City",
+                "neighbors": ["United_States", "Guatemala", "Belize"]
+            },
+            {
+                "name": "United_Kingdom",
+                "capital": "London",
+                "neighbors": ["Ireland"]
+            },
+            {
+                "name": "France",
+                "capital": "Paris",
+                "neighbors": ["Spain", "Italy", "Switzerland", "Germany", "Belgium", "Luxembourg"]
+            },
+            {
+                "name": "Germany",
+                "capital": "Berlin",
+                "neighbors": ["France", "Switzerland", "Austria", "Czech_Republic", "Poland", "Denmark", "Netherlands", "Belgium", "Luxembourg"]
+            },
+            {
+                "name": "Japan",
+                "capital": "Tokyo",
+                "neighbors": []
+            },
+            {
+                "name": "Australia",
+                "capital": "Canberra",
+                "neighbors": []
+            },
+            {
+                "name": "Brazil",
+                "capital": "Brasília",
+                "neighbors": ["Argentina", "Uruguay", "Paraguay", "Bolivia", "Peru", "Colombia", "Venezuela", "Guyana", "Suriname", "French_Guiana"]
+            },
+            {
+                "name": "China",
+                "capital": "Beijing",
+                "neighbors": ["Russia", "Mongolia", "North_Korea", "Vietnam", "Laos", "Myanmar", "India", "Bhutan", "Nepal", "Pakistan", "Afghanistan", "Tajikistan", "Kyrgyzstan", "Kazakhstan"]
             }
+        ]
 
-        stats = self.user_stats[str(user_id)]
-        stats["games_played"] += 1
+        logger.info(f"Using fallback data with {len(countries)} countries")
+        return countries
 
-        if is_correct:
-            stats["correct"] += 1
-            stats["streak"] += 1
-            stats["max_streak"] = max(stats["max_streak"], stats["streak"])
-        else:
-            stats["streak"] = 0
+    async def handle_answer(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle text-based answers (manual typing) - not used much with the button interface"""
+        # Not implemented - we only support button-based answers
+        pass
