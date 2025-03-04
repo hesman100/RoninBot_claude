@@ -30,6 +30,88 @@ class GameHandler:
         self.timer_tasks = {}
         self.current_game_mode = None # Added to track the current game mode
 
+    async def _game_timeout_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
+        """Handle game timeout"""
+        try:
+            await asyncio.sleep(GAME_TIMEOUT)
+            
+            # Check if the game is still active
+            if user_id not in self.active_games:
+                return
+                
+            # Get the game data
+            game = self.active_games[user_id]
+            correct_country = game["country"]
+            correct_country_name = correct_country["name"].replace("_", " ")
+            
+            # Build timeout message
+            timeout_msg = f"⏱️ Time's up! The correct answer was *{correct_country_name}*.\n\n"
+            
+            # Add country details
+            timeout_msg += f"🏳️ {correct_country_name}\n"
+            timeout_msg += f"📊 Quick Facts:\n"
+            timeout_msg += f"🏙️ Capital: {correct_country.get('capital', 'Unknown')}\n"
+            
+            # Get region information
+            region = self._get_mock_region(correct_country["name"])
+            subregion = self._get_mock_subregion(correct_country["name"])
+            timeout_msg += f"🌍 Region: {region}"
+            if subregion:
+                timeout_msg += f" ({subregion})"
+            timeout_msg += "\n"
+            
+            # Get population and area information
+            population = self._get_mock_population(correct_country["name"])
+            area = self._get_mock_area(correct_country["name"])
+            timeout_msg += f"👥 Population: {self._format_population(population)}\n"
+            timeout_msg += f"📏 Area: {self._format_area(area)}"
+
+            # Send timeout message
+            chat_id = update.effective_chat.id
+            
+            # Get message ID and mode
+            message_id = game.get("message_id")
+            current_mode = game.get("mode", "map")
+            
+            # Try to edit the existing message with the timeout information
+            try:
+                if current_mode in ["map", "flag"]:
+                    await context.bot.edit_message_caption(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        caption=timeout_msg,
+                        parse_mode="Markdown"
+                    )
+                else:  # Capital mode
+                    await context.bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=timeout_msg,
+                        parse_mode="Markdown"
+                    )
+            except Exception as e:
+                logger.error(f"Error editing timeout message: {e}")
+                # Fallback to sending a new message
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=timeout_msg,
+                    parse_mode="Markdown"
+                )
+                
+            # Update stats
+            self._update_user_stats(user_id, False)
+            
+            # Remove the active game
+            del self.active_games[user_id]
+            
+            # Send navigation buttons for next game
+            await self._send_game_navigation(update, context)
+                
+        except asyncio.CancelledError:
+            logger.info(f"Timer for user {user_id} was cancelled")
+        except Exception as e:
+            logger.error(f"Error in game timeout callback: {e}")
+
 
     def load_countries(self) -> List[Dict]:
         """Load countries from database or fall back to sample data"""
@@ -376,6 +458,88 @@ class GameHandler:
              "neighbors": ["Hungary", "Romania", "Bulgaria", "North_Macedonia", "Kosovo", "Montenegro", "Bosnia_and_Herzegovina", "Croatia"]},
             {"name": "Seychelles", "capital": "Victoria", "population": "Unknown", "area": "Unknown", "region": "Africa",
              "neighbors": ["Madagascar", "Mauritius"]},
+
+    async def _game_timeout_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
+        """Handle game timeout"""
+        try:
+            await asyncio.sleep(GAME_TIMEOUT)
+            
+            # Check if the game is still active
+            if user_id not in self.active_games:
+                return
+                
+            # Get the game data
+            game = self.active_games[user_id]
+            correct_country = game["country"]
+            correct_country_name = correct_country["name"].replace("_", " ")
+            
+            # Build timeout message
+            timeout_msg = f"⏱️ Time's up! The correct answer was *{correct_country_name}*.\n\n"
+            
+            # Add country details
+            timeout_msg += f"🏳️ {correct_country_name}\n"
+            timeout_msg += f"📊 Quick Facts:\n"
+            timeout_msg += f"🏙️ Capital: {correct_country.get('capital', 'Unknown')}\n"
+            
+            # Get region information
+            region = self._get_mock_region(correct_country["name"])
+            subregion = self._get_mock_subregion(correct_country["name"])
+            timeout_msg += f"🌍 Region: {region}"
+            if subregion:
+                timeout_msg += f" ({subregion})"
+            timeout_msg += "\n"
+            
+            # Get population and area information
+            population = self._get_mock_population(correct_country["name"])
+            area = self._get_mock_area(correct_country["name"])
+            timeout_msg += f"👥 Population: {self._format_population(population)}\n"
+            timeout_msg += f"📏 Area: {self._format_area(area)}"
+
+            # Send timeout message
+            chat_id = update.effective_chat.id
+            
+            # Get message ID and mode
+            message_id = game.get("message_id")
+            current_mode = game.get("mode", "map")
+            
+            # Try to edit the existing message with the timeout information
+            try:
+                if current_mode in ["map", "flag"]:
+                    await context.bot.edit_message_caption(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        caption=timeout_msg,
+                        parse_mode="Markdown"
+                    )
+                else:  # Capital mode
+                    await context.bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=timeout_msg,
+                        parse_mode="Markdown"
+                    )
+            except Exception as e:
+                logger.error(f"Error editing timeout message: {e}")
+                # Fallback to sending a new message
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=timeout_msg,
+                    parse_mode="Markdown"
+                )
+                
+            # Update stats
+            self._update_user_stats(user_id, False)
+            
+            # Remove the active game
+            del self.active_games[user_id]
+            
+            # Send navigation buttons for next game
+            await self._send_game_navigation(update, context)
+                
+        except asyncio.CancelledError:
+            logger.info(f"Timer for user {user_id} was cancelled")
+        except Exception as e:
+            logger.error(f"Error in game timeout callback: {e}")
             {"name": "Sierra_Leone", "capital": "Freetown", "population": "Unknown", "area": "Unknown", "region": "Africa",
              "neighbors": ["Guinea", "Liberia"]},
             {"name": "Singapore", "capital": "Singapore", "population": "Unknown", "area": "Unknown", "region": "Asia",
@@ -551,15 +715,16 @@ class GameHandler:
         )
         await update.message.reply_text(help_text, parse_mode="Markdown")
 
-    async def start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game_mode: str) -> None:
-        """Start a new game in the specified mode"""
+    async def start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game_mode: str = "map") -> None:
+        """Start a new game with the specified mode"""
+        # Get user ID
         user_id = update.effective_user.id
 
-        # Store the current game mode so get_random_country can use it
-        self.current_game_mode = game_mode
-
-        # Get a random country that has appropriate images for this game mode
-        country = self.get_random_country()
+        # Get a random country with suitable images
+        country = self._get_random_country(game_mode)
+        if not country:
+            await update.message.reply_text(f"Sorry, I couldn't find any suitable countries for the {game_mode} game mode.")
+            return
 
         # Cancel any existing timer for this user
         self._cancel_timer(user_id)
@@ -579,6 +744,9 @@ class GameHandler:
             if (i + 1) % 2 == 0 or (i + 1) == len(options):
                 keyboard.append(row)
                 row = []
+        
+        # Add hint button at the bottom
+        keyboard.append([InlineKeyboardButton("🔍 Get Hint", callback_data=f"hint_{country['name']}")])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -587,7 +755,8 @@ class GameHandler:
             "country": country,
             "start_time": time.time(),
             "attempts": 0,
-            "mode": game_mode  # Store the game mode
+            "mode": game_mode,  # Store the game mode
+            "hints_used": 0     # Track how many hints were used
         }
 
         # Store the game state
@@ -903,7 +1072,7 @@ class GameHandler:
         )
 
     async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle callback queries from inline keyboard buttons"""
+        """Handles callback queries from inline keyboards."""
         query = update.callback_query
         user_id = update.effective_user.id
 
@@ -929,6 +1098,10 @@ class GameHandler:
                 )
                 # Send game navigation buttons
                 await self._send_game_navigation(update, context)
+        # Check if it's a hint request
+        elif query.data.startswith("hint_"):
+            logger.info(f"Processing hint request: {query.data}")
+            await self._handle_hint(update, context, query)
         # Check if it's a navigation button
         elif query.data.startswith("play_"):
             game_mode = query.data.split("_")[1]
@@ -995,7 +1168,7 @@ class GameHandler:
         if is_correct:
             # User got it right
             correct_msg = f"✅ Correct! The answer is indeed {correct_country.replace('_', ' ')}!\n\n"
-            correct_msg += f"🎯 Impressive geography skills, {update.effective_user.first_name}-san!\n\n"
+            correct_msg += f"🎯 Impressive geography skills,  You are a Marveller!\n\n"
             correct_msg += f"👥 Population: {population:,}\n"
             correct_msg += f"🗺️ Area: {area:,.1f} km²\n"
             correct_msg += f"🏙️ Capital: {correct_country_data.get('capital', 'Unknown')}\n"
@@ -1101,6 +1274,84 @@ class GameHandler:
 
         # Send game navigation buttons
         await self._send_game_navigation(update, context)
+
+    async def _handle_hint(self, update: Update, context: ContextTypes.DEFAULT_TYPE, query) -> None:
+        """Handles hint requests from the inline keyboard"""
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+        
+        # Check if user has an active game
+        if user_id not in self.active_games:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="No active game found. Start a new game with /g"
+            )
+            return
+            
+        # Get the game data
+        game = self.active_games[user_id]
+        country = game["country"]
+        game_mode = game.get("mode", "map")
+        
+        # Increment the hints used counter
+        game["hints_used"] = game.get("hints_used", 0) + 1
+        hints_used = game["hints_used"]
+        
+        # Generate a hint based on the number of hints already used
+        hint_text = None
+        if hints_used == 1:
+            # First hint: Region
+            region = country.get("region", "Unknown")
+            subregion = self._get_mock_subregion(country["name"])
+            hint_text = f"🌍 *Region Hint:* This country is located in {region}"
+            if subregion:
+                hint_text += f" ({subregion})"
+        elif hints_used == 2:
+            # Second hint: First letter of the country
+            country_name = country["name"].replace("_", " ")
+            hint_text = f"🔤 *Letter Hint:* The country name starts with the letter *{country_name[0]}*"
+        elif hints_used == 3:
+            # Third hint: Capital city
+            hint_text = f"🏙️ *Capital Hint:* The capital city is *{country['capital']}*"
+        elif hints_used >= 4:
+            # Fourth hint: Neighbors
+            neighbors = country.get("neighbors", [])
+            if neighbors:
+                formatted_neighbors = [n.replace("_", " ") for n in neighbors[:3]]  # Show up to 3 neighbors
+                hint_text = f"🏘️ *Neighbors Hint:* This country borders: {', '.join(formatted_neighbors)}"
+                if len(neighbors) > 3:
+                    hint_text += f" and {len(neighbors) - 3} more"
+            else:
+                # If no neighbors, give population hint
+                population = self._get_mock_population(country["name"])
+                hint_text = f"👥 *Population Hint:* This country has approximately {self._format_population(population)} people"
+                
+        # If we couldn't generate a hint (shouldn't happen), give a generic one
+        if not hint_text:
+            hint_text = "🤔 *Hint:* Think carefully about the image you're seeing..."
+            
+        # Send the hint as a temporary message
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=hint_text,
+            parse_mode="Markdown"
+        )
+        
+        # Reset the game timer if it was active (extend time after using a hint)
+        self._cancel_timer(user_id)
+        self.timer_tasks[user_id] = asyncio.create_task(
+            self._game_timeout_callback(update, context, user_id)
+        )
+
+    def _format_population(self, population: int) -> str:
+        """Format population number for better readability"""
+        if population >= 1000000000:
+            return f"{population/1000000000:.1f}B"
+        elif population >= 1000000:
+            return f"{population/1000000:.1f}M"
+        elif population >= 1000:
+            return f"{population/1000:.1f}K"
+        return str(population)
 
     def _get_mock_population(self, country_name: str) -> int:
         """Return mock population data for a country"""
