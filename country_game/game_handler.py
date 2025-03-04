@@ -16,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Game configuration constants
-GAME_TIMEOUT = 60  # seconds
+GAME_TIMEOUT = 15  # seconds - changed from 60 to 15 seconds
 MAX_HINT_COUNTRIES = 9  # Maximum number of hint countries to display
 
 class GameHandler:
@@ -309,10 +309,27 @@ class GameHandler:
             # Delete the game
             del self.active_games[user_id]
 
-            # Send game navigation
-            update = Update(0, None)
-            update.effective_chat = await context.bot.get_chat(chat_id)
-            await self._send_game_navigation(update, context)
+            # Send game navigation buttons directly instead of trying to reuse _send_game_navigation
+            # Create keyboard with game mode options
+            keyboard = [
+                [
+                    InlineKeyboardButton("🗺️ Map Mode", callback_data="play_map"),
+                    InlineKeyboardButton("🏳️ Flag Mode", callback_data="play_flag")
+                ],
+                [
+                    InlineKeyboardButton("🏙️ Capital Mode", callback_data="play_capital"),
+                    InlineKeyboardButton("📊 Leaderboard", callback_data="show_leaderboard")
+                ]
+            ]
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            # Send the navigation message
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Choose a game mode:",
+                reply_markup=reply_markup
+            )
 
     async def start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game_mode: str = "map") -> None:
         """Start a new country guessing game"""
@@ -807,7 +824,7 @@ class GameHandler:
 
         logger.info(f"Handling capital guess: {guessed_capital} for country: {country_name} by user: {user_id}")
 
-        # Check if user has an active game
+        # Check if userhas an active game
         if user_id not in self.active_games:
             logger.warning(f"No active game found for user: {user_id}")
             await context.bot.send_message(
@@ -970,18 +987,18 @@ class GameHandler:
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Show help message for the game"""
         help_text = """
-🌍 *Country Guessing Game Options* 🌍
+        🌍 *Country Guessing Game Options* 🌍
 
-*/g help* - Show this help message
-*/g* or */g map* - Launch game in map mode (guess from a map)
-*/g flag* - Launch game in flag mode (guess from a flag)
-*/g capital* - Launch game in capital mode (guess from a capital city)
-*/g cap* - Launch game in capital guessing mode (see a map, guess the capital)
-*/g lb* - Show the leaderboard for all game modes
+        */g help* - Show this help message
+        */g* or */g map* - Launch game in map mode (guess from a map)
+        */g flag* - Launch game in flag mode (guess from a flag)
+        */g capital* - Launch game in capital mode (guess from a capital city)
+        */g cap* - Launch game in capital guessing mode (see a map, guess the capital)
+        */g lb* - Show the leaderboard for all game modes
 
-To play: simply tap on the correct option from the choices provided.
-You have 60 seconds to answer each question.
-"""
+        To play: simply tap on the correct option from the choices provided.
+        You have 15 seconds to answer each question.
+        """
 
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
