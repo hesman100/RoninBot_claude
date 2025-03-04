@@ -128,18 +128,26 @@ class AlphaVantageAPI:
             cached_data = self._get_cached_data(symbol)
             if cached_data:
                 logger.info(f"Using cached data for {symbol}")
-                if not isinstance(cached_data.get('error'), str):
+                # Fix: Only update all_data if cached_data doesn't have an error
+                if "error" not in cached_data:
                     all_data.update(cached_data)
                 continue
 
             try:
                 data = self.get_stock_price(symbol)
+                logger.info(f"Stock data for {symbol}: {data}")
+
+                # Check for rate limit error
                 if "error" in data and "rate limit" in data["error"].lower():
+                    logger.warning(f"Rate limit hit for {symbol}, will try fallback API")
                     rate_limited = True
                     break
-                elif not isinstance(data.get('error'), str):
+                # Fix: Only update all_data if data doesn't have an error
+                elif "error" not in data:
                     all_data.update(data)
-                time.sleep(0.2)  # Avoid hitting rate limits
+
+                # Add small delay between API calls to avoid hitting rate limits
+                time.sleep(0.2)
             except Exception as e:
                 logger.error(f"Error fetching price for {symbol}: {str(e)}")
                 continue
@@ -148,4 +156,6 @@ class AlphaVantageAPI:
             if rate_limited:
                 return {"error": "Rate limit reached. Please try again in a few minutes."}
             return {"error": "No stock data available"}
+
+        logger.info(f"Combined stock data: {all_data}")
         return all_data
