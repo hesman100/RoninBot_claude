@@ -14,8 +14,8 @@ FLAG_IMAGES_PATH = os.path.join("country_game", "images", "wiki_flag")
 # Game settings
 MAX_ATTEMPTS = 3
 LEADERBOARD_SIZE = 10
-GAME_TIMEOUT = 15  # 15 seconds to answer
-NUM_OPTIONS = 10   # Number of answer options to provide
+GAME_TIMEOUT = 30  # 15 seconds to answer
+NUM_OPTIONS = 10  # Number of answer options to provide
 
 # Message templates
 CORRECT_ANSWER_MESSAGE = "✅ *Correct!* Well done!"

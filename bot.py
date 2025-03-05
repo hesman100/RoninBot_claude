@@ -121,7 +121,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if is_group:
         welcome_message = (
-            "🤖 Welcome to the Ronin Bot (v1.1)!\n\n"
+            "🤖 Welcome to the Ronin Bot (v1.3)!\n\n"
             "/help or /h - Show this help message\n\n"
             "\n ==== Price ==== \n"
             "/c <crypto> - Get price for any cryptocurrency\n"
@@ -142,7 +142,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "💡 Tip: Anyone in the group can use these commands!")
     else:
         welcome_message = (
-            "🤖 Welcome to the Ronin Bot (v1.1)!\n\n"
+            "🤖 Welcome to the Ronin Bot (v1.3)!\n\n"
             "\n ==== Price ==== \n"
             "/c <crypto> - Get price for any cryptocurrency\n"
             "              (Example: /c BTC, /c BNB)\n"
@@ -238,14 +238,41 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             logger.info("No stock specified, showing default list")
             price_data = stock_api.get_stock_prices()
 
-            # If AlphaVantage fails or hits rate limit, try Finnhub
-            if isinstance(
-                    price_data, dict
-            ) and "error" in price_data and "rate limit" in price_data[
-                    "error"].lower():
+            # Check if we need to use the fallback API by verifying:
+            # 1. If there's a specific rate limit error message
+            # 2. If we received fewer stocks than expected
+            is_rate_limited = (isinstance(price_data, dict)
+                               and "error" in price_data
+                               and "rate limit" in price_data["error"].lower())
+
+            # If the data isn't empty, check if we have fewer stocks than expected
+            has_incomplete_data = (isinstance(price_data, dict) and len(
+                price_data.keys()) < len(DEFAULT_STOCKS) / 2)
+
+            if is_rate_limited or has_incomplete_data:
                 logger.info(
-                    "AlphaVantage rate limited, falling back to Finnhub")
-                price_data = finnhub_api.get_stock_prices()
+                    f"AlphaVantage returned incomplete data ({len(price_data.keys()) if isinstance(price_data, dict) else 0} stocks) or is rate limited, falling back to Finnhub"
+                )
+                finnhub_data = finnhub_api.get_stock_prices()
+
+                # If Finnhub data is valid, use it
+                if isinstance(finnhub_data,
+                              dict) and "error" not in finnhub_data:
+                    logger.info(
+                        f"Using Finnhub data with {len(finnhub_data.keys())} stocks"
+                    )
+                    price_data = finnhub_data
+                else:
+                    # If both APIs failed, combine any valid data we have
+                    logger.warning(
+                        "Both AlphaVantage and Finnhub had issues, using any available data"
+                    )
+                    if isinstance(price_data, dict) and isinstance(
+                            finnhub_data, dict):
+                        # Combine data from both sources
+                        for symbol, data in finnhub_data.items():
+                            if "error" not in data:
+                                price_data[symbol] = data
 
             logger.info(f"Received price data: {price_data}")
         else:
