@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Country Guessing Game - {{ mode|capitalize }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>COUNTRY GUESSING GAME</h1>
+            <p>{{ mode|upper }} MODE</p>
+        </header>
+        
+        <div class="game-container">
+            <div id="game-image-container" class="game-image-container">
+                <!-- Game image will be loaded here -->
+                <p>Loading game...</p>
+            </div>
+            
+            <p id="question-text" class="question-text">Which country is this?</p>
+            <div id="timer" class="timer">Time: 30s</div>
+            
+            <div id="options-container" class="options-container">
+                <!-- Options will be loaded here -->
+            </div>
+        </div>
+        
+        <div id="result-container" class="result-container" style="display: none;">
+            <h2 id="result-text" class="result-text"></h2>
+            
+            <div id="country-details" class="country-details">
+                <!-- Country details will be shown here after answering -->
+            </div>
+        </div>
+        
+        <div id="play-again-container" class="button-container" style="display: none;">
+            <button onclick="playGame('{{ mode }}')" class="button">PLAY AGAIN</button>
+            <a href="{{ url_for('index') }}" class="button">MENU</a>
+        </div>
+        
+        <div class="nav-bar">
+            <a href="{{ url_for('help_page') }}" class="button">HELP</a>
+            <a href="{{ url_for('leaderboard') }}" class="button">LEADERBOARD</a>
+        </div>
+    </div>
+    
+    <div class="version">
+        Bot Version: {{ version }}
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/game.js') }}"></script>
+</body>
+</html>

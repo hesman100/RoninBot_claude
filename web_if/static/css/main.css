@@ -1,0 +1,258 @@
+/* Main Stylesheet for Country Guessing Game Web Interface */
+
+/* Base styles */
+:root {
+    --primary-bg: linear-gradient(135deg, #1e5799 0%,#207cca 30%,#2989d8 50%,#7db9e8 100%);
+    --button-bg: rgba(255, 255, 255, 0.2);
+    --button-hover: rgba(255, 255, 255, 0.3);
+    --text-color: #fff;
+    --border-color: rgba(255, 255, 255, 0.3);
+    --guest-button-bg: rgba(0, 150, 0, 0.6);
+    --wallet-button-bg: rgba(150, 0, 150, 0.6);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    margin: 0;
+    padding: 0;
+    background: var(--primary-bg);
+    color: var(--text-color);
+    min-height: 100vh;
+    line-height: 1.6;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    text-align: center;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 2rem;
+}
+
+h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+h2 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+p {
+    margin-bottom: 1rem;
+}
+
+/* Button styles */
+.button-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin: 30px 0;
+}
+
+.button {
+    background-color: var(--button-bg);
+    border: 2px solid white;
+    border-radius: 8px;
+    color: white;
+    padding: 15px 20px;
+    text-align: center;
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: block;
+}
+
+.button:hover {
+    background-color: var(--button-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.login-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-top: 50px;
+}
+
+.guest-button {
+    background-color: var(--guest-button-bg);
+}
+
+.wallet-button {
+    background-color: var(--wallet-button-bg);
+}
+
+/* Game specific styles */
+.game-container {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.game-image {
+    max-width: 100%;
+    height: auto;
+    margin: 20px 0;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.options-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.option-button {
+    background-color: var(--button-bg);
+    border: 1px solid white;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 5px 0;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.option-button:hover {
+    background-color: var(--button-hover);
+}
+
+.timer {
+    font-size: 1.5rem;
+    text-align: center;
+    margin: 10px 0;
+}
+
+/* Leaderboard styles */
+.leaderboard-container {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.leaderboard-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.leaderboard-header {
+    font-weight: bold;
+    border-bottom: 2px solid white;
+}
+
+/* Help page styles */
+.help-container {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.help-section {
+    margin-bottom: 20px;
+}
+
+/* Footer styles */
+.version {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* Navigation bar for game screens */
+.nav-bar {
+    display: flex;
+    justify-content: space-between;
+    margin: 20px 0;
+}
+
+/* Result display */
+.result-container {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.result-correct {
+    color: #4CAF50;
+    font-size: 1.5rem;
+}
+
+.result-incorrect {
+    color: #F44336;
+    font-size: 1.5rem;
+}
+
+.country-details {
+    margin: 20px 0;
+    text-align: left;
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    h1 {
+        font-size: 2rem;
+    }
+    
+    .button-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .login-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .options-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* For very small screens */
+@media (max-width: 480px) {
+    .container {
+        padding: 8px;
+    }
+    
+    h1 {
+        font-size: 1.8rem;
+    }
+    
+    .button {
+        padding: 12px 15px;
+        font-size: 14px;
+    }
+    
+    .game-container {
+        padding: 10px;
+    }
+}

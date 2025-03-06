@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found - Country Guessing Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>COUNTRY GUESSING GAME</h1>
+        </header>
+        
+        <div class="game-container">
+            <h2>404 - Page Not Found</h2>
+            <p>Sorry, the page you're looking for doesn't exist.</p>
+            <p>Perhaps you were looking for a country that doesn't exist on our map?</p>
+            
+            <div class="button-container" style="margin-top: 30px;">
+                <a href="{{ url_for('index') }}" class="button">RETURN TO HOME</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="version">
+        Bot Version: {{ version }}
+    </div>
+</body>
+</html>

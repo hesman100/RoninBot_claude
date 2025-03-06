@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Country Guessing Game - Leaderboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>COUNTRY GUESSING GAME</h1>
+            <p>LEADERBOARD</p>
+        </header>
+        
+        <div class="leaderboard-container">
+            <div class="leaderboard-row leaderboard-header">
+                <div>RANK</div>
+                <div>USER</div>
+                <div>SCORE</div>
+                <div>ACCURACY</div>
+            </div>
+            
+            <div id="leaderboard-content">
+                <!-- Leaderboard data will be loaded here -->
+                <p id="leaderboard-loading">Loading leaderboard data...</p>
+            </div>
+        </div>
+        
+        <div class="nav-bar">
+            <a href="{{ url_for('index') }}" class="button">MENU</a>
+            <a href="{{ url_for('game', mode='map') }}" class="button">PLAY GAME</a>
+        </div>
+    </div>
+    
+    <div class="version">
+        Bot Version: {{ version }}
+    </div>
+    
+    <script>
+        // Fetch leaderboard data when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchLeaderboard();
+        });
+        
+        // Function to fetch leaderboard data from the API
+        function fetchLeaderboard() {
+            fetch('/api/leaderboard')
+                .then(response => response.json())
+                .then(data => {
+                    displayLeaderboard(data.leaderboard);
+                })
+                .catch(error => {
+                    console.error('Error fetching leaderboard:', error);
+                    document.getElementById('leaderboard-loading').textContent = 
+                        'Error loading leaderboard data. Please try again.';
+                });
+        }
+        
+        // Function to display leaderboard data
+        function displayLeaderboard(leaderboardData) {
+            const container = document.getElementById('leaderboard-content');
+            
+            // Clear loading message
+            container.innerHTML = '';
+            
+            if (!leaderboardData || leaderboardData.length === 0) {
+                container.innerHTML = '<p>No games have been played yet. Be the first to play!</p>';
+                return;
+            }
+            
+            // Add each leaderboard entry
+            leaderboardData.forEach(entry => {
+                const row = document.createElement('div');
+                row.className = 'leaderboard-row';
+                
+                row.innerHTML = `
+                    <div>${entry.rank}</div>
+                    <div>${entry.name}</div>
+                    <div>${entry.score}</div>
+                    <div>${entry.accuracy}%</div>
+                `;
+                
+                container.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html>
