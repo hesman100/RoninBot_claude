@@ -572,8 +572,7 @@ def main() -> None:
             # Add a callback query handler for the game buttons
             application.add_handler(
                 CallbackQueryHandler(
-                    lambda update, context: context.bot_data[
-                        'game_handler'].handle_callback_query(update, context),
+                    lambda update, context: handle_callback_query(update, context) if 'game_handler' in context.bot_data else update.callback_query.answer("Game not initialized."),
                     pattern="^(guess_|play_|show_leaderboard)"))
 
             logger.info("Game callback handler registered")
