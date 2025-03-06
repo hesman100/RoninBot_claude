@@ -93,13 +93,32 @@ class GameHandler:
                     game_mode TEXT,
                     total INTEGER DEFAULT 0,
                     correct INTEGER DEFAULT 0,
+                    login_method TEXT DEFAULT 'tele',
+                    user_name TEXT,
+                    wallet_address TEXT DEFAULT '0xtele',
+                    first_play_timestamp INTEGER,
                     PRIMARY KEY (user_id, game_mode)
                 )
             ''')
 
+            # Check if we need to add the new columns (for existing installations)
+            # Get current column names
+            cursor.execute("PRAGMA table_info(user_stats)")
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            # Add new columns if they don't exist
+            if "login_method" not in columns:
+                cursor.execute("ALTER TABLE user_stats ADD COLUMN login_method TEXT DEFAULT 'tele'")
+            if "user_name" not in columns:
+                cursor.execute("ALTER TABLE user_stats ADD COLUMN user_name TEXT")
+            if "wallet_address" not in columns:
+                cursor.execute("ALTER TABLE user_stats ADD COLUMN wallet_address TEXT DEFAULT '0xtele'")
+            if "first_play_timestamp" not in columns:
+                cursor.execute("ALTER TABLE user_stats ADD COLUMN first_play_timestamp INTEGER")
+
             conn.commit()
             conn.close()
-            logger.info("Database initialized successfully")
+            logger.info("Database initialized successfully with new columns")
         except Exception as e:
             logger.error(f"Error initializing database: {e}")
 
@@ -109,35 +128,120 @@ class GameHandler:
             conn = sqlite3.connect(DATABASE_PATH)
             cursor = conn.cursor()
 
-            cursor.execute("SELECT user_id, game_mode, total, correct FROM user_stats")
+            # Get all columns from the table
+            cursor.execute("PRAGMA table_info(user_stats)")
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            # Construct a query based on available columns
+            select_columns = ["user_id", "game_mode", "total", "correct"]
+            
+            # Add new columns if they exist
+            if "login_method" in columns:
+                select_columns.append("login_method")
+            if "user_name" in columns:
+                select_columns.append("user_name")
+            if "wallet_address" in columns:
+                select_columns.append("wallet_address")
+            if "first_play_timestamp" in columns:
+                select_columns.append("first_play_timestamp")
+                
+            query = f"SELECT {', '.join(select_columns)} FROM user_stats"
+            cursor.execute(query)
             rows = cursor.fetchall()
 
             for row in rows:
-                user_id, game_mode, total, correct = row
-
+                # The first 4 columns are always user_id, game_mode, total, correct
+                user_id, game_mode, total, correct = row[0:4]
+                
                 if user_id not in self.user_stats:
                     self.user_stats[user_id] = {}
+                    # Store user metadata at the user level
+                    self.user_stats[user_id]["metadata"] = {}
+                elif "metadata" not in self.user_stats[user_id]:
+                    self.user_stats[user_id]["metadata"] = {}
 
+                # Add game mode stats
                 self.user_stats[user_id][game_mode] = {
                     "total": total,
                     "correct": correct
                 }
+                
+                # Add additional columns if they exist
+                col_index = 4
+                if "login_method" in columns and col_index < len(row):
+                    self.user_stats[user_id]["metadata"]["login_method"] = row[col_index]
+                    col_index += 1
+                    
+                if "user_name" in columns and col_index < len(row):
+                    self.user_stats[user_id]["metadata"]["user_name"] = row[col_index]
+                    col_index += 1
+                    
+                if "wallet_address" in columns and col_index < len(row):
+                    self.user_stats[user_id]["metadata"]["wallet_address"] = row[col_index]
+                    col_index += 1
+                    
+                if "first_play_timestamp" in columns and col_index < len(row):
+                    self.user_stats[user_id]["metadata"]["first_play_timestamp"] = row[col_index]
 
             conn.close()
             logger.info(f"Loaded stats for {len(self.user_stats)} users from database")
         except Exception as e:
             logger.error(f"Error loading user stats from database: {e}")
 
-    def _save_user_stats_to_database(self, user_id: int, game_mode: str, stats: Dict[str, int]):
+    def _save_user_stats_to_database(self, user_id: int, game_mode: str, stats: Dict[str, int], metadata: Optional[Dict] = None):
         """Save user statistics to the database"""
         try:
             conn = sqlite3.connect(DATABASE_PATH)
             cursor = conn.cursor()
-
-            cursor.execute('''
-                INSERT OR REPLACE INTO user_stats (user_id, game_mode, total, correct)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, game_mode, stats["total"], stats["correct"]))
+            
+            # Get current columns from the table
+            cursor.execute("PRAGMA table_info(user_stats)")
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            # Prepare column names and values for the SQL query
+            column_names = ["user_id", "game_mode", "total", "correct"]
+            values = [user_id, game_mode, stats["total"], stats["correct"]]
+            
+            # If metadata is provided, add relevant fields
+            if metadata:
+                # Use user metadata if provided
+                metadata_dict = metadata
+            elif user_id in self.user_stats and "metadata" in self.user_stats[user_id]:
+                # Use existing metadata from in-memory storage
+                metadata_dict = self.user_stats[user_id]["metadata"]
+            else:
+                # Initialize empty metadata
+                metadata_dict = {}
+            
+            # Add login_method if the column exists
+            if "login_method" in columns:
+                column_names.append("login_method")
+                values.append(metadata_dict.get("login_method", "tele"))
+                
+            # Add user_name if the column exists
+            if "user_name" in columns:
+                column_names.append("user_name")
+                values.append(metadata_dict.get("user_name", None))
+                
+            # Add wallet_address if the column exists
+            if "wallet_address" in columns:
+                column_names.append("wallet_address")
+                values.append(metadata_dict.get("wallet_address", "0xtele"))
+                
+            # Add first_play_timestamp if the column exists
+            if "first_play_timestamp" in columns:
+                column_names.append("first_play_timestamp")
+                values.append(metadata_dict.get("first_play_timestamp", int(time.time())))
+            
+            # Construct placeholders for SQL query
+            placeholders = ", ".join(["?"] * len(values))
+            columns_str = ", ".join(column_names)
+            
+            # Execute query
+            cursor.execute(f'''
+                INSERT OR REPLACE INTO user_stats ({columns_str})
+                VALUES ({placeholders})
+            ''', values)
 
             conn.commit()
             conn.close()
