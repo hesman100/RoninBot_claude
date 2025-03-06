@@ -9,6 +9,10 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 from price_func.config import (TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
                                DEFAULT_CRYPTOCURRENCIES, DEFAULT_STOCKS,
                                DEFAULT_VN_STOCKS, SYMBOL_TO_DISPLAY)
+
+# Bot version - add version tracking
+BOT_VERSION = "1.3"
+
 from price_func.coinmarketcap_api import CoinMarketCapAPI
 from price_func.utils import format_price_message, format_error_message
 import threading
@@ -121,7 +125,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if is_group:
         welcome_message = (
-            "🤖 Welcome to the Ronin Bot (v1.3)!\n\n"
+            f"🤖 Welcome to the Ronin Bot (v{BOT_VERSION})!\n\n"
             "/help or /h - Show this help message\n\n"
             "\n ==== Price ==== \n"
             "/c <crypto> - Get price for any cryptocurrency\n"
@@ -142,7 +146,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "💡 Tip: Anyone in the group can use these commands!")
     else:
         welcome_message = (
-            "🤖 Welcome to the Ronin Bot (v1.3)!\n\n"
+            f"🤖 Welcome to the Ronin Bot (v{BOT_VERSION})!\n\n"
             "\n ==== Price ==== \n"
             "/c <crypto> - Get price for any cryptocurrency\n"
             "              (Example: /c BTC, /c BNB)\n"
@@ -425,7 +429,7 @@ async def game_command(update: Update,
     """Handle all /g commands with subcommands"""
     # If we haven't initialized the game handler yet, do it now
     if 'game_handler' not in context.bot_data:
-        context.bot_data['game_handler'] = GameHandler()
+        context.bot_data['game_handler'] = GameHandler(bot_version=BOT_VERSION)
 
     game_handler = context.bot_data['game_handler']
 

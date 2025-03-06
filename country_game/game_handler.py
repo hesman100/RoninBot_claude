@@ -24,8 +24,11 @@ logger = logging.getLogger(__name__)
 class GameHandler:
     """Handle country guessing game logic"""
 
-    def __init__(self) -> None:
+    def __init__(self, bot_version: str = "1.0") -> None:
         """Initialize the game handler."""
+        # Store bot version for result messages
+        self.bot_version = bot_version
+
         # Database path
         self.db_path = "country_game/database/countries.db"
 
@@ -307,6 +310,7 @@ class GameHandler:
         area = correct_country.get("area", 0)
         timeout_message += f"👥 Population: {self._format_population(population)}\n"
         timeout_message += f"📏 Area: {self._format_area(area)}"
+        timeout_message += f"\nBot Version: {self.bot_version}"
 
         # Record the timeout as an incorrect answer - get user name if available
         try:
@@ -826,6 +830,7 @@ class GameHandler:
             area = correct_country.get("area", 0)
             result_message += f"👥 Population: {self._format_population(population)}\n"
             result_message += f"📏 Area: {self._format_area(area)}"
+        result_message += f"\nBot Version: {self.bot_version}"
 
         # Update user stats
         self._update_user_stats(user_id, is_correct, current_mode, user_name)
@@ -849,13 +854,14 @@ class GameHandler:
                         caption=result_message,
                         parse_mode="Markdown")
                 else:
-                    await context.bot.edit_message_text(chat_id=chat_id,
-                                                        message_id=message_id,
-                                                        text=result_message,
-                                                        parse_mode="Markdown")
+                    await context.bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=result_message,
+                        parse_mode="Markdown")
             else:
                 # If we don't have the message ID, send a new message
-                await context.bot.send_message(chat_id=chat_id,
+                                await context.bot.send_message(chat_id=chat_id,
                                                text=result_message,
                                                parse_mode="Markdown")
         except Exception as e:
@@ -937,6 +943,7 @@ class GameHandler:
             area = correct_country.get("area", 0)
             result_message += f"👥 Population: {self._format_population(population)}\n"
             result_message += f"📏 Area: {self._format_area(area)}"
+        result_message += f"\nBot Version: {self.bot_version}"
 
         # Update user stats - pass the user_name here
         self._update_user_stats(user_id, is_correct, current_mode, user_name)
@@ -1074,13 +1081,13 @@ class GameHandler:
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text="Choose a game mode:",
+                                       text=f"Choose a game mode:\nBot Version: {self.bot_version}",
                                        reply_markup=reply_markup)
 
     async def help_command(self, update: Update,
                            context: ContextTypes.DEFAULT_TYPE) -> None:
         """Show help message for the game"""
-        help_text = """
+        help_text = f"""
         🌍 *Country Guessing Game Options* 🌍
 
         */g help* - Show this help message
@@ -1091,7 +1098,9 @@ class GameHandler:
         */g lb* - Show the leaderboard for all game modes
 
         To play: simply tap on the correct option from the choices provided.
-        You have 15 seconds to answer each question.
+        You have 30 seconds to answer each question.
+
+        Bot Version: {self.bot_version}
         """
 
         await context.bot.send_message(chat_id=update.effective_chat.id,
@@ -1109,11 +1118,11 @@ class GameHandler:
             if not leaderboard_data:
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
-                    text="No games have been played yet. Be the first to play!")
+                    text=f"No games have been played yet. Be the first to play!\n\nBot Version: {self.bot_version}")
                 return
 
             # Build leaderboard message
-            message = "🏆 *Country Game Leaderboard* 🏆\n\n"
+            message = f"🏆 *Country Game Leaderboard* 🏆\n\n"
 
             # Add top 10 users
             for i, (user_id, user_name, accuracy, correct, total, modes) in enumerate(leaderboard_data, 1):
@@ -1157,6 +1166,9 @@ class GameHandler:
 
                 message += "\n"
 
+            # Add bot version at the end of the leaderboard
+            message += f"Bot Version: {self.bot_version}"
+
             # Send the leaderboard
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
@@ -1168,5 +1180,5 @@ class GameHandler:
             logger.error(f"Error showing leaderboard: {e}")
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="Sorry, there was an error displaying the leaderboard."
+                text=f"Sorry, there was an error displaying the leaderboard.\n\nBot Version: {self.bot_version}"
             )
