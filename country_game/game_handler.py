@@ -850,20 +850,23 @@ class GameHandler:
         if user_id in self.active_games:
             # Cancel the timer job if it exists
             if "timer_job" in self.active_games[user_id]:
-                self.active_games[user_id]["timer_job"].cancel()
+                try:
+                    self.active_games[user_id]["timer_job"].cancel()
+                except AttributeError:
+                    # Handle case where Job object doesn't have cancel attribute
+                    logger.warning("Timer job could not be cancelled due to missing cancel attribute")
             del self.active_games[user_id]
 
-        #        message_id = update.callback_query.message.message_id
         message = update.callback_query.message
 
         try:
-            # For map and flag games, edit the caption if it's a photo message
+            # For map and flaggames, edit the caption if it's a photo message
             if current_mode in ["map", "flag"]:
                 if hasattr(message, 'photo') and message.photo:
                     try:
                         await context.bot.edit_message_caption(
                             chat_id=chat_id,
-                            message_id=message_id,
+                            message_id=message.message_id,
                             caption=result_message,
                             parse_mode="Markdown")
                     except Exception as edit_error:
@@ -885,7 +888,7 @@ class GameHandler:
                     try:
                         await context.bot.edit_message_text(
                             chat_id=chat_id,
-                            message_id=message_id,
+                            message_id=message.message_id,
                             text=result_message,
                             parse_mode="Markdown")
                     except Exception as edit_error:
@@ -983,21 +986,23 @@ class GameHandler:
         if user_id in self.active_games:
             # Cancel the timer job if it exists
             if "timer_job" in self.active_games[user_id]:
-                self.active_games[user_id]["timer_job"].cancel()
+                try:
+                    self.active_games[user_id]["timer_job"].cancel()
+                except AttributeError:
+                    # Handle case where Job object doesn't have cancel attribute
+                    logger.warning("Timer job could not be cancelled due to missing cancel attribute")
             del self.active_games[user_id]
 
         # Try to update the original message
-        message_id = update.callback_query.message.message_id
+        message = update.callback_query.message
         try:
             # Capital game might be shown as a photo or text, so check message type
-            message = update.callback_query.message
-
             if hasattr(message, 'photo') and message.photo:
                 # This is a photo message, edit the caption
                 try:
                     await context.bot.edit_message_caption(
                         chat_id=chat_id,
-                        message_id=message_id,
+                        message_id=message.message_id,
                         caption=result_message,
                         parse_mode="Markdown")
                 except Exception as edit_error:
@@ -1012,7 +1017,7 @@ class GameHandler:
                 try:
                     await context.bot.edit_message_text(
                         chat_id=chat_id,
-                        message_id=message_id,
+                        message_id=message.message_id,
                         text=result_message,
                         parse_mode="Markdown")
                 except Exception as edit_error:

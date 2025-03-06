@@ -36,6 +36,7 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python3 bot.py"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Telegram Bot with API"
