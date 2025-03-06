@@ -12,7 +12,7 @@ from PIL import Image
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from country_game.config import (CAPITAL_MODE, DATABASE_PATH, FLAG_MODE,
+from country_game.config import (CAPITAL_MODE, CAP_MODE, DATABASE_PATH, FLAG_MODE,
                                 MAP_MODE, MAP_IMAGES_PATH, FLAG_IMAGES_PATH,
                                 MAX_ATTEMPTS, GAME_TIMEOUT, NUM_OPTIONS,
                                 CORRECT_ANSWER_MESSAGE, WRONG_ANSWER_MESSAGE,
@@ -681,7 +681,8 @@ class GameHandler:
     def _generate_options(self, country: Dict, game_mode: str) -> List[str]:
         try:
             logger.info(f"Generating options for {game_mode} mode, country: {country['name']}")
-            correct_answer = country["name"] if game_mode != CAPITAL_MODE else country["capital"]
+            # For both CAPITAL_MODE and CAP_MODE, we're guessing the capital
+            correct_answer = country["name"] if game_mode not in [CAPITAL_MODE, CAP_MODE] else country["capital"]
             logger.info(f"Correct answer: {correct_answer}")
 
             options = [correct_answer]
@@ -696,7 +697,7 @@ class GameHandler:
                 for neighbor in neighbors[:MAX_HINT_COUNTRIES]:
                     if neighbor not in options:
                         options.append(neighbor)
-            elif game_mode == CAPITAL_MODE:
+            elif game_mode in [CAPITAL_MODE, CAP_MODE]:
                 for capital in neighbor_capitals[:MAX_HINT_COUNTRIES]:
                     if capital and capital not in options:
                         options.append(capital)
@@ -704,7 +705,7 @@ class GameHandler:
             # Fill with random options if needed
             while len(options) < NUM_OPTIONS:
                 random_country = random.choice(self.countries)
-                random_option = random_country["name"] if game_mode != CAPITAL_MODE else random_country["capital"]
+                random_option = random_country["name"] if game_mode not in [CAPITAL_MODE, CAP_MODE] else random_country["capital"]
                 if random_option not in options:
                     options.append(random_option)
 
@@ -714,7 +715,7 @@ class GameHandler:
         except Exception as e:
             logger.error(f"Error generating options: {e}")
             # Return a minimal set of options to avoid breaking the game
-            return [country["name"] if game_mode != CAPITAL_MODE else country["capital"]]
+            return [country["name"] if game_mode not in [CAPITAL_MODE, CAP_MODE] else country["capital"]]
 
     def _create_keyboard(self, options: List[str]) -> InlineKeyboardMarkup:
         try:
@@ -779,7 +780,8 @@ class GameHandler:
             game = self.active_games[user_id]
             country = game["country"]
             game_mode = game["mode"]
-            correct_answer = country["name"] if game_mode != CAPITAL_MODE else country["capital"]
+            # For both CAPITAL_MODE and CAP_MODE, we're guessing the capital
+            correct_answer = country["name"] if game_mode not in [CAPITAL_MODE, CAP_MODE] else country["capital"]
             is_correct = (guessed_answer == correct_answer)
             elapsed_time = round(time.time() - game["start_time"], 1)
             logger.info(f"Correct answer: {correct_answer}, User guessed: {guessed_answer}, Is correct: {is_correct}")
@@ -1014,7 +1016,10 @@ class GameHandler:
                     InlineKeyboardButton("🏳️ Flag Mode", callback_data="play_flag")
                 ],
                 [
-                    InlineKeyboardButton("🏙️ Capital Mode", callback_data="play_capital"),
+                    InlineKeyboardButton("🌆 Capital Mode", callback_data="play_capital"),
+                    InlineKeyboardButton("🏙️ Cap Guess", callback_data="play_cap")
+                ],
+                [
                     InlineKeyboardButton("📊 Leaderboard", callback_data="show_leaderboard")
                 ]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1036,10 +1041,13 @@ class GameHandler:
                 InlineKeyboardButton("🗺️ Map Mode", callback_data="play_map"),
                 InlineKeyboardButton("🏳️ Flag Mode", callback_data="play_flag")
             ],
-                        [
-                            InlineKeyboardButton("🏙️ Capital Mode", callback_data="play_capital"),
-                            InlineKeyboardButton("📊 Leaderboard", callback_data="show_leaderboard")
-                        ]]
+            [
+                InlineKeyboardButton("🌆 Capital Mode", callback_data="play_capital"),
+                InlineKeyboardButton("🏙️ Cap Guess", callback_data="play_cap")
+            ],
+            [
+                InlineKeyboardButton("📊 Leaderboard", callback_data="show_leaderboard")
+            ]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id=update.effective_chat.id, text="Choose a game mode:", reply_markup=reply_markup)
         except Exception as e:
