@@ -9,10 +9,6 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 from price_func.config import (TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
                                DEFAULT_CRYPTOCURRENCIES, DEFAULT_STOCKS,
                                DEFAULT_VN_STOCKS, SYMBOL_TO_DISPLAY)
-
-# Bot version - add version tracking
-BOT_VERSION = "1.3.1"
-
 from price_func.coinmarketcap_api import CoinMarketCapAPI
 from price_func.utils import format_price_message, format_error_message
 import threading
@@ -24,9 +20,6 @@ import time
 
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
-
-# Add this import for the API server
-from server.api_server import start_api_server_thread, API_KEY
 
 # Configure logging
 logging.basicConfig(
@@ -94,17 +87,6 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
                     self.server.shutdown(),
                     sys.exit(0)
                 ]).start()
-            elif self.path == '/api-key':
-                # Return the API key for the API server - only available on localhost
-                client_host, client_port = self.client_address
-                if client_host in ['127.0.0.1', 'localhost', '::1']:
-                    self._send_response(200, f"API Key: {API_KEY}")
-                    logger.info("API key requested from localhost")
-                else:
-                    self._send_response(403, "Forbidden")
-                    logger.warning(
-                        f"API key requested from unauthorized host: {client_host}"
-                    )
             else:
                 self._send_response(404, "Not found")
         except Exception as e:
@@ -139,7 +121,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if is_group:
         welcome_message = (
-            f"🤖 Welcome to the Ronin Bot (v{BOT_VERSION})!\n\n"
+            "🤖 Welcome to the Ronin Bot (v1.3)!\n\n"
             "/help or /h - Show this help message\n\n"
             "\n ==== Price ==== \n"
             "/c <crypto> - Get price for any cryptocurrency\n"
@@ -160,7 +142,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "💡 Tip: Anyone in the group can use these commands!")
     else:
         welcome_message = (
-            f"🤖 Welcome to the Ronin Bot (v{BOT_VERSION})!\n\n"
+            "🤖 Welcome to the Ronin Bot (v1.3)!\n\n"
             "\n ==== Price ==== \n"
             "/c <crypto> - Get price for any cryptocurrency\n"
             "              (Example: /c BTC, /c BNB)\n"
@@ -229,25 +211,11 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Only post to channel if explicitly configured and channel ID is valid
         if TELEGRAM_CHANNEL_ID and TELEGRAM_CHANNEL_ID.strip():
             try:
-                # Check if the channel ID is a valid format
-                if not TELEGRAM_CHANNEL_ID.startswith('@') and not TELEGRAM_CHANNEL_ID.lstrip('-').isdigit():
-                    logger.warning(f"Invalid channel ID format: {TELEGRAM_CHANNEL_ID}")
-                    return
-
                 logger.info(
                     f"Attempting to post price update to channel {TELEGRAM_CHANNEL_ID}"
                 )
-
-                # Try to get the channel's chat to verify it exists
-                try:
-                    await context.bot.get_chat(TELEGRAM_CHANNEL_ID)
-                except Exception as chat_error:
-                    logger.error(f"Failed to verify channel exists: {chat_error}")
-                    return
-
-                # Send the message to the channel
                 await context.bot.send_message(chat_id=TELEGRAM_CHANNEL_ID,
-                                              text=message)
+                                               text=message)
                 logger.info("Successfully posted to channel")
             except Exception as channel_error:
                 logger.error(
@@ -390,84 +358,12 @@ async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Health check - Bot is running at {current_time}")
 
 
-async def backup_leaderboard(update: Update,
-                             context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Backup the leaderboard data to a JSON file"""
-    # Admin check - replace this with your actual Telegram user ID
-    # To get your ID, talk to @userinfobot on Telegram
-    admin_ids = []  # Replace with your Telegram user ID
-
-    # If admin_ids is empty, allow anyone to use this command (for testing)
-    if not admin_ids:
-        logger.warning(
-            "No admin IDs configured for backup command - allowing all users")
-    elif update.effective_user.id not in admin_ids:
-        await update.message.reply_text(
-            "Sorry, only admins can use this command.")
-        return
-
-    from country_game import leaderboard_db
-
-    # Default backup path
-    backup_path = "country_game/database/leaderboard_backup.json"
-
-    # If an argument was provided, use it as the backup path
-    if context.args:
-        backup_path = context.args[0]
-
-    # Perform the backup
-    success = leaderboard_db.export_leaderboard_to_json(backup_path)
-
-    if success:
-        await update.message.reply_text(
-            f"✅ Leaderboard data successfully backed up to {backup_path}")
-    else:
-        await update.message.reply_text(
-            "❌ Failed to backup leaderboard data. Check logs for details.")
-
-
-async def restore_leaderboard(update: Update,
-                              context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Restore the leaderboard data from a JSON file"""
-    # Admin check - replace this with your actual Telegram user ID
-    # To get your ID, talk to @userinfobot on Telegram
-    admin_ids = []  # Replace with your Telegram user ID
-
-    # If admin_ids is empty, allow anyone to use this command (for testing)
-    if not admin_ids:
-        logger.warning(
-            "No admin IDs configured for restore command - allowing all users")
-    elif update.effective_user.id not in admin_ids:
-        await update.message.reply_text(
-            "Sorry, only admins can use this command.")
-        return
-
-    from country_game import leaderboard_db
-
-    # Default backup path
-    backup_path = "country_game/database/leaderboard_backup.json"
-
-    # If an argument was provided, use it as the backup path
-    if context.args:
-        backup_path = context.args[0]
-
-    # Perform the restore
-    success = leaderboard_db.import_leaderboard_from_json(backup_path)
-
-    if success:
-        await update.message.reply_text(
-            f"✅ Leaderboard data successfully restored from {backup_path}")
-    else:
-        await update.message.reply_text(
-            "❌ Failed to restore leaderboard data. Check logs for details.")
-
-
 async def game_command(update: Update,
                        context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle all /g commands with subcommands"""
     # If we haven't initialized the game handler yet, do it now
     if 'game_handler' not in context.bot_data:
-        context.bot_data['game_handler'] = GameHandler(bot_version=BOT_VERSION)
+        context.bot_data['game_handler'] = GameHandler()
 
     game_handler = context.bot_data['game_handler']
 
@@ -551,13 +447,6 @@ def main() -> None:
     http_thread.start()
     logger.info("HTTP server thread started")
 
-    # Start API server in a separate thread (port 5001)
-    api_port = int(os.environ.get('API_PORT', 5001))
-    api_thread = start_api_server_thread(api_port)
-    logger.info(f"API server started on port {api_port}")
-    logger.info(f"API Key: {API_KEY[:5]}..."
-                )  # Log only the first few characters for security
-
     while True:
         try:
             logger.info("Starting the bot...")
@@ -577,17 +466,15 @@ def main() -> None:
             # Add the game command handlers
             application.add_handler(CommandHandler("g", game_command))
 
-            # Add backup and restore leaderboard commands
-            application.add_handler(
-                CommandHandler("backup_lb", backup_leaderboard))
-            application.add_handler(
-                CommandHandler("restore_lb", restore_leaderboard))
-
             # Add a callback query handler for the game buttons
+            # Make sure it captures all callback query patterns used by the game
             application.add_handler(
                 CallbackQueryHandler(
-                    lambda update, context: handle_callback_query(update, context) if 'game_handler' in context.bot_data else update.callback_query.answer("Game not initialized."),
-                    pattern="^(guess_|play_|show_leaderboard)"))
+                    lambda update, context: context.bot_data[
+                        'game_handler'].handle_callback_query(update, context),
+                    pattern=
+                    "^(guess_|play_|show_leaderboard)"  # Added show_leaderboard to the pattern
+                ))
 
             logger.info("Game callback handler registered")
 

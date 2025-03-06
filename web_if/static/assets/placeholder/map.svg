@@ -1,5 +1,0 @@
-<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" fill="#f0f0f0"/>
-  <path d="M100,50 L300,50 L250,150 L150,200 L100,50" fill="#cccccc" stroke="#666666" stroke-width="3"/>
-  <text x="200" y="280" font-family="Arial" font-size="16" text-anchor="middle">Sample Country Map</text>
-</svg>

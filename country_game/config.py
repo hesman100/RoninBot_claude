@@ -14,9 +14,8 @@ FLAG_IMAGES_PATH = os.path.join("country_game", "images", "wiki_flag")
 # Game settings
 MAX_ATTEMPTS = 3
 LEADERBOARD_SIZE = 10
-GAME_TIMEOUT = 30  # Changed back to 30 seconds as requested
+GAME_TIMEOUT = 30  # 15 seconds to answer
 NUM_OPTIONS = 10  # Number of answer options to provide
-MAX_HINT_COUNTRIES = 9  # Maximum number of hint countries to display
 
 # Message templates
 CORRECT_ANSWER_MESSAGE = "✅ *Correct!* Well done!"
@@ -38,5 +37,5 @@ HELP_TEXT = """
 */g lb* - Show the leaderboard for all game modes
 
 To play: simply tap on the correct option from the choices provided.
-You have 30 seconds to answer each question.
+You have 15 seconds to answer each question.
 """
