@@ -746,15 +746,23 @@ class GameHandler:
             region = country.get("region", "Unknown")
             population = self._format_population(country.get("population", 0))
             area = self._format_area(country.get("area", 0))
+            
+            # Escape markdown special characters
+            safe_country_name = self._escape_markdown(country_name)
+            safe_capital = self._escape_markdown(capital)
+            safe_region = self._escape_markdown(region)
+            safe_population = self._escape_markdown(population)
+            safe_area = self._escape_markdown(area)
+            safe_correct_answer = self._escape_markdown(correct_answer)
 
             # Use the formatted values in the result message
             if is_correct:
                 result_message = CORRECT_ANSWER_MESSAGE.format(
-                    country_name, capital, region, population, area
+                    safe_country_name, safe_capital, safe_region, safe_population, safe_area
                 )
             else:
                 result_message = WRONG_ANSWER_MESSAGE.format(
-                    correct_answer, country_name, capital, region, population, area
+                    safe_correct_answer, safe_country_name, safe_capital, safe_region, safe_population, safe_area
                 )
 
             self._update_user_stats(user_id, is_correct, game_mode, user_name)
@@ -817,15 +825,23 @@ class GameHandler:
             region = country.get("region", "Unknown")
             population = self._format_population(country.get("population", 0))
             area = self._format_area(country.get("area", 0))
+            
+            # Escape markdown special characters
+            safe_country_name = self._escape_markdown(country_name)
+            safe_capital = self._escape_markdown(capital)
+            safe_region = self._escape_markdown(region)
+            safe_population = self._escape_markdown(population)
+            safe_area = self._escape_markdown(area)
+            safe_correct_capital = self._escape_markdown(correct_capital)
 
             # Use the formatted values in the result message
             if is_correct:
                 result_message = CORRECT_ANSWER_MESSAGE.format(
-                    country_name, capital, region, population, area
+                    safe_country_name, safe_capital, safe_region, safe_population, safe_area
                 )
             else:
                 result_message = WRONG_ANSWER_MESSAGE.format(
-                    correct_capital, country_name, capital, region, population, area
+                    safe_correct_capital, safe_country_name, safe_capital, safe_region, safe_population, safe_area
                 )
 
             self._update_user_stats(user_id, is_correct, game_mode, user_name)
@@ -868,6 +884,15 @@ class GameHandler:
         if not area:
             return "Unknown"
         return f"{area:,.0f} km²"
+        
+    def _escape_markdown(self, text: str) -> str:
+        """Escape Markdown special characters to prevent parsing errors"""
+        if not text or not isinstance(text, str):
+            return str(text)
+        # Escape characters that have special meaning in Markdown
+        for char in ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']:
+            text = text.replace(char, f"\\{char}")
+        return text
 
     def _cancel_timer(self, user_id: int) -> None:
         try:
@@ -898,10 +923,17 @@ class GameHandler:
             region = country.get("region", "Unknown")
             population = self._format_population(country.get("population", 0))
             area = self._format_area(country.get("area", 0))
+            
+            # Escape markdown special characters
+            safe_country_name = self._escape_markdown(country_name)
+            safe_capital = self._escape_markdown(capital)
+            safe_region = self._escape_markdown(region)
+            safe_population = self._escape_markdown(population)
+            safe_area = self._escape_markdown(area)
 
             # Use the formatted values in the timeout message
             timeout_message = TIMEOUT_MESSAGE.format(
-                country_name, country_name, capital, region, population, area
+                safe_country_name, safe_country_name, safe_capital, safe_region, safe_population, safe_area
             )
 
             if user_id in self.active_games:
