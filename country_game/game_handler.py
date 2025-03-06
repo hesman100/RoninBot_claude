@@ -298,11 +298,28 @@ class GameHandler:
         return country
 
     def _update_user_stats(self, user_id: int, is_correct: bool,
-                          game_mode: str) -> None:
+                          game_mode: str, user_name: Optional[str] = None) -> None:
         """Update user statistics for the game"""
         # Initialize user stats if this is their first game
         if user_id not in self.user_stats:
             self.user_stats[user_id] = {}
+            self.user_stats[user_id]["metadata"] = {
+                "login_method": "tele",
+                "user_name": user_name,
+                "wallet_address": "0xtele",
+                "first_play_timestamp": int(time.time())
+            }
+        elif "metadata" not in self.user_stats[user_id]:
+            # Add metadata if missing
+            self.user_stats[user_id]["metadata"] = {
+                "login_method": "tele",
+                "user_name": user_name,
+                "wallet_address": "0xtele",
+                "first_play_timestamp": int(time.time())
+            }
+        elif user_name and "user_name" not in self.user_stats[user_id]["metadata"]:
+            # Update user name if provided and not already set
+            self.user_stats[user_id]["metadata"]["user_name"] = user_name
 
         # Initialize stats for this mode if first time
         if game_mode not in self.user_stats[user_id]:
@@ -317,7 +334,8 @@ class GameHandler:
         self._save_user_stats_to_database(
             user_id, 
             game_mode, 
-            self.user_stats[user_id][game_mode]
+            self.user_stats[user_id][game_mode],
+            self.user_stats[user_id]["metadata"]
         )
 
         logger.info(
@@ -702,7 +720,7 @@ class GameHandler:
                     correct_answer, country_name, capital, region, population, area
                 )
 
-            self._update_user_stats(user_id, is_correct, game_mode)
+            self._update_user_stats(user_id, is_correct, game_mode, user_name)
             del self.active_games[user_id]
             self._cancel_timer(user_id)
 
@@ -773,7 +791,7 @@ class GameHandler:
                     correct_capital, country_name, capital, region, population, area
                 )
 
-            self._update_user_stats(user_id, is_correct, game_mode)
+            self._update_user_stats(user_id, is_correct, game_mode, user_name)
             del self.active_games[user_id]
             self._cancel_timer(user_id)
 
