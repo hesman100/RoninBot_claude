@@ -11,7 +11,7 @@ from price_func.config import (TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
                                DEFAULT_VN_STOCKS, SYMBOL_TO_DISPLAY)
 
 # Bot version - add version tracking
-BOT_VERSION = "1.4"
+BOT_VERSION = "1.3.1"
 
 from price_func.coinmarketcap_api import CoinMarketCapAPI
 from price_func.utils import format_price_message, format_error_message
@@ -102,7 +102,9 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
                     logger.info("API key requested from localhost")
                 else:
                     self._send_response(403, "Forbidden")
-                    logger.warning(f"API key requested from unauthorized host: {client_host}")
+                    logger.warning(
+                        f"API key requested from unauthorized host: {client_host}"
+                    )
             else:
                 self._send_response(404, "Not found")
         except Exception as e:
@@ -374,7 +376,8 @@ async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Health check - Bot is running at {current_time}")
 
 
-async def backup_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def backup_leaderboard(update: Update,
+                             context: ContextTypes.DEFAULT_TYPE) -> None:
     """Backup the leaderboard data to a JSON file"""
     # Admin check - replace this with your actual Telegram user ID
     # To get your ID, talk to @userinfobot on Telegram
@@ -382,9 +385,11 @@ async def backup_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     # If admin_ids is empty, allow anyone to use this command (for testing)
     if not admin_ids:
-        logger.warning("No admin IDs configured for backup command - allowing all users")
+        logger.warning(
+            "No admin IDs configured for backup command - allowing all users")
     elif update.effective_user.id not in admin_ids:
-        await update.message.reply_text("Sorry, only admins can use this command.")
+        await update.message.reply_text(
+            "Sorry, only admins can use this command.")
         return
 
     from country_game import leaderboard_db
@@ -400,12 +405,15 @@ async def backup_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE)
     success = leaderboard_db.export_leaderboard_to_json(backup_path)
 
     if success:
-        await update.message.reply_text(f"✅ Leaderboard data successfully backed up to {backup_path}")
+        await update.message.reply_text(
+            f"✅ Leaderboard data successfully backed up to {backup_path}")
     else:
-        await update.message.reply_text("❌ Failed to backup leaderboard data. Check logs for details.")
+        await update.message.reply_text(
+            "❌ Failed to backup leaderboard data. Check logs for details.")
 
 
-async def restore_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def restore_leaderboard(update: Update,
+                              context: ContextTypes.DEFAULT_TYPE) -> None:
     """Restore the leaderboard data from a JSON file"""
     # Admin check - replace this with your actual Telegram user ID
     # To get your ID, talk to @userinfobot on Telegram
@@ -413,9 +421,11 @@ async def restore_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # If admin_ids is empty, allow anyone to use this command (for testing)
     if not admin_ids:
-        logger.warning("No admin IDs configured for restore command - allowing all users")
+        logger.warning(
+            "No admin IDs configured for restore command - allowing all users")
     elif update.effective_user.id not in admin_ids:
-        await update.message.reply_text("Sorry, only admins can use this command.")
+        await update.message.reply_text(
+            "Sorry, only admins can use this command.")
         return
 
     from country_game import leaderboard_db
@@ -431,9 +441,11 @@ async def restore_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE
     success = leaderboard_db.import_leaderboard_from_json(backup_path)
 
     if success:
-        await update.message.reply_text(f"✅ Leaderboard data successfully restored from {backup_path}")
+        await update.message.reply_text(
+            f"✅ Leaderboard data successfully restored from {backup_path}")
     else:
-        await update.message.reply_text("❌ Failed to restore leaderboard data. Check logs for details.")
+        await update.message.reply_text(
+            "❌ Failed to restore leaderboard data. Check logs for details.")
 
 
 async def game_command(update: Update,
@@ -529,7 +541,8 @@ def main() -> None:
     api_port = int(os.environ.get('API_PORT', 5001))
     api_thread = start_api_server_thread(api_port)
     logger.info(f"API server started on port {api_port}")
-    logger.info(f"API Key: {API_KEY[:5]}...")  # Log only the first few characters for security
+    logger.info(f"API Key: {API_KEY[:5]}..."
+                )  # Log only the first few characters for security
 
     while True:
         try:
@@ -551,17 +564,17 @@ def main() -> None:
             application.add_handler(CommandHandler("g", game_command))
 
             # Add backup and restore leaderboard commands
-            application.add_handler(CommandHandler("backup_lb", backup_leaderboard))
-            application.add_handler(CommandHandler("restore_lb", restore_leaderboard))
+            application.add_handler(
+                CommandHandler("backup_lb", backup_leaderboard))
+            application.add_handler(
+                CommandHandler("restore_lb", restore_leaderboard))
 
             # Add a callback query handler for the game buttons
             application.add_handler(
                 CallbackQueryHandler(
                     lambda update, context: context.bot_data[
                         'game_handler'].handle_callback_query(update, context),
-                    pattern=
-                    "^(guess_|play_|show_leaderboard)"
-                ))
+                    pattern="^(guess_|play_|show_leaderboard)"))
 
             logger.info("Game callback handler registered")
 

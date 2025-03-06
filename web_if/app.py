@@ -7,12 +7,14 @@ allowing users to play the game without using Telegram.
 
 import os
 import logging
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-import secrets
 import sys
+import traceback
 
 # Add the parent directory to the path so we can import from the country_game module
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Set the bot version to match the main bot
+BOT_VERSION = os.environ.get('BOT_VERSION', '1.4')
 
 # Set up logging
 logging.basicConfig(
@@ -21,6 +23,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Create Flask application
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+import secrets
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(16))
 
@@ -31,9 +36,6 @@ class GameService:
     def __init__(self, bot_version):
         self.bot_version = bot_version
         # This will be connected to the existing GameHandler
-
-# Set the bot version to match the main bot
-BOT_VERSION = "1.3"
 
 # Initialize the game service
 game_service = GameService(BOT_VERSION)
@@ -112,13 +114,13 @@ def api_leaderboard():
     """API endpoint to get leaderboard data"""
     try:
         # Import the leaderboard module to get real data
-        import sys
-        import os
-        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from country_game import leaderboard_db
 
         # Get the actual leaderboard data (top 10 users)
         leaderboard_data = leaderboard_db.get_leaderboard(limit=10)
+
+        # Debug log the data
+        logger.info(f"Raw leaderboard data: {leaderboard_data}")
 
         # Format the data to match what the frontend expects
         formatted_data = []
@@ -131,23 +133,20 @@ def api_leaderboard():
                 'login_method': entry['login_method'],
                 'wallet_addr': entry['wallet_addr'],
                 'language': entry['language'],
-                'first_login': entry['first_time_login']
+                'first_time_login': entry['first_time_login']
             })
-
-        # Define BOT_VERSION if it's not imported
-        BOT_VERSION = os.environ.get('BOT_VERSION', '1.4')
 
         return jsonify({
             'leaderboard': formatted_data,
             'version': BOT_VERSION
         })
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error getting leaderboard data: {str(e)}")
+        logger.error(traceback.format_exc())
         return jsonify({
             'error': str(e),
             'leaderboard': [],
-            'version': os.environ.get('BOT_VERSION', '1.4')
+            'version': BOT_VERSION
         }), 500
 
 @app.route('/api/help', methods=['GET'])
