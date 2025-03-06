@@ -110,16 +110,45 @@ def api_submit_answer():
 @app.route('/api/leaderboard', methods=['GET'])
 def api_leaderboard():
     """API endpoint to get leaderboard data"""
-    # This will eventually connect to the existing leaderboard database
-    # For now, return placeholder data
-    return jsonify({
-        'leaderboard': [
-            {'rank': 1, 'name': 'Player1', 'score': 1000, 'accuracy': 95},
-            {'rank': 2, 'name': 'Player2', 'score': 900, 'accuracy': 90},
-            {'rank': 3, 'name': 'Player3', 'score': 800, 'accuracy': 85}
-        ],
-        'version': BOT_VERSION
-    })
+    try:
+        # Import the leaderboard module to get real data
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from country_game import leaderboard_db
+
+        # Get the actual leaderboard data (top 10 users)
+        leaderboard_data = leaderboard_db.get_leaderboard(limit=10)
+
+        # Format the data to match what the frontend expects
+        formatted_data = []
+        for entry in leaderboard_data:
+            formatted_data.append({
+                'rank': entry['rank'],
+                'name': entry['name'],
+                'score': entry['score'],
+                'accuracy': entry['accuracy'],
+                'login_method': entry['login_method'],
+                'wallet_addr': entry['wallet_addr'],
+                'language': entry['language'],
+                'first_login': entry['first_time_login']
+            })
+
+        # Define BOT_VERSION if it's not imported
+        BOT_VERSION = os.environ.get('BOT_VERSION', '1.4')
+
+        return jsonify({
+            'leaderboard': formatted_data,
+            'version': BOT_VERSION
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': str(e),
+            'leaderboard': [],
+            'version': os.environ.get('BOT_VERSION', '1.4')
+        }), 500
 
 @app.route('/api/help', methods=['GET'])
 def api_help():

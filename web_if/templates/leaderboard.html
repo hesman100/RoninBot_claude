@@ -19,6 +19,9 @@
                 <div>USER</div>
                 <div>SCORE</div>
                 <div>ACCURACY</div>
+                <div>LOGIN</div>
+                <div>WALLET</div>
+                <div>LANG</div>
             </div>
             
             <div id="leaderboard-content">
@@ -73,14 +76,17 @@
             leaderboardData.forEach(entry => {
                 const row = document.createElement('div');
                 row.className = 'leaderboard-row';
-                
+
                 row.innerHTML = `
                     <div>${entry.rank}</div>
                     <div>${entry.name}</div>
                     <div>${entry.score}</div>
                     <div>${entry.accuracy}%</div>
+                    <div>${entry.login_method || 'telegram'}</div>
+                    <div>${entry.wallet_addr || '0xtele'}</div>
+                    <div>${entry.language || 'En'}</div>
                 `;
-                
+
                 container.appendChild(row);
             });
         }
