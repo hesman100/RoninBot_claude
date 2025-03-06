@@ -5,6 +5,7 @@ import re
 import time
 import sqlite3
 import asyncio
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Union, Any
 
 from PIL import Image
@@ -359,20 +360,29 @@ class GameHandler:
         user_totals = {}
         for user_id, modes in self.user_stats.items():
             user_totals[user_id] = {"total": 0, "correct": 0, "modes": {}}
-
-            # Calculate totals across all modes
+            
+            # Store user metadata if available
+            if "metadata" in modes:
+                user_totals[user_id]["metadata"] = modes["metadata"]
+            
+            # Calculate totals across all game modes
             for mode, stats in modes.items():
-                user_totals[user_id]["total"] += stats["total"]
-                user_totals[user_id]["correct"] += stats["correct"]
+                if mode == "metadata":
+                    continue  # Skip the metadata dict when summing game stats
+                
+                # Make sure this is a game stats dictionary
+                if isinstance(stats, dict) and "total" in stats and "correct" in stats:
+                    user_totals[user_id]["total"] += stats["total"]
+                    user_totals[user_id]["correct"] += stats["correct"]
 
-                # Calculate accuracy for this mode
-                accuracy = (stats["correct"] / stats["total"] *
-                            100) if stats["total"] > 0 else 0
-                user_totals[user_id]["modes"][mode] = {
-                    "total": stats["total"],
-                    "correct": stats["correct"],
-                    "accuracy": accuracy
-                }
+                    # Calculate accuracy for this mode
+                    accuracy = (stats["correct"] / stats["total"] *
+                                100) if stats["total"] > 0 else 0
+                    user_totals[user_id]["modes"][mode] = {
+                        "total": stats["total"],
+                        "correct": stats["correct"],
+                        "accuracy": accuracy
+                    }
 
             # Calculate overall accuracy
             user_totals[user_id]["accuracy"] = (
@@ -390,14 +400,40 @@ class GameHandler:
 
         # Add top 10 users
         for i, (user_id, stats) in enumerate(sorted_users[:10], 1):
-            # Try to get the user's name
-            try:
-                user = await context.bot.get_chat(user_id)
-                user_name = user.first_name
-            except Exception:
-                user_name = f"User {user_id}"
+            # Try to get the user's name from metadata or fallback to Telegram API
+            user_name = None
+            login_method = None
+            joined_date = None
+            
+            if "metadata" in stats and stats["metadata"].get("user_name"):
+                user_name = stats["metadata"].get("user_name")
+                login_method = stats["metadata"].get("login_method", "tele")
+                
+                # Format first play date if available
+                if "first_play_timestamp" in stats["metadata"]:
+                    timestamp = stats["metadata"]["first_play_timestamp"]
+                    joined_date = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')
+            
+            # Fallback to Telegram API if no metadata name
+            if not user_name:
+                try:
+                    user = await context.bot.get_chat(user_id)
+                    user_name = user.first_name
+                except Exception:
+                    user_name = f"User {user_id}"
 
-            message += f"{i}. *{user_name}*: {stats['accuracy']:.1f}% ({stats['correct']}/{stats['total']})\n"
+            # Add login method icon
+            login_icon = "🌐" if login_method == "web" else "📱" if login_method == "tele" else "👤"
+            
+            # Display user rank, name, and stats
+            rank_display = f"{i}. {login_icon} *{user_name}*"
+            message += f"{rank_display}: {stats['accuracy']:.1f}% ({stats['correct']}/{stats['total']})"
+            
+            # Add joined date if available
+            if joined_date:
+                message += f" - Joined: {joined_date}"
+                
+            message += "\n"
 
             # Add breakdown by mode
             for mode, mode_stats in stats["modes"].items():
@@ -868,7 +904,7 @@ class GameHandler:
             )
 
             if user_id in self.active_games:
-                self._update_user_stats(user_id, False, game_mode)
+                self._update_user_stats(user_id, False, game_mode, user_name)
                 message_id = game.get("message_id")
                 if message_id:
                     try:
