@@ -379,9 +379,12 @@ async def game_command(update: Update,
 
     if subcommand == "help":
         await game_handler.help_command(update, context)
-    elif subcommand in ["map", "flag", "capital",
-                        "cap"]:  # Added "cap" to the list of valid subcommands
+    elif subcommand in ["map", "flag"]:
         await game_handler.start_game(update, context, game_mode=subcommand)
+    elif subcommand == "capital":
+        # Use CAP_MODE from country_game.config for capital guessing game
+        from country_game.config import CAP_MODE
+        await game_handler.start_game(update, context, game_mode=CAP_MODE)
     elif subcommand in ["lb", "leaderboard"
                         ]:  # Added "lb" and "leaderboard" as valid subcommands
         await game_handler.show_leaderboard(update, context)

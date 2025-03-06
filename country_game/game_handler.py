@@ -754,9 +754,15 @@ class GameHandler:
                     logger.error(f"Invalid callback data format: {callback_data}")
 
             elif callback_data.startswith("play_"):
-                game_mode = callback_data.split("_")[1]
-                logger.info(f"User {user_id} wants to play: {game_mode}")
-                await self.start_game(update, context, game_mode)
+                action = callback_data.split("_")[1]
+                logger.info(f"User {user_id} wants to play: {action}")
+                
+                # For 'capital' we use CAP_MODE (capital guessing game) 
+                # This maps the button UI to the actual game mode
+                if action == "capital":
+                    await self.start_game(update, context, CAP_MODE)
+                else:
+                    await self.start_game(update, context, action)
 
             elif callback_data == "show_leaderboard":
                 logger.info(f"User {user_id} wants to see the leaderboard")
