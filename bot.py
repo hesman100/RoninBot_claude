@@ -358,6 +358,68 @@ async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Health check - Bot is running at {current_time}")
 
 
+async def backup_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Backup the leaderboard data to a JSON file"""
+    # Admin check - replace this with your actual Telegram user ID
+    # To get your ID, talk to @userinfobot on Telegram
+    admin_ids = []  # Replace with your Telegram user ID
+
+    # If admin_ids is empty, allow anyone to use this command (for testing)
+    if not admin_ids:
+        logger.warning("No admin IDs configured for backup command - allowing all users")
+    elif update.effective_user.id not in admin_ids:
+        await update.message.reply_text("Sorry, only admins can use this command.")
+        return
+
+    from country_game import leaderboard_db
+
+    # Default backup path
+    backup_path = "country_game/database/leaderboard_backup.json"
+
+    # If an argument was provided, use it as the backup path
+    if context.args:
+        backup_path = context.args[0]
+
+    # Perform the backup
+    success = leaderboard_db.export_leaderboard_to_json(backup_path)
+
+    if success:
+        await update.message.reply_text(f"✅ Leaderboard data successfully backed up to {backup_path}")
+    else:
+        await update.message.reply_text("❌ Failed to backup leaderboard data. Check logs for details.")
+
+
+async def restore_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Restore the leaderboard data from a JSON file"""
+    # Admin check - replace this with your actual Telegram user ID
+    # To get your ID, talk to @userinfobot on Telegram
+    admin_ids = []  # Replace with your Telegram user ID
+
+    # If admin_ids is empty, allow anyone to use this command (for testing)
+    if not admin_ids:
+        logger.warning("No admin IDs configured for restore command - allowing all users")
+    elif update.effective_user.id not in admin_ids:
+        await update.message.reply_text("Sorry, only admins can use this command.")
+        return
+
+    from country_game import leaderboard_db
+
+    # Default backup path
+    backup_path = "country_game/database/leaderboard_backup.json"
+
+    # If an argument was provided, use it as the backup path
+    if context.args:
+        backup_path = context.args[0]
+
+    # Perform the restore
+    success = leaderboard_db.import_leaderboard_from_json(backup_path)
+
+    if success:
+        await update.message.reply_text(f"✅ Leaderboard data successfully restored from {backup_path}")
+    else:
+        await update.message.reply_text("❌ Failed to restore leaderboard data. Check logs for details.")
+
+
 async def game_command(update: Update,
                        context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle all /g commands with subcommands"""
@@ -466,14 +528,17 @@ def main() -> None:
             # Add the game command handlers
             application.add_handler(CommandHandler("g", game_command))
 
+            # Add backup and restore leaderboard commands
+            application.add_handler(CommandHandler("backup_lb", backup_leaderboard))
+            application.add_handler(CommandHandler("restore_lb", restore_leaderboard))
+
             # Add a callback query handler for the game buttons
-            # Make sure it captures all callback query patterns used by the game
             application.add_handler(
                 CallbackQueryHandler(
                     lambda update, context: context.bot_data[
                         'game_handler'].handle_callback_query(update, context),
                     pattern=
-                    "^(guess_|play_|show_leaderboard)"  # Added show_leaderboard to the pattern
+                    "^(guess_|play_|show_leaderboard)"
                 ))
 
             logger.info("Game callback handler registered")
