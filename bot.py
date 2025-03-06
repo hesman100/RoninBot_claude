@@ -25,6 +25,9 @@ import time
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
 
+# Add this import for the API server
+from server.api_server import start_api_server_thread, API_KEY
+
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -91,6 +94,15 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
                     self.server.shutdown(),
                     sys.exit(0)
                 ]).start()
+            elif self.path == '/api-key':
+                # Return the API key for the API server - only available on localhost
+                client_host, client_port = self.client_address
+                if client_host in ['127.0.0.1', 'localhost', '::1']:
+                    self._send_response(200, f"API Key: {API_KEY}")
+                    logger.info("API key requested from localhost")
+                else:
+                    self._send_response(403, "Forbidden")
+                    logger.warning(f"API key requested from unauthorized host: {client_host}")
             else:
                 self._send_response(404, "Not found")
         except Exception as e:
@@ -512,6 +524,12 @@ def main() -> None:
     http_thread = threading.Thread(target=run_http_server, daemon=True)
     http_thread.start()
     logger.info("HTTP server thread started")
+
+    # Start API server in a separate thread (port 5001)
+    api_port = int(os.environ.get('API_PORT', 5001))
+    api_thread = start_api_server_thread(api_port)
+    logger.info(f"API server started on port {api_port}")
+    logger.info(f"API Key: {API_KEY[:5]}...")  # Log only the first few characters for security
 
     while True:
         try:
