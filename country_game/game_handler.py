@@ -5,13 +5,13 @@ import time
 from typing import Dict, List, Optional, Tuple, Any, Union
 import asyncio
 import sqlite3
+import traceback # Added for more detailed error logging
 
 # Our custom modules
 from country_game import leaderboard_db
 from country_game.config import GAME_TIMEOUT, MAX_HINT_COUNTRIES
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-
 
 # Configure logging
 logging.basicConfig(
@@ -330,16 +330,27 @@ class GameHandler:
         try:
             message_id = game.get("message_id")
             if message_id:
-                if current_mode in ["map", "flag"]:
-                    await context.bot.edit_message_caption(
+                try:
+                    # Try editing depending on the game mode
+                    if current_mode in ["map", "flag"]:
+                        # These are photo messages with captions
+                        await context.bot.edit_message_caption(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            caption=timeout_message,
+                            parse_mode="Markdown")
+                    else:
+                        # For text-based games like capital guessing
+                        await context.bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=timeout_message,
+                            parse_mode="Markdown")
+                except Exception as edit_error:
+                    logger.error(f"Error editing message: {edit_error}")
+                    # Fallback to sending a new message if editing fails
+                    await context.bot.send_message(
                         chat_id=chat_id,
-                        message_id=message_id,
-                        caption=timeout_message,
-                        parse_mode="Markdown")
-                else:
-                    await context.bot.edit_message_text(
-                        chat_id=chat_id,
-                        message_id=message_id,
                         text=timeout_message,
                         parse_mode="Markdown")
             else:
@@ -490,7 +501,7 @@ class GameHandler:
             # Add button to current row
             row.append(
                 InlineKeyboardButton(display_name,
-                                     callback_data=callback_data))
+                                    callback_data=callback_data))
 
             # Start a new row after every 2 buttons
             if (i + 1) % 2 == 0 or (i + 1) == len(options):
@@ -586,7 +597,7 @@ class GameHandler:
             # Add button to current row
             row.append(
                 InlineKeyboardButton(display_name,
-                                     callback_data=callback_data))
+                                    callback_data=callback_data))
 
             # Start a new row after every 2 buttons
             if (i + 1) % 2 == 0 or (i + 1) == len(options):
@@ -837,60 +848,84 @@ class GameHandler:
 
         # Always clean up the game after showing the result
         if user_id in self.active_games:
+            # Cancel the timer job if it exists
+            if "timer_job" in self.active_games[user_id]:
+                self.active_games[user_id]["timer_job"].cancel()
             del self.active_games[user_id]
 
-        # Cancel the timer if it exists
-        self._cancel_timer(user_id)
+        #        message_id = update.callback_query.message.message_id
+        message = update.callback_query.message
 
-        # Try to update the original message
         try:
-            message_id = game.get("message_id")
-            if message_id:
-                current_mode = game.get("mode", "map")
-                if current_mode in ["map", "flag"]:
-                    await context.bot.edit_message_caption(
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        caption=result_message,
-                        parse_mode="Markdown")
+            # For map and flag games, edit the caption if it's a photo message
+            if current_mode in ["map", "flag"]:
+                if hasattr(message, 'photo') and message.photo:
+                    try:
+                        await context.bot.edit_message_caption(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            caption=result_message,
+                            parse_mode="Markdown")
+                    except Exception as edit_error:
+                        logger.error(f"Error editing message caption: {edit_error}")
+                        # Fallback to sending a new message
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text=result_message,
+                            parse_mode="Markdown")
                 else:
-                    await context.bot.edit_message_text(
+                    # Not a photo message, send a new message instead
+                    await context.bot.send_message(
                         chat_id=chat_id,
-                        message_id=message_id,
                         text=result_message,
                         parse_mode="Markdown")
             else:
-                # If we don't have the message ID, send a new message
-                                await context.bot.send_message(chat_id=chat_id,
-                                               text=result_message,
-                                               parse_mode="Markdown")
+                # For other game types, edit the text if it's a text message
+                if hasattr(message, 'text') and message.text:
+                    try:
+                        await context.bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            text=result_message,
+                            parse_mode="Markdown")
+                    except Exception as edit_error:
+                        logger.error(f"Error editing message text: {edit_error}")
+                        # Fallback to sending a new message
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text=result_message,
+                            parse_mode="Markdown")
+                else:
+                    # Not a text message, send a new message instead
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=result_message,
+                        parse_mode="Markdown")
         except Exception as e:
             logger.error(f"Error updating message with result: {e}")
-            # Fallback to sending a new message
+            # Fallback to sending a new message if editing fails
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=result_message,
                 parse_mode="Markdown")
 
-        # Always send game navigation buttons after answering
+        # Send game navigation buttons after showing result
         await self._send_game_navigation(update, context)
 
     async def _handle_capital_guess(self, update: Update,
                                     context: ContextTypes.DEFAULT_TYPE,
                                     country_name: str,
                                     guessed_capital: str) -> None:
-        """Handle a guess for the capital city challenge"""
+        """Handle a capital guess from the inline keyboard"""
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         user_name = update.effective_user.first_name
 
-        logger.info(
-            f"Handling capital guess: {guessed_capital} for country: {country_name} by user: {user_id}"
-        )
+        logger.info(f"User {user_id} guessed capital {guessed_capital} for {country_name}")
 
-        # Check if userhas an active game
+        # Check if user has an active game
         if user_id not in self.active_games:
-            logger.warning(f"No active game found for user: {user_id}")
+            logger.warning(f"No active game found for user {user_id}")
             await context.bot.send_message(
                 chat_id=chat_id,
                 text="No active game found. Start a new game with /g")
@@ -899,83 +934,109 @@ class GameHandler:
         # Get the game data
         game = self.active_games[user_id]
         correct_country = game["country"]
-        current_mode = game.get("mode", "cap")
+
+        # Safety check - make sure this is the right country
+        if correct_country["name"] != country_name:
+            logger.warning(f"Country mismatch in capital guess: {country_name} vs {correct_country['name']}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Something went wrong with your guess. Please start a new game.")
+            return
 
         # Get the correct capital
         correct_capital = correct_country.get("capital", "Unknown")
 
-        # Format country name for display (replace underscores with spaces)
-        display_country_name = correct_country["name"].replace("_", " ")
+        # Check if the guess is correct (case insensitive)
+        is_correct = (guessed_capital.lower() == correct_capital.lower())
+
+        # Format country and capital names for display
+        display_country = country_name.replace("_", " ")
 
         # Calculate elapsed time
         elapsed_time = round(time.time() - game["start_time"], 1)
 
-        # Check if the guess is correct
-        is_correct = (guessed_capital == correct_capital)
-
-        # Prepare the result message
+        # Prepare result message
         if is_correct:
-            # For correct answer
             result_message = f"✅ Correct! {user_name}, You Are A Marveller! (in {elapsed_time}s)\n\n"
-            result_message += f"🏙️ {guessed_capital} is indeed the capital of *{display_country_name}*!\n\n"
-
-            # Add country details
-            result_message += f"📊 Quick Facts:\n"
-            result_message += f"🌍 Region: {correct_country.get('region', 'Unknown')}\n"
-
-            # Add population and area
-            population = correct_country.get("population", 0)
-            area = correct_country.get("area", 0)
-            result_message += f"👥 Population: {self._format_population(population)}\n"
-            result_message += f"📏 Area: {self._format_area(area)}"
+            result_message += f"🏳️ *{display_country}*\n"
+            result_message += f"🏙️ Capital: *{correct_capital}*\n"
         else:
-            # For wrong answer
             result_message = f"❌ Wrong! {user_name}, You Are A VOZER : ))\n"
-            result_message += f"You selected *{guessed_capital}*.\n"
-            result_message += f"The capital of *{display_country_name}* is *{correct_capital}*.\n\n"
+            result_message += f"You guessed *{guessed_capital}*.\n"
+            result_message += f"The capital of *{display_country}* is *{correct_capital}*.\n\n"
 
-            # Add country details
-            result_message += f"📊 Quick Facts:\n"
-            result_message += f"🌍 Region: {correct_country.get('region', 'Unknown')}\n"
+        # Add additional country information
+        region = correct_country.get("region", "Unknown")
+        population = correct_country.get("population", 0)
+        area = correct_country.get("area", 0)
 
-            # Add population and area
-            population = correct_country.get("population", 0)
-            area = correct_country.get("area", 0)
-            result_message += f"👥 Population: {self._format_population(population)}\n"
-            result_message += f"📏 Area: {self._format_area(area)}"
+        result_message += f"📊 Country Facts:\n"
+        result_message += f"🌍 Region: {region}\n"
+        result_message += f"👥 Population: {self._format_population(population)}\n"
+        result_message += f"📏 Area: {self._format_area(area)}"
         result_message += f"\nBot Version: {self.bot_version}"
 
-        # Update user stats - pass the user_name here
-        self._update_user_stats(user_id, is_correct, current_mode, user_name)
+        # Update user stats
+        self._update_user_stats(user_id, is_correct, "capital", user_name)
 
-        # Clean up the active game
+        # Always clean up the game after showing the result
         if user_id in self.active_games:
+            # Cancel the timer job if it exists
+            if "timer_job" in self.active_games[user_id]:
+                self.active_games[user_id]["timer_job"].cancel()
             del self.active_games[user_id]
 
-        # Cancel the timer
-        self._cancel_timer(user_id)
-
         # Try to update the original message
+        message_id = update.callback_query.message.message_id
         try:
-            message_id = game.get("message_id")
-            if message_id:
-                await context.bot.edit_message_text(chat_id=chat_id,
-                                                    message_id=message_id,
-                                                    text=result_message,
-                                                    parse_mode="Markdown")
-            else:
-                # If we don't have the message ID, send a new message
-                await context.bot.send_message(chat_id=chat_id,
-                                               text=result_message,
-                                               parse_mode="Markdown")
-        except Exception as e:
-            logger.error(f"Error updating message with result: {e}")
-            # Fallback to sending a new message
-            await context.bot.send_message(chat_id=chat_id,
-                                           text=result_message,
-                                           parse_mode="Markdown")
+            # Capital game might be shown as a photo or text, so check message type
+            message = update.callback_query.message
 
-        # Send game navigation buttons
+            if hasattr(message, 'photo') and message.photo:
+                # This is a photo message, edit the caption
+                try:
+                    await context.bot.edit_message_caption(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        caption=result_message,
+                        parse_mode="Markdown")
+                except Exception as edit_error:
+                    logger.error(f"Error editing photo caption: {edit_error}")
+                    # Fallback to sending a new message
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=result_message,
+                        parse_mode="Markdown")
+            elif hasattr(message, 'text') and message.text:
+                # This is a text message, edit the text
+                try:
+                    await context.bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        text=result_message,
+                        parse_mode="Markdown")
+                except Exception as edit_error:
+                    logger.error(f"Error editing message text: {edit_error}")
+                    # Fallback to sending a new message
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=result_message,
+                        parse_mode="Markdown")
+            else:
+                # Neither photo nor text message, send a new message
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=result_message,
+                    parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Error updating message with capital guess result: {e}")
+            # Fallback to sending a new message
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=result_message,
+                parse_mode="Markdown")
+
+        # Send game navigation buttons after showing result
         await self._send_game_navigation(update, context)
 
     def _format_population(self, population: int) -> str:
@@ -1114,6 +1175,9 @@ class GameHandler:
             # Get the leaderboard data from the database
             leaderboard_data = leaderboard_db.get_leaderboard(limit=10)
 
+            # Log the retrieved data for debugging
+            logger.info(f"Retrieved leaderboard data: {leaderboard_data}")
+
             # If we have no data, show an appropriate message
             if not leaderboard_data:
                 await context.bot.send_message(
@@ -1124,8 +1188,16 @@ class GameHandler:
             # Build leaderboard message
             message = f"🏆 *Country Game Leaderboard* 🏆\n\n"
 
-            # Add top 10 users
-            for i, (user_id, user_name, accuracy, correct, total, modes) in enumerate(leaderboard_data, 1):
+            # Add top 10 users - using dictionary access instead of tuple unpacking for flexibility
+            for i, entry in enumerate(leaderboard_data, 1):
+                # Extract data from the entry dictionary
+                user_id = entry.get('user_id')
+                user_name = entry.get('name', f"User {user_id}")
+                accuracy = entry.get('accuracy', 0)
+                correct = entry.get('correct', 0)
+                total = entry.get('total', 0)
+                modes = entry.get('modes', {})
+
                 # Try to get the user's name from Telegram if available and not already provided
                 display_name = user_name
                 if display_name == f"User {user_id}":
@@ -1178,6 +1250,7 @@ class GameHandler:
 
         except Exception as e:
             logger.error(f"Error showing leaderboard: {e}")
+            logger.error(f"Error details: {traceback.format_exc()}")
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=f"Sorry, there was an error displaying the leaderboard.\n\nBot Version: {self.bot_version}"

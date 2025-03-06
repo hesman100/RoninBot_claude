@@ -229,11 +229,25 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Only post to channel if explicitly configured and channel ID is valid
         if TELEGRAM_CHANNEL_ID and TELEGRAM_CHANNEL_ID.strip():
             try:
+                # Check if the channel ID is a valid format
+                if not TELEGRAM_CHANNEL_ID.startswith('@') and not TELEGRAM_CHANNEL_ID.lstrip('-').isdigit():
+                    logger.warning(f"Invalid channel ID format: {TELEGRAM_CHANNEL_ID}")
+                    return
+
                 logger.info(
                     f"Attempting to post price update to channel {TELEGRAM_CHANNEL_ID}"
                 )
+
+                # Try to get the channel's chat to verify it exists
+                try:
+                    await context.bot.get_chat(TELEGRAM_CHANNEL_ID)
+                except Exception as chat_error:
+                    logger.error(f"Failed to verify channel exists: {chat_error}")
+                    return
+
+                # Send the message to the channel
                 await context.bot.send_message(chat_id=TELEGRAM_CHANNEL_ID,
-                                               text=message)
+                                              text=message)
                 logger.info("Successfully posted to channel")
             except Exception as channel_error:
                 logger.error(
