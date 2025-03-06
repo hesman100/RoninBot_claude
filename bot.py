@@ -21,6 +21,8 @@ import time
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
 
+BOT_VER = "1.4"
+
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -121,7 +123,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if is_group:
         welcome_message = (
-            "🤖 Welcome to the Ronin Bot (v1.3)!\n\n"
+            f"🤖 Welcome to the Ronin Bot (v{BOT_VER})!\n\n"
             "/help or /h - Show this help message\n\n"
             "\n ==== Price ==== \n"
             "/c <crypto> - Get price for any cryptocurrency\n"
@@ -142,7 +144,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "💡 Tip: Anyone in the group can use these commands!")
     else:
         welcome_message = (
-            "🤖 Welcome to the Ronin Bot (v1.3)!\n\n"
+            f"🤖 Welcome to the Ronin Bot (v{BOT_VER})!\n\n"
             "\n ==== Price ==== \n"
             "/c <crypto> - Get price for any cryptocurrency\n"
             "              (Example: /c BTC, /c BNB)\n"

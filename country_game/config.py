@@ -17,16 +17,36 @@ FLAG_IMAGES_PATH = os.path.join("country_game", "images", "wiki_flag")
 # Game settings
 MAX_ATTEMPTS = 3
 LEADERBOARD_SIZE = 10
-GAME_TIMEOUT = 15  # 15 seconds to answer
+GAME_TIMEOUT = 30  # 30 seconds to answer
 NUM_OPTIONS = 10  # Number of answer options to provide
 
 # Message templates
-CORRECT_ANSWER_MESSAGE = "✅ *Correct!* Well done!"
-WRONG_ANSWER_MESSAGE = "❌ That's not correct. The correct answer was *{}*."
+CORRECT_ANSWER_MESSAGE = """✅ *Correct!* Well done!
+
+*Country:* {}
+*Capital:* {}
+*Region:* {}
+*Population:* {}
+*Area:* {}"""
+
+WRONG_ANSWER_MESSAGE = """❌ That's not correct. The correct answer was *{}*.
+
+*Country:* {}
+*Capital:* {}
+*Region:* {}
+*Population:* {}
+*Area:* {}"""
+
 TOO_MANY_ATTEMPTS_MESSAGE = "❌ Sorry, that's not correct. The country was *{}*."
 NO_IMAGE_MESSAGE = "Sorry, I couldn't find a {} image for this country. Please try another game!"
 INVALID_MODE_MESSAGE = "Invalid game mode. Use /g help for options."
-TIMEOUT_MESSAGE = "⏱️ Time's up! The correct answer was *{}*."
+TIMEOUT_MESSAGE = """⏱️ Time's up! The correct answer was *{}*.
+
+*Country:* {}
+*Capital:* {}
+*Region:* {}
+*Population:* {}
+*Area:* {}"""
 
 # Help text
 HELP_TEXT = """
@@ -40,7 +60,7 @@ HELP_TEXT = """
 */g lb* - Show the leaderboard for all game modes
 
 To play: simply tap on the correct option from the choices provided.
-You have 15 seconds to answer each question.
+You have 30 seconds to answer each question.
 
 Bot version: {}
 """.format(BOT_VERSION)
