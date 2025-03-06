@@ -112,9 +112,9 @@ class APIRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_crypto_price(self, path_parts):
         """Handle cryptocurrency price requests"""
-        if len(path_parts) > 3:
+        if len(path_parts) > 4:
             # Get price for a specific cryptocurrency
-            symbol = path_parts[3].upper()
+            symbol = path_parts[4].upper()
             try:
                 logger.info(f"API: Fetching price for cryptocurrency: {symbol}")
                 price_data = crypto_api.get_price(symbol)
@@ -155,16 +155,19 @@ class APIRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_stock_price(self, path_parts):
         """Handle stock price requests"""
-        if len(path_parts) > 3:
+        if len(path_parts) > 4:
             # Get price for a specific stock
-            symbol = path_parts[3].upper()
+            symbol = path_parts[4].upper()
+            logger.info(f"API: Fetching price for stock: {symbol}")
             try:
                 price_data = stock_api.get_stock_price(symbol)
+                logger.info(f"API: Received stock price data: {price_data}")
 
                 # If AlphaVantage fails or hits rate limit, try Finnhub
                 if isinstance(price_data, dict) and "error" in price_data and "rate limit" in price_data["error"].lower():
                     logger.info("AlphaVantage rate limited, falling back to Finnhub")
                     price_data = finnhub_api.get_stock_price(symbol)
+                    logger.info(f"API: Finnhub data: {price_data}")
 
                 if isinstance(price_data, dict) and "error" in price_data:
                     self._send_response(404, {
@@ -185,7 +188,9 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         else:
             # Get prices for default stocks
             try:
+                logger.info("API: Fetching prices for default stocks")
                 price_data = stock_api.get_stock_prices()
+                logger.info(f"API: Received stock prices data: {price_data}")
 
                 # Check for rate limit or incomplete data
                 is_rate_limited = (isinstance(price_data, dict) and "error" in price_data and "rate limit" in price_data["error"].lower())
@@ -193,6 +198,7 @@ class APIRequestHandler(BaseHTTPRequestHandler):
                 if is_rate_limited:
                     logger.info("AlphaVantage rate limited, falling back to Finnhub")
                     finnhub_data = finnhub_api.get_stock_prices()
+                    logger.info(f"API: Finnhub data: {finnhub_data}")
 
                     # If Finnhub data is valid, use it
                     if isinstance(finnhub_data, dict) and "error" not in finnhub_data:
@@ -210,11 +216,13 @@ class APIRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_vn_stock_price(self, path_parts):
         """Handle Vietnam stock price requests"""
-        if len(path_parts) > 3:
+        if len(path_parts) > 4:
             # Get price for a specific Vietnam stock
-            symbol = path_parts[3].upper()
+            symbol = path_parts[4].upper()
+            logger.info(f"API: Fetching price for Vietnam stock: {symbol}")
             try:
                 price_data = vietnam_stock_api.get_stock_price(symbol)
+                logger.info(f"API: Received Vietnam stock price data: {price_data}")
 
                 if isinstance(price_data, dict) and "error" in price_data:
                     self._send_response(404, {
@@ -235,8 +243,10 @@ class APIRequestHandler(BaseHTTPRequestHandler):
         else:
             # Get prices for default Vietnam stocks
             try:
+                logger.info("API: Fetching prices for default Vietnam stocks")
                 from price_func.config import DEFAULT_VN_STOCKS
                 price_data = vietnam_stock_api.get_stock_prices(DEFAULT_VN_STOCKS)
+                logger.info(f"API: Received Vietnam stock prices data: {price_data}")
 
                 response = {
                     "status": "success",

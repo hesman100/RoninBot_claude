@@ -11,7 +11,7 @@ from price_func.config import (TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
                                DEFAULT_VN_STOCKS, SYMBOL_TO_DISPLAY)
 
 # Bot version - add version tracking
-BOT_VERSION = "1.3"
+BOT_VERSION = "1.4"
 
 from price_func.coinmarketcap_api import CoinMarketCapAPI
 from price_func.utils import format_price_message, format_error_message

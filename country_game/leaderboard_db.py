@@ -3,6 +3,7 @@ import logging
 import os
 import json
 from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -36,21 +37,61 @@ def init_db():
     )
     ''')
 
-    # Create user info table to store user names
+    # Create enhanced user info table to store user names and additional fields
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS user_info (
         user_id INTEGER PRIMARY KEY,
         user_name TEXT,
+        login_method TEXT DEFAULT 'telegram',
+        wallet_addr TEXT DEFAULT '0xtele',
+        language TEXT DEFAULT 'En',
+        first_time_login TEXT DEFAULT NULL,
         last_seen TEXT
     )
     ''')
+
+    # Add any missing columns to the user_info table if it already exists
+    # This is a safer approach than dropping and recreating the table
+    try:
+        # Check if login_method column exists
+        cursor.execute("SELECT login_method FROM user_info LIMIT 1")
+    except sqlite3.OperationalError:
+        # Column doesn't exist, add it
+        cursor.execute("ALTER TABLE user_info ADD COLUMN login_method TEXT DEFAULT 'telegram'")
+        logger.info("Added login_method column to user_info table")
+
+    try:
+        # Check if wallet_addr column exists
+        cursor.execute("SELECT wallet_addr FROM user_info LIMIT 1")
+    except sqlite3.OperationalError:
+        # Column doesn't exist, add it
+        cursor.execute("ALTER TABLE user_info ADD COLUMN wallet_addr TEXT DEFAULT '0xtele'")
+        logger.info("Added wallet_addr column to user_info table")
+
+    try:
+        # Check if language column exists
+        cursor.execute("SELECT language FROM user_info LIMIT 1")
+    except sqlite3.OperationalError:
+        # Column doesn't exist, add it
+        cursor.execute("ALTER TABLE user_info ADD COLUMN language TEXT DEFAULT 'En'")
+        logger.info("Added language column to user_info table")
+
+    try:
+        # Check if first_time_login column exists
+        cursor.execute("SELECT first_time_login FROM user_info LIMIT 1")
+    except sqlite3.OperationalError:
+        # Column doesn't exist, add it
+        cursor.execute("ALTER TABLE user_info ADD COLUMN first_time_login TEXT DEFAULT NULL")
+        logger.info("Added first_time_login column to user_info table")
 
     conn.commit()
     conn.close()
 
     logger.info("Leaderboard database initialized successfully")
 
-def update_user_stat(user_id: int, user_name: str, game_mode: str, is_correct: bool):
+def update_user_stat(user_id: int, user_name: str, game_mode: str, is_correct: bool, 
+                     login_method: str = 'telegram', wallet_addr: str = '0xtele', 
+                     language: str = 'En'):
     """
     Update a user's stats for a specific game mode.
 
@@ -59,16 +100,39 @@ def update_user_stat(user_id: int, user_name: str, game_mode: str, is_correct: b
         user_name: The user's display name
         game_mode: The game mode (map, flag, capital, cap)
         is_correct: Whether the answer was correct
+        login_method: How the user logged in (telegram, web, wallet)
+        wallet_addr: The user's wallet address (or '0xtele' for Telegram users)
+        language: The user's preferred language (Vi or En)
     """
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     try:
-        # Update user info
+        # Check if user exists
         cursor.execute('''
-        INSERT OR REPLACE INTO user_info (user_id, user_name, last_seen)
-        VALUES (?, ?, datetime('now'))
-        ''', (user_id, user_name))
+        SELECT user_id, first_time_login FROM user_info
+        WHERE user_id = ?
+        ''', (user_id,))
+
+        existing_user = cursor.fetchone()
+        current_time = datetime.now().isoformat()
+
+        if existing_user:
+            # User exists, update with new information
+            first_time_login = existing_user[1] or current_time
+            cursor.execute('''
+            UPDATE user_info 
+            SET user_name = ?, login_method = ?, wallet_addr = ?, language = ?, 
+                last_seen = datetime('now')
+            WHERE user_id = ?
+            ''', (user_name, login_method, wallet_addr, language, user_id))
+        else:
+            # New user, insert with first_time_login
+            cursor.execute('''
+            INSERT INTO user_info 
+            (user_id, user_name, login_method, wallet_addr, language, first_time_login, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (user_id, user_name, login_method, wallet_addr, language, current_time))
 
         # Check if user has stats for this mode
         cursor.execute('''
@@ -104,7 +168,7 @@ def update_user_stat(user_id: int, user_name: str, game_mode: str, is_correct: b
     finally:
         conn.close()
 
-def get_user_stats(user_id: int) -> Dict[str, Dict[str, int]]:
+def get_user_stats(user_id: int) -> Dict[str, Dict[str, Any]]:
     """
     Get all stats for a specific user.
 
@@ -115,6 +179,21 @@ def get_user_stats(user_id: int) -> Dict[str, Dict[str, int]]:
     cursor = conn.cursor()
 
     try:
+        # Get user info
+        cursor.execute('''
+        SELECT user_name, login_method, wallet_addr, language, first_time_login
+        FROM user_info
+        WHERE user_id = ?
+        ''', (user_id,))
+
+        user_info_row = cursor.fetchone()
+
+        if not user_info_row:
+            return {}
+
+        user_name, login_method, wallet_addr, language, first_time_login = user_info_row
+
+        # Get game stats
         cursor.execute('''
         SELECT game_mode, total_games, correct_games
         FROM leaderboard
@@ -123,10 +202,21 @@ def get_user_stats(user_id: int) -> Dict[str, Dict[str, int]]:
 
         results = cursor.fetchall()
 
-        stats = {}
+        stats = {
+            "user_info": {
+                "user_id": user_id,
+                "user_name": user_name,
+                "login_method": login_method,
+                "wallet_addr": wallet_addr,
+                "language": language,
+                "first_time_login": first_time_login
+            },
+            "game_stats": {}
+        }
+
         for row in results:
             game_mode, total, correct = row
-            stats[game_mode] = {"total": total, "correct": correct}
+            stats["game_stats"][game_mode] = {"total": total, "correct": correct}
 
         return stats
 
@@ -148,21 +238,34 @@ def get_all_user_stats() -> Dict[int, Dict[str, Any]]:
 
     try:
         cursor.execute('''
-        SELECT l.user_id, l.game_mode, l.total_games, l.correct_games, u.user_name
-        FROM leaderboard l
-        JOIN user_info u ON l.user_id = u.user_id
+        SELECT 
+            u.user_id, u.user_name, u.login_method, u.wallet_addr, 
+            u.language, u.first_time_login,
+            l.game_mode, l.total_games, l.correct_games
+        FROM user_info u
+        LEFT JOIN leaderboard l ON u.user_id = l.user_id
         ''')
 
         results = cursor.fetchall()
 
         all_stats = {}
         for row in results:
-            user_id, game_mode, total, correct, user_name = row
+            user_id, user_name, login_method, wallet_addr, language, first_time_login, game_mode, total, correct = row
 
             if user_id not in all_stats:
-                all_stats[user_id] = {"modes": {}, "name": user_name}
+                all_stats[user_id] = {
+                    "user_info": {
+                        "name": user_name,
+                        "login_method": login_method,
+                        "wallet_addr": wallet_addr,
+                        "language": language,
+                        "first_time_login": first_time_login
+                    },
+                    "modes": {}
+                }
 
-            all_stats[user_id]["modes"][game_mode] = {"total": total, "correct": correct}
+            if game_mode:  # Game mode could be None if no games played
+                all_stats[user_id]["modes"][game_mode] = {"total": total, "correct": correct}
 
         return all_stats
 
@@ -172,7 +275,7 @@ def get_all_user_stats() -> Dict[int, Dict[str, Any]]:
     finally:
         conn.close()
 
-def get_leaderboard(limit: int = 10) -> List[Tuple[int, str, float, int, int, Dict[str, Dict[str, Any]]]]:
+def get_leaderboard(limit: int = 10) -> List[Dict[str, Any]]:
     """
     Get the top users for the leaderboard.
 
@@ -180,7 +283,7 @@ def get_leaderboard(limit: int = 10) -> List[Tuple[int, str, float, int, int, Di
         limit: Maximum number of users to return
 
     Returns:
-        List of tuples with (user_id, user_name, accuracy, total_correct, total_games, modes_dict)
+        List of dictionaries with user stats
     """
     all_stats = get_all_user_stats()
 
@@ -188,7 +291,12 @@ def get_leaderboard(limit: int = 10) -> List[Tuple[int, str, float, int, int, Di
     user_totals = []
     for user_id, user_data in all_stats.items():
         modes = user_data.get("modes", {})
-        user_name = user_data.get("name", f"User {user_id}")
+        user_info = user_data.get("user_info", {})
+        user_name = user_info.get("name", f"User {user_id}")
+        login_method = user_info.get("login_method", "telegram")
+        wallet_addr = user_info.get("wallet_addr", "0xtele")
+        language = user_info.get("language", "En")
+        first_time_login = user_info.get("first_time_login")
 
         total_games = 0
         total_correct = 0
@@ -217,17 +325,26 @@ def get_leaderboard(limit: int = 10) -> List[Tuple[int, str, float, int, int, Di
         # Calculate overall accuracy
         overall_accuracy = (total_correct / total_games * 100) if total_games > 0 else 0
 
-        user_totals.append((
-            user_id,
-            user_name,
-            overall_accuracy,
-            total_correct,
-            total_games,
-            modes_with_accuracy
-        ))
+        user_totals.append({
+            "rank": 0,  # Will be filled in later
+            "user_id": user_id,
+            "name": user_name,
+            "login_method": login_method,
+            "wallet_addr": wallet_addr,
+            "language": language,
+            "first_time_login": first_time_login,
+            "score": total_correct,
+            "accuracy": round(overall_accuracy, 1),
+            "total_games": total_games,
+            "modes": modes_with_accuracy
+        })
 
     # Sort by overall accuracy (highest first)
-    sorted_users = sorted(user_totals, key=lambda x: x[2], reverse=True)
+    sorted_users = sorted(user_totals, key=lambda x: x["accuracy"], reverse=True)
+
+    # Add rank
+    for i, user in enumerate(sorted_users, 1):
+        user["rank"] = i
 
     # Return top users up to the limit
     return sorted_users[:limit]
@@ -259,13 +376,19 @@ def import_leaderboard_from_json(input_path: str = "leaderboard_backup.json"):
 
         for user_id, user_data in all_stats.items():
             user_id = int(user_id)  # JSON keys are strings
-            user_name = user_data.get("name", f"User {user_id}")
+            user_info = user_data.get("user_info", {})
+            user_name = user_info.get("name", f"User {user_id}")
+            login_method = user_info.get("login_method", "telegram")
+            wallet_addr = user_info.get("wallet_addr", "0xtele")
+            language = user_info.get("language", "En")
+            first_time_login = user_info.get("first_time_login")
 
             # Update user info
             cursor.execute('''
-            INSERT OR REPLACE INTO user_info (user_id, user_name, last_seen)
-            VALUES (?, ?, datetime('now'))
-            ''', (user_id, user_name))
+            INSERT OR REPLACE INTO user_info 
+            (user_id, user_name, login_method, wallet_addr, language, first_time_login, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (user_id, user_name, login_method, wallet_addr, language, first_time_login))
 
             # Update stats for each mode
             for mode, stats in user_data.get("modes", {}).items():
