@@ -478,7 +478,8 @@ class GameHandler:
             "country": country,
             "start_time": time.time(),
             "mode": game_mode,
-            "attempts": 0
+            "attempts": 0,
+            "user_name": user_name  # Store username for timeout handler
         }
 
         # Start a timer to end the game after GAME_TIMEOUT seconds
@@ -904,6 +905,8 @@ class GameHandler:
             )
 
             if user_id in self.active_games:
+                # Try to get username from the current game data or use a generic one
+                user_name = self.active_games[user_id].get("user_name", f"User {user_id}")
                 self._update_user_stats(user_id, False, game_mode, user_name)
                 message_id = game.get("message_id")
                 if message_id:
