@@ -1016,10 +1016,7 @@ class GameHandler:
                     InlineKeyboardButton("🏳️ Flag Mode", callback_data="play_flag")
                 ],
                 [
-                    InlineKeyboardButton("🌆 Capital Mode", callback_data="play_capital"),
-                    InlineKeyboardButton("🏙️ Cap Guess", callback_data="play_cap")
-                ],
-                [
+                    InlineKeyboardButton("🏙️ Capital Mode", callback_data="play_capital"),
                     InlineKeyboardButton("📊 Leaderboard", callback_data="show_leaderboard")
                 ]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1042,10 +1039,7 @@ class GameHandler:
                 InlineKeyboardButton("🏳️ Flag Mode", callback_data="play_flag")
             ],
             [
-                InlineKeyboardButton("🌆 Capital Mode", callback_data="play_capital"),
-                InlineKeyboardButton("🏙️ Cap Guess", callback_data="play_cap")
-            ],
-            [
+                InlineKeyboardButton("🏙️ Capital Mode", callback_data="play_capital"),
                 InlineKeyboardButton("📊 Leaderboard", callback_data="show_leaderboard")
             ]]
             reply_markup = InlineKeyboardMarkup(keyboard)
