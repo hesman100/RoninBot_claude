@@ -8,6 +8,7 @@ BOT_VERSION = "1.0.2"
 MAP_MODE = "map"
 FLAG_MODE = "flag"
 CAPITAL_MODE = "capital"
+CAP_MODE = "cap"  # Mode where user guesses capital from map
 
 # File paths
 DATABASE_PATH = os.path.join("country_game", "database", "countries.db")

@@ -505,6 +505,10 @@ class GameHandler:
                 await self._start_flag_game(update, context, country, user_id, chat_id, user_name)
             elif game_mode == CAPITAL_MODE:
                 await self._start_capital_game(update, context, country, user_id, chat_id, user_name)
+            elif game_mode == CAP_MODE:
+                # Cap mode is like map mode but user guesses the capital
+                # For now, we'll reuse the map game with a different message
+                await self._start_cap_game(update, context, country, user_id, chat_id, user_name)
             else:
                 logger.error(f"Invalid game mode: {game_mode}")
                 await context.bot.send_message(chat_id=chat_id, text="Invalid game mode selected.")
@@ -629,6 +633,46 @@ class GameHandler:
                 logger.info(f"Successfully sent capital game to user {user_id}")
         except Exception as e:
             logger.error(f"Error in _start_capital_game: {e}")
+            await context.bot.send_message(chat_id=chat_id, text="Sorry, there was an error starting the game. Please try again.")
+            if user_id in self.active_games:
+                del self.active_games[user_id]
+            await self._send_game_navigation(update, context)
+            
+    async def _start_cap_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, country: Dict, user_id: int, chat_id: int, user_name: str) -> None:
+        try:
+            logger.info(f"Starting cap (capital guessing) game for country: {country['name']}")
+            # Use correct image filename pattern with _locator_map.png suffix
+            map_path = os.path.join(MAP_IMAGES_PATH, f"{country['name']}_locator_map.png")
+            logger.info(f"Looking for map at: {map_path}")
+
+            # Try alternative pattern if the first one doesn't work
+            if not os.path.exists(map_path):
+                formatted_name = country['name'].replace(' ', '_')
+                map_path = os.path.join(MAP_IMAGES_PATH, f"{formatted_name}_locator_map.png")
+                logger.info(f"Alternative path: {map_path}")
+
+            if not os.path.exists(map_path) or not country.get("capital"):
+                logger.warning(f"Could not find map image or capital for {country['name']}")
+                await context.bot.send_message(chat_id=chat_id, text=NO_IMAGE_MESSAGE.format("map or capital"))
+                del self.active_games[user_id]
+                await self._send_game_navigation(update, context)
+                return
+
+            options = self._generate_options(country, CAPITAL_MODE)
+            keyboard = self._create_keyboard(options)
+            logger.info(f"Generated options: {options}")
+
+            with open(map_path, 'rb') as photo:
+                message = await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=photo,
+                    caption=f"🏙️ {user_name}, what is the capital city of {self._escape_markdown(country['name'])}? (⏱️ {GAME_TIMEOUT}s)\n\nChoose from the options below:",
+                    parse_mode="Markdown",
+                    reply_markup=keyboard)
+                self.active_games[user_id]["message_id"] = message.message_id
+                logger.info(f"Successfully sent cap game to user {user_id}")
+        except Exception as e:
+            logger.error(f"Error in _start_cap_game: {e}")
             await context.bot.send_message(chat_id=chat_id, text="Sorry, there was an error starting the game. Please try again.")
             if user_id in self.active_games:
                 del self.active_games[user_id]
