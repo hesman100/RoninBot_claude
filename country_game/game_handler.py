@@ -998,19 +998,29 @@ class GameHandler:
         
         Special handling for country names and population info:
         - Country names with underscores (_) are not escaped
-        - Population values keep their number formatting
+        - Population values keep their number formatting with decimal points
         """
         if not text or not isinstance(text, str):
             return str(text)
             
-        # Clean up any text that looks like a country name (contains underscores)
-        # or population value (contains "million", "billion", or number with commas)
-        if '_' in text or 'million' in text or 'billion' in text or (',' in text and any(c.isdigit() for c in text)):
+        # First determine if this is a special case text:
+        # - Country name (contains underscores)
+        # - Population/area value (contains "million", "billion", "thousand", or number with decimal points)
+        is_special_case = (
+            '_' in text or 
+            'million' in text or 
+            'billion' in text or 
+            'thousand' in text or
+            (',' in text and any(c.isdigit() for c in text)) or
+            ('.' in text and any(c.isdigit() for c in text))  # Handle decimal points in numbers
+        )
+            
+        if is_special_case:
             # For these special cases, only escape minimal set of characters that would break Markdown
             for char in ['*', '[', ']', '`', '>', '#']:
                 text = text.replace(char, f"\\{char}")
         else:
-            # Normal Markdown escaping for other text
+            # Normal Markdown escaping for other text (including the period character)
             for char in ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']:
                 text = text.replace(char, f"\\{char}")
         return text
