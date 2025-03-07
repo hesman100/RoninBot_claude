@@ -5,6 +5,7 @@ import re
 import time
 import sqlite3
 import asyncio
+import io
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Union, Any
 
@@ -542,14 +543,16 @@ class GameHandler:
             keyboard = self._create_keyboard(options)
             logger.info(f"Generated options: {options}")
 
-            with open(map_path, 'rb') as photo:
-                message = await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=photo,
-                    caption=f"🌍 {user_name}, which country is highlighted on this map? (⏱️ {GAME_TIMEOUT}s)",
-                    reply_markup=keyboard)
-                self.active_games[user_id]["message_id"] = message.message_id
-                logger.info(f"Successfully sent map game to user {user_id}")
+            # Resize map image to standard size (320px width)
+            photo_buffer = self._resize_image(map_path, width=320)
+            
+            message = await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=photo_buffer,
+                caption=f"🌍 {user_name}, which country is highlighted on this map? (⏱️ {GAME_TIMEOUT}s)",
+                reply_markup=keyboard)
+            self.active_games[user_id]["message_id"] = message.message_id
+            logger.info(f"Successfully sent map game to user {user_id}")
         except Exception as e:
             logger.error(f"Error in _start_map_game: {e}")
             await context.bot.send_message(chat_id=chat_id, text="Sorry, there was an error starting the game. Please try again.")
@@ -581,14 +584,16 @@ class GameHandler:
             keyboard = self._create_keyboard(options)
             logger.info(f"Generated options: {options}")
 
-            with open(flag_path, 'rb') as photo:
-                message = await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=photo,
-                    caption=f"🏳️ {user_name}, which country does this flag belong to? (⏱️ {GAME_TIMEOUT}s)",
-                    reply_markup=keyboard)
-                self.active_games[user_id]["message_id"] = message.message_id
-                logger.info(f"Successfully sent flag game to user {user_id}")
+            # Resize flag image to standard size (320px width)
+            photo_buffer = self._resize_image(flag_path, width=320)
+            
+            message = await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=photo_buffer,
+                caption=f"🏳️ {user_name}, which country does this flag belong to? (⏱️ {GAME_TIMEOUT}s)",
+                reply_markup=keyboard)
+            self.active_games[user_id]["message_id"] = message.message_id
+            logger.info(f"Successfully sent flag game to user {user_id}")
         except Exception as e:
             logger.error(f"Error in _start_flag_game: {e}")
             await context.bot.send_message(chat_id=chat_id, text="Sorry, there was an error starting the game. Please try again.")
@@ -620,15 +625,17 @@ class GameHandler:
             keyboard = self._create_keyboard(options)
             logger.info(f"Generated options: {options}")
 
-            with open(map_path, 'rb') as photo:
-                message = await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=photo,
-                    caption=f"🌍 {user_name}, what is the capital city of this country? (⏱️ {GAME_TIMEOUT}s)\n\nChoose from the options below:",
-                    parse_mode="Markdown",
-                    reply_markup=keyboard)
-                self.active_games[user_id]["message_id"] = message.message_id
-                logger.info(f"Successfully sent capital game to user {user_id}")
+            # Resize map image to standard size (320px width)
+            photo_buffer = self._resize_image(map_path, width=320)
+            
+            message = await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=photo_buffer,
+                caption=f"🌍 {user_name}, what is the capital city of this country? (⏱️ {GAME_TIMEOUT}s)\n\nChoose from the options below:",
+                parse_mode="Markdown",
+                reply_markup=keyboard)
+            self.active_games[user_id]["message_id"] = message.message_id
+            logger.info(f"Successfully sent capital game to user {user_id}")
         except Exception as e:
             logger.error(f"Error in _start_capital_game: {e}")
             await context.bot.send_message(chat_id=chat_id, text="Sorry, there was an error starting the game. Please try again.")
@@ -660,15 +667,17 @@ class GameHandler:
             keyboard = self._create_keyboard(options)
             logger.info(f"Generated options: {options}")
 
-            with open(map_path, 'rb') as photo:
-                message = await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=photo,
-                    caption=f"🏙️ {user_name}, what is the capital city of this country? (⏱️ {GAME_TIMEOUT}s)\n\nChoose from the options below:",
-                    parse_mode="Markdown",
-                    reply_markup=keyboard)
-                self.active_games[user_id]["message_id"] = message.message_id
-                logger.info(f"Successfully sent cap game to user {user_id}")
+            # Resize map image to standard size (320px width)
+            photo_buffer = self._resize_image(map_path, width=320)
+            
+            message = await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=photo_buffer,
+                caption=f"🏙️ {user_name}, what is the capital city of this country? (⏱️ {GAME_TIMEOUT}s)\n\nChoose from the options below:",
+                parse_mode="Markdown",
+                reply_markup=keyboard)
+            self.active_games[user_id]["message_id"] = message.message_id
+            logger.info(f"Successfully sent cap game to user {user_id}")
         except Exception as e:
             logger.error(f"Error in _start_cap_game: {e}")
             await context.bot.send_message(chat_id=chat_id, text="Sorry, there was an error starting the game. Please try again.")
@@ -935,6 +944,40 @@ class GameHandler:
             return "Unknown"
         return f"{area:,.0f} km²"
         
+    def _resize_image(self, image_path: str, width: int = 320) -> io.BytesIO:
+        """
+        Resize an image to a specified width while maintaining aspect ratio
+        
+        Args:
+            image_path (str): Path to the image file
+            width (int): Width to resize to (default: 320px)
+            
+        Returns:
+            io.BytesIO: Bytes buffer with the resized image
+        """
+        try:
+            # Open the image
+            with Image.open(image_path) as img:
+                # Calculate new height to maintain aspect ratio
+                w_percent = width / float(img.size[0])
+                height = int(float(img.size[1]) * float(w_percent))
+                
+                # Resize the image
+                resized_img = img.resize((width, height), Image.LANCZOS)
+                
+                # Save to a bytes buffer
+                buffer = io.BytesIO()
+                resized_img.save(buffer, format=img.format)
+                buffer.seek(0)
+                
+                return buffer
+        except Exception as e:
+            logger.error(f"Error resizing image {image_path}: {e}")
+            # If something goes wrong, just return the original file
+            with open(image_path, 'rb') as f:
+                buffer = io.BytesIO(f.read())
+                buffer.seek(0)
+                return buffer
     def _escape_markdown(self, text: str) -> str:
         """Escape Markdown special characters to prevent parsing errors
         

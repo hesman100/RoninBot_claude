@@ -6,7 +6,9 @@ import os
 import uuid
 import base64
 import logging
+import io
 from typing import Dict, Any, Optional
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
