@@ -4,12 +4,13 @@ This API provides a way for external applications to access the functionality of
 
 ## Latest Updates (March 2025)
 
+- Implemented system-wide image standardization with 320px width for consistent presentation
+- Enhanced all game modes (flag, map, capital) with proper image resizing functionality
+- Updated API image handling to maintain consistent image sizes across both bot and API responses
+- Fixed code structure issues and improved error handling in game handler methods
+- Verified API functionality with updated sample client and proper API key integration
 - Fixed database schema alignment issues - all database queries now correctly use 'total' and 'correct' column names
 - Enhanced user stats tracking with proper game mode separation
-- Improved error handling for all API endpoints
-- Optimized image data handling in game endpoints
-- Updated API response formats to match actual implementation
-- Ensured proper authentication with API key validation
 
 ## Features
 
@@ -269,8 +270,9 @@ GET /api/game/new?mode=map
   "options": ["France", "Germany", "Italy", "Spain", "United Kingdom"],
   "country_id": 42,
   "question": "Which country is highlighted on this map?",
-  "correct_answer": "France",
-  "image_path": "country_game/images/wiki_all_map_400pi/France_locator_map.png",
+  "image_data": "base64_encoded_image_data...",
+  "width": 320,
+  "height": 320,
   "country": {
     "name": "France",
     "capital": "Paris",
@@ -279,6 +281,13 @@ GET /api/game/new?mode=map
     "area": 551695
   }
 }
+```
+
+**Notes on Image Handling**:
+- All images are standardized to a width of 320px for consistent presentation
+- Map images maintain a square aspect ratio (320x320)
+- Flag images maintain their original aspect ratio with width of 320px
+- Capital mode ("cap") does not include images
 ```
 
 #### Verify a Game Answer
