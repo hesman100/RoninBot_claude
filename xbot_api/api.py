@@ -220,6 +220,75 @@ def get_vietnam_stock_prices():
 
 # --- Game Endpoints ---
 
+def get_database_connection():
+    """
+    Get a database connection safely
+    
+    Returns:
+        sqlite3.Connection: Database connection
+    """
+    try:
+        # Try to access the connection from game_handler
+        return game_handler._conn
+    except AttributeError:
+        # If that fails, create a new connection
+        try:
+            import sqlite3
+            conn = sqlite3.connect("country_game/database/countries.db")
+            conn.row_factory = sqlite3.Row
+            return conn
+        except Exception as e:
+            logger.error(f"Error creating database connection: {e}")
+            return None
+
+def get_countries():
+    """
+    Safely get the countries data from the game handler
+    
+    Returns:
+        List[Dict]: List of country dictionaries
+    """
+    try:
+        # Try to access the _countries attribute directly
+        return game_handler._countries
+    except AttributeError:
+        # If that fails, try to access through the database connection
+        try:
+            conn = get_database_connection()
+            if not conn:
+                return []
+                
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM countries")
+            columns = [col[0] for col in cursor.description]
+            
+            countries = []
+            for row in cursor.fetchall():
+                country = dict(zip(columns, row))
+                countries.append(country)
+                
+            return countries
+        except Exception as e:
+            logger.error(f"Error getting countries data: {e}")
+            return []
+
+def get_user_stats_data(user_id):
+    """
+    Safely get user stats from the game handler
+    
+    Args:
+        user_id (int): User ID
+        
+    Returns:
+        Dict: User stats dictionary
+    """
+    try:
+        # Try to access user stats directly
+        return game_handler._user_stats.get(user_id, {})
+    except AttributeError:
+        # If that fails, return an empty dict
+        return {}
+
 @app.route("/api/game/new", methods=["GET"])
 @require_api_key
 def get_new_game():
@@ -236,11 +305,38 @@ def get_new_game():
         return jsonify({"error": f"Invalid game mode: {mode}. Must be 'map', 'flag', or 'cap'"}), 400
     
     try:
+        # Get countries data
+        countries = get_countries()
+        if not countries:
+            return jsonify({"error": "Failed to get countries data"}), 500
+            
         # Get a random country
-        country = random.choice(game_handler._countries)
+        country = random.choice(countries)
         
-        # Generate options
-        options = game_handler._generate_options(country, mode)
+        # Generate options - either use the method or create our own
+        try:
+            options = game_handler._generate_options(country, mode)
+        except AttributeError:
+            # Fallback if method is not accessible
+            if mode in ["map", "flag"]:
+                # For map/flag modes, options are country names
+                country_names = [c["name"] for c in countries]
+                options = [country["name"]]  # Add correct answer
+                
+                # Add random wrong answers
+                other_countries = [c["name"] for c in countries if c["name"] != country["name"]]
+                options.extend(random.sample(other_countries, min(4, len(other_countries))))
+                random.shuffle(options)
+            else:
+                # For capital mode, options are capital cities
+                capitals = [c["capital"] for c in countries if c["capital"]]
+                options = [country["capital"]]  # Add correct answer
+                
+                # Add random wrong answers
+                other_capitals = [c["capital"] for c in countries 
+                                if c["capital"] and c["capital"] != country["capital"]]
+                options.extend(random.sample(other_capitals, min(4, len(other_capitals))))
+                random.shuffle(options)
         
         # Create a unique game ID
         game_id = int(time.time() * 1000)
@@ -320,7 +416,8 @@ def verify_answer():
     
     # Get country data
     country_id = data.get("country_id")
-    country = next((c for c in game_handler._countries if c["id"] == country_id), None)
+    countries = get_countries()
+    country = next((c for c in countries if c["id"] == country_id), None)
     
     if not country:
         return jsonify({"error": f"Country with ID {country_id} not found"}), 404
@@ -355,17 +452,91 @@ def verify_answer():
         user_name
     )
     
-    # Save user stats to database
-    game_handler._save_user_stats_to_database(
-        numeric_user_id, 
-        data.get("mode"), 
-        game_handler._user_stats.get(numeric_user_id, {}),
-        metadata
-    )
+    # Try to update stats in database using game_handler methods
+    try:
+        game_handler._update_user_stats(
+            numeric_user_id, 
+            is_correct, 
+            data.get("mode"),
+            user_name
+        )
+        
+        # Save user stats to database
+        game_handler._save_user_stats_to_database(
+            numeric_user_id, 
+            data.get("mode"), 
+            get_user_stats_data(numeric_user_id),
+            metadata
+        )
+    except Exception as e:
+        # If that fails, directly update the database
+        logger.warning(f"Failed to update stats using game_handler: {e}")
+        try:
+            conn = get_database_connection()
+            if conn:
+                cursor = conn.cursor()
+                # Check if user exists
+                cursor.execute(
+                    "SELECT * FROM user_stats WHERE user_id = ? AND game_mode = ?",
+                    (numeric_user_id, data.get("mode"))
+                )
+                row = cursor.fetchone()
+                
+                current_time = int(time.time())
+                
+                if row:
+                    # Update existing record
+                    cursor.execute(
+                        """
+                        UPDATE user_stats SET 
+                            total_questions = total_questions + 1,
+                            correct_answers = correct_answers + ?,
+                            user_name = ?,
+                            login_method = ?
+                        WHERE user_id = ? AND game_mode = ?
+                        """,
+                        (1 if is_correct else 0, user_name, login_method, numeric_user_id, data.get("mode"))
+                    )
+                else:
+                    # Insert new record
+                    cursor.execute(
+                        """
+                        INSERT INTO user_stats (
+                            user_id, game_mode, total_questions, correct_answers,
+                            user_name, login_method, first_play_timestamp
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (numeric_user_id, data.get("mode"), 1, 1 if is_correct else 0,
+                         user_name, login_method, current_time)
+                    )
+                
+                # Add wallet address if provided
+                if wallet_address:
+                    cursor.execute(
+                        "UPDATE user_stats SET wallet_address = ? WHERE user_id = ?",
+                        (wallet_address, numeric_user_id)
+                    )
+                    
+                conn.commit()
+        except Exception as db_err:
+            logger.error(f"Failed to update database directly: {db_err}")
     
-    # Get updated user stats
-    user_stats = game_handler._user_stats.get(numeric_user_id, {})
-    mode_stats = user_stats.get(data.get("mode"), {})
+    # Get updated user stats directly from database
+    mode_stats = {"total": 0, "correct": 0}
+    try:
+        conn = get_database_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT total_questions, correct_answers FROM user_stats WHERE user_id = ? AND game_mode = ?",
+                (numeric_user_id, data.get("mode"))
+            )
+            row = cursor.fetchone()
+            if row:
+                total, correct = row
+                mode_stats = {"total": total, "correct": correct}
+    except Exception as stats_err:
+        logger.error(f"Failed to get user stats from database: {stats_err}")
     
     # Clean up game data
     del active_games[game_id]
