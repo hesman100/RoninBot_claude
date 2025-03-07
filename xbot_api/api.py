@@ -424,7 +424,7 @@ def verify_answer():
     # Get country data
     country_id = data.get("country_id")
     countries = get_countries()
-    country = next((c for c in countries if c["id"] == country_id), None)
+    country = next((c for c in countries if c.get("id", 0) == country_id), None)
     
     if not country:
         return jsonify({"error": f"Country with ID {country_id} not found"}), 404
@@ -451,13 +451,6 @@ def verify_answer():
     wallet_address = data.get("wallet_address")
     if wallet_address:
         metadata["wallet_address"] = wallet_address
-        
-    game_handler._update_user_stats(
-        numeric_user_id, 
-        is_correct, 
-        data.get("mode"),
-        user_name
-    )
     
     # Try to update stats in database using game_handler methods
     try:
@@ -584,7 +577,9 @@ def get_leaderboard():
     
     try:
         # Query database for leaderboard data
-        conn = game_handler._conn
+        conn = get_database_connection()
+        if not conn:
+            return jsonify({"error": "Failed to connect to database"}), 500
         cursor = conn.cursor()
         
         if mode == "all":
@@ -696,7 +691,9 @@ def get_user_stats():
             user_id = hash(user_id_str) % (10 ** 10)
         
         # Query database for user stats
-        conn = game_handler._conn
+        conn = get_database_connection()
+        if not conn:
+            return jsonify({"error": "Failed to connect to database"}), 500
         cursor = conn.cursor()
         
         # Get user metadata

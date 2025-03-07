@@ -13,7 +13,7 @@ from PIL import Image
 
 # API configuration
 API_BASE_URL = "http://localhost:5001/api"
-API_KEY = "c04a4520-baad-41bd-a2a8-55e10b323826"  # Generated API key from server logs
+API_KEY = "814ad7f6-8510-4e0f-9c74-63444f2d145d"  # Generated API key from server logs
 
 # Set up headers with API key
 HEADERS = {
@@ -189,25 +189,41 @@ def main():
     # Game functionality
     print("\nStarting a new game...")
     game = get_new_game("map")
-    print(f"Game question: {game['question']}")
-    print(f"Options: {', '.join(game['options'])}")
     
-    # For demonstration, we'll provide the correct answer
-    print("\nVerifying the answer...")
-    correct_answer = game["country"]["name"]
-    result = verify_answer(game, correct_answer)
-    print(f"Correct answer: {result['is_correct']}")
-    print(f"User stats: {json.dumps(result['user_stats'], indent=2)}")
+    if "error" in game:
+        print(f"Error: {game['error']}")
+    else:
+        print(f"Game question: {game.get('question', 'No question available')}")
+        print(f"Options: {', '.join(game.get('options', []))}")
+        
+        # For demonstration, we'll provide the correct answer
+        print("\nVerifying the answer...")
+        try:
+            correct_answer = game.get("country", {}).get("name", "")
+            if correct_answer:
+                result = verify_answer(game, correct_answer)
+                print(f"Correct answer: {result.get('is_correct', False)}")
+                print(f"User stats: {json.dumps(result.get('user_stats', {}), indent=2)}")
+            else:
+                print("Cannot verify answer: no country name found in response")
+        except Exception as e:
+            print(f"Error verifying answer: {e}")
     
     # Get leaderboard
     print("\nFetching leaderboard...")
     leaderboard = get_leaderboard()
-    print(f"Leaderboard: {json.dumps(leaderboard, indent=2)}")
+    if "error" in leaderboard:
+        print(f"Error fetching leaderboard: {leaderboard['error']}")
+    else:
+        print(f"Leaderboard: {json.dumps(leaderboard, indent=2)}")
     
     # Get user stats
     print("\nFetching user stats...")
     stats = get_user_stats("sample_user_123")
-    print(f"User stats: {json.dumps(stats, indent=2)}")
+    if "error" in stats:
+        print(f"Error fetching user stats: {stats['error']}")
+    else:
+        print(f"User stats: {json.dumps(stats, indent=2)}")
     
 if __name__ == "__main__":
     main()
