@@ -3,20 +3,27 @@ Utility functions for the XBot API
 """
 
 import os
+import uuid
+import base64
 import logging
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, Any, Optional
 
-logger = logging.getLogger('xbot_api.utils')
+logger = logging.getLogger(__name__)
 
 def get_api_key() -> str:
-    """Get the API key from environment variable or generate one"""
+    """
+    Get the API key from environment variable or generate one
+    
+    Returns:
+        str: The API key to use for authentication
+    """
     api_key = os.environ.get("XBOT_API_KEY")
     if not api_key:
-        # Generate a random key for development
-        import uuid
+        # Generate a random API key if not set
         api_key = str(uuid.uuid4())
         logger.warning(f"Generated random API key: {api_key}")
         logger.warning("Set XBOT_API_KEY environment variable for production use")
+    
     return api_key
 
 def prepare_image_response(image_path: str) -> Dict[str, Any]:
@@ -29,34 +36,27 @@ def prepare_image_response(image_path: str) -> Dict[str, Any]:
     Returns:
         Dict: Dictionary with image data and metadata
     """
-    if not os.path.exists(image_path):
-        return {"error": f"Image not found: {image_path}"}
-    
-    import base64
-    
-    # Get image file extension
-    _, ext = os.path.splitext(image_path)
-    mime_type = {
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.svg': 'image/svg+xml'
-    }.get(ext.lower(), 'application/octet-stream')
-    
-    # Read and encode the image
     try:
-        with open(image_path, 'rb') as img_file:
-            encoded_img = base64.b64encode(img_file.read()).decode('utf-8')
+        with open(image_path, "rb") as image_file:
+            encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
             
-        return {
-            "image_data": encoded_img,
-            "mime_type": mime_type,
-            "filename": os.path.basename(image_path)
-        }
+            # Get file extension
+            file_extension = image_path.split(".")[-1].lower()
+            mime_type = f"image/{file_extension}"
+            if file_extension == "jpg":
+                mime_type = "image/jpeg"
+                
+            return {
+                "image_data": encoded_image,
+                "mime_type": mime_type,
+                "image_path": image_path
+            }
     except Exception as e:
         logger.error(f"Error preparing image response: {e}")
-        return {"error": f"Error processing image: {str(e)}"}
+        return {
+            "error": f"Failed to load image: {str(e)}",
+            "image_path": image_path
+        }
 
 def format_country_data(country: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -68,30 +68,11 @@ def format_country_data(country: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict: Formatted country data
     """
-    # Format population
-    population = country.get("population", 0)
-    if population >= 1000000000:
-        formatted_population = f"{population/1000000000:.2f} billion"
-    elif population >= 1000000:
-        formatted_population = f"{population/1000000:.2f} million"
-    elif population >= 1000:
-        formatted_population = f"{population/1000:.1f} thousand"
-    else:
-        formatted_population = str(population)
-    
-    # Format area
-    area = country.get("area", 0)
-    formatted_area = f"{area:,.0f} km²" if area else "Unknown"
-    
     return {
         "id": country.get("id"),
-        "name": country.get("name", "Unknown"),
-        "capital": country.get("capital", "Unknown"),
-        "region": country.get("region", "Unknown"),
-        "population": population,
-        "area": area,
-        "formatted_population": formatted_population,
-        "formatted_area": formatted_area,
-        "neighbors": country.get("neighbors", []),
-        "neighbor_capitals": country.get("neighbor_capitals", [])
+        "name": country.get("name"),
+        "capital": country.get("capital"),
+        "region": country.get("region"),
+        "population": country.get("population"),
+        "area": country.get("area"),
     }

@@ -1,3 +1,5 @@
-# XBot API Package
-# This package provides access to the Telegram bot's functionality
-# through a REST API interface
+"""
+XBot API Package
+"""
+
+__version__ = '0.1.0'
