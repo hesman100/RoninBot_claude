@@ -13,7 +13,7 @@ from PIL import Image
 
 # API configuration
 API_BASE_URL = "http://localhost:5001/api"
-API_KEY = "814ad7f6-8510-4e0f-9c74-63444f2d145d"  # Generated API key from server logs
+API_KEY = "adcc4b14-4d4c-463a-b9e0-d2d9e36f6fea"  # Generated API key from server logs
 
 # Set up headers with API key
 HEADERS = {
