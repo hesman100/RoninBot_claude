@@ -489,8 +489,8 @@ def verify_answer():
                     cursor.execute(
                         """
                         UPDATE user_stats SET 
-                            total_questions = total_questions + 1,
-                            correct_answers = correct_answers + ?,
+                            total = total + 1,
+                            correct = correct + ?,
                             user_name = ?,
                             login_method = ?
                         WHERE user_id = ? AND game_mode = ?
@@ -502,7 +502,7 @@ def verify_answer():
                     cursor.execute(
                         """
                         INSERT INTO user_stats (
-                            user_id, game_mode, total_questions, correct_answers,
+                            user_id, game_mode, total, correct,
                             user_name, login_method, first_play_timestamp
                         ) VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
@@ -528,7 +528,7 @@ def verify_answer():
         if conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT total_questions, correct_answers FROM user_stats WHERE user_id = ? AND game_mode = ?",
+                "SELECT total, correct FROM user_stats WHERE user_id = ? AND game_mode = ?",
                 (numeric_user_id, data.get("mode"))
             )
             row = cursor.fetchone()
@@ -591,8 +591,8 @@ def get_leaderboard():
                 login_method,
                 wallet_address,
                 first_play_timestamp,
-                SUM(total_questions) as total, 
-                SUM(correct_answers) as correct
+                SUM(total) as total, 
+                SUM(correct) as correct
             FROM user_stats
             GROUP BY user_id
             ORDER BY correct DESC, total ASC
@@ -608,8 +608,8 @@ def get_leaderboard():
                 login_method,
                 wallet_address,
                 first_play_timestamp,
-                total_questions as total, 
-                correct_answers as correct
+                total, 
+                correct
             FROM user_stats
             WHERE game_mode = ?
             ORDER BY correct DESC, total ASC
@@ -643,8 +643,8 @@ def get_leaderboard():
                 for game_mode in ["map", "flag", "cap"]:
                     mode_query = """
                     SELECT 
-                        total_questions, 
-                        correct_answers
+                        total, 
+                        correct
                     FROM user_stats
                     WHERE user_id = ? AND game_mode = ?
                     """
@@ -718,8 +718,8 @@ def get_user_stats():
         # Get overall stats
         query = """
         SELECT 
-            SUM(total_questions) as total, 
-            SUM(correct_answers) as correct
+            SUM(total) as total, 
+            SUM(correct) as correct
         FROM user_stats
         WHERE user_id = ?
         """
@@ -737,8 +737,8 @@ def get_user_stats():
         for game_mode in ["map", "flag", "cap"]:
             mode_query = """
             SELECT 
-                total_questions, 
-                correct_answers
+                total, 
+                correct
             FROM user_stats
             WHERE user_id = ? AND game_mode = ?
             """
