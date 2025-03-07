@@ -21,8 +21,7 @@ from country_game.config import (CAPITAL_MODE, CAP_MODE, DATABASE_PATH, FLAG_MOD
 
 logger = logging.getLogger(__name__)
 
-# Game configuration constants
-GAME_TIMEOUT = 30  # seconds - changed from 15 to 30 seconds
+# Game configuration constants (from config.py, used here for easier imports)
 MAX_HINT_COUNTRIES = 9  # Maximum number of hint countries to display
 
 class GameHandler:

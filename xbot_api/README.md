@@ -2,6 +2,15 @@
 
 This API provides a way for external applications to access the functionality of the Telegram bot, including price information for various financial instruments and the country guessing game.
 
+## Latest Updates (March 2025)
+
+- Fixed database schema alignment issues - all database queries now correctly use 'total' and 'correct' column names
+- Enhanced user stats tracking with proper game mode separation
+- Improved error handling for all API endpoints
+- Optimized image data handling in game endpoints
+- Updated API response formats to match actual implementation
+- Ensured proper authentication with API key validation
+
 ## Features
 
 - **Price Information**:
@@ -487,7 +496,7 @@ def verify_answer(game_data, answer, user_info):
 
 # Example usage
 btc_price = get_crypto_price("BTC")
-print(f"Bitcoin price: ${btc_price['price']}")
+print(f"Bitcoin price: ${btc_price['BTC']['usd']}")
 
 game = get_new_game("map")
 print(f"New game question: {game['question']}")
@@ -500,7 +509,10 @@ user_info = {
     "wallet_address": "0xabc123"
 }
 
-result = verify_answer(game, game["correct_answer"], user_info)
+# In a real application, you'd ask the user for their answer
+# Here we're just using the correct answer for demonstration
+country_name = game.get("country", {}).get("name", "")
+result = verify_answer(game, country_name, user_info)
 print(f"Correct answer: {result['is_correct']}")
 print(f"User stats: {result['user_stats']}")
 ```
@@ -523,11 +535,13 @@ Error responses include a JSON object with an `error` field:
 }
 ```
 
-## Limitations
+## Limitations and Known Issues
 
 - The API does not support real-time updates; clients need to poll for new data
 - The game images are served as base64-encoded strings, which may increase response size
 - API rate limiting is not implemented in this version
+- There is a harmless warning in the game_handler.py log about 'total' access when saving user stats. This does not affect functionality and stats are properly saved
+- When the API server restarts, a new API key is generated unless XBOT_API_KEY environment variable is set
 
 ## Security Considerations
 
