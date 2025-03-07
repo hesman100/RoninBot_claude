@@ -462,10 +462,20 @@ def verify_answer():
         )
         
         # Save user stats to database
+        user_stats = get_user_stats_data(numeric_user_id)
+        game_mode = data.get("mode")
+        
+        # Get the specific game mode stats or create default if not exists
+        if game_mode in user_stats:
+            mode_stats = user_stats.get(game_mode, {"total": 1, "correct": 1 if is_correct else 0})
+        else:
+            # If we don't have stats for this mode yet, initialize with this game's result
+            mode_stats = {"total": 1, "correct": 1 if is_correct else 0}
+            
         game_handler._save_user_stats_to_database(
             numeric_user_id, 
-            data.get("mode"), 
-            get_user_stats_data(numeric_user_id),
+            game_mode, 
+            mode_stats,
             metadata
         )
     except Exception as e:

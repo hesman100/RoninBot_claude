@@ -936,12 +936,25 @@ class GameHandler:
         return f"{area:,.0f} km²"
         
     def _escape_markdown(self, text: str) -> str:
-        """Escape Markdown special characters to prevent parsing errors"""
+        """Escape Markdown special characters to prevent parsing errors
+        
+        Special handling for country names and population info:
+        - Country names with underscores (_) are not escaped
+        - Population values keep their number formatting
+        """
         if not text or not isinstance(text, str):
             return str(text)
-        # Escape characters that have special meaning in Markdown
-        for char in ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']:
-            text = text.replace(char, f"\\{char}")
+            
+        # Clean up any text that looks like a country name (contains underscores)
+        # or population value (contains "million", "billion", or number with commas)
+        if '_' in text or 'million' in text or 'billion' in text or (',' in text and any(c.isdigit() for c in text)):
+            # For these special cases, only escape minimal set of characters that would break Markdown
+            for char in ['*', '[', ']', '`', '>', '#']:
+                text = text.replace(char, f"\\{char}")
+        else:
+            # Normal Markdown escaping for other text
+            for char in ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']:
+                text = text.replace(char, f"\\{char}")
         return text
 
     def _cancel_timer(self, user_id: int) -> None:
