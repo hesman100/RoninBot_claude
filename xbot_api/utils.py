@@ -49,20 +49,32 @@ def prepare_image_response(image_path: str, width: int = 320) -> Dict[str, Any]:
         # Resize the image while maintaining aspect ratio
         try:
             with Image.open(image_path) as img:
+                # Get original dimensions for logging
+                original_width, original_height = img.size
+                logger.info(f"Original image dimensions: {original_width}x{original_height}")
+                
                 # Calculate new height to maintain aspect ratio
-                w_percent = width / float(img.size[0])
-                height = int(float(img.size[1]) * float(w_percent))
+                w_percent = width / float(original_width)
+                height = int(float(original_height) * float(w_percent))
                 
                 # Resize the image
                 resized_img = img.resize((width, height), Image.LANCZOS)
                 
+                # Log the resized dimensions
+                logger.info(f"Resized image dimensions: {width}x{height}")
+                
                 # Save to a bytes buffer
                 buffer = io.BytesIO()
-                img_format = file_extension.upper()
-                if img_format == 'JPG':
-                    img_format = 'JPEG'
-                resized_img.save(buffer, format=img_format)
+                if image_path.lower().endswith('.png'):
+                    resized_img.save(buffer, format='PNG')
+                else:
+                    resized_img.save(buffer, format='JPEG', quality=95)
+                
                 buffer.seek(0)
+                
+                # Log buffer size
+                buffer_size = buffer.getbuffer().nbytes
+                logger.info(f"Resized image buffer size: {buffer_size} bytes")
                 
                 # Encode to base64
                 encoded_image = base64.b64encode(buffer.read()).decode("utf-8")
@@ -78,7 +90,23 @@ def prepare_image_response(image_path: str, width: int = 320) -> Dict[str, Any]:
             # If resizing fails, use the original image
             logger.warning(f"Error resizing image {image_path}: {resize_error}. Using original.")
             with open(image_path, "rb") as image_file:
-                encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
+                image_data = image_file.read()
+                encoded_image = base64.b64encode(image_data).decode("utf-8")
+                
+                # Try to get the original dimensions from the file
+                try:
+                    with Image.open(io.BytesIO(image_data)) as img:
+                        orig_width, orig_height = img.size
+                        return {
+                            "image_data": encoded_image,
+                            "mime_type": mime_type,
+                            "image_path": image_path,
+                            "width": orig_width,
+                            "height": orig_height,
+                            "note": "Using original image (resize failed)"
+                        }
+                except:
+                    pass
                 
                 return {
                     "image_data": encoded_image,

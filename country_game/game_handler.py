@@ -958,17 +958,32 @@ class GameHandler:
         try:
             # Open the image
             with Image.open(image_path) as img:
+                # Get original dimensions for logging
+                original_width, original_height = img.size
+                logger.info(f"Original image dimensions: {original_width}x{original_height}")
+                
                 # Calculate new height to maintain aspect ratio
-                w_percent = width / float(img.size[0])
-                height = int(float(img.size[1]) * float(w_percent))
+                w_percent = width / float(original_width)
+                height = int(float(original_height) * float(w_percent))
                 
                 # Resize the image
                 resized_img = img.resize((width, height), Image.LANCZOS)
                 
+                # Log the resized dimensions
+                logger.info(f"Resized image dimensions: {width}x{height}")
+                
                 # Save to a bytes buffer
                 buffer = io.BytesIO()
-                resized_img.save(buffer, format=img.format)
+                if image_path.lower().endswith('.png'):
+                    resized_img.save(buffer, format='PNG')
+                else:
+                    resized_img.save(buffer, format='JPEG', quality=95)
+                
                 buffer.seek(0)
+                
+                # Log buffer size
+                buffer_size = buffer.getbuffer().nbytes
+                logger.info(f"Resized image buffer size: {buffer_size} bytes")
                 
                 return buffer
         except Exception as e:
