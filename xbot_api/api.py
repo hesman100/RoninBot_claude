@@ -343,9 +343,9 @@ def get_new_game():
         
         # Store the game data
         active_games[game_id] = {
-            "country_id": country["id"],
+            "country_id": country.get("id", 0),  # Use get with default to avoid KeyError
             "mode": mode,
-            "correct_answer": country["name"] if mode in ["map", "flag"] else country["capital"],
+            "correct_answer": country.get("name", "") if mode in ["map", "flag"] else country.get("capital", ""),
             "timestamp": time.time()
         }
         
@@ -354,22 +354,29 @@ def get_new_game():
             "game_id": game_id,
             "mode": mode,
             "options": options,
-            "country_id": country["id"],
+            "country_id": country.get("id", 0),
             "question": (
                 "Which country is highlighted on this map?" if mode == "map" 
                 else "Which country does this flag belong to?" if mode == "flag"
-                else f"What is the capital of {country['name']}?"
+                else f"What is the capital of {country.get('name', '')}?"
             ),
             "country": format_country_data(country)
         }
         
         # Add image data if needed
-        if mode == "map":
-            map_image_path = f"country_game/images/wiki_all_map_400pi/{country['name'].replace(' ', '_')}_locator_map.png"
-            response.update(prepare_image_response(map_image_path))
-        elif mode == "flag":
-            flag_image_path = f"country_game/images/wiki_flag/{country['name'].replace(' ', '_')}_flag.png"
-            response.update(prepare_image_response(flag_image_path))
+        try:
+            if mode == "map":
+                country_name = country.get("name", "")
+                if country_name:
+                    map_image_path = f"country_game/images/wiki_all_map_400pi/{country_name.replace(' ', '_')}_locator_map.png"
+                    response.update(prepare_image_response(map_image_path))
+            elif mode == "flag":
+                country_name = country.get("name", "")
+                if country_name:
+                    flag_image_path = f"country_game/images/wiki_flag/{country_name.replace(' ', '_')}_flag.png"
+                    response.update(prepare_image_response(flag_image_path))
+        except Exception as img_err:
+            logger.warning(f"Error preparing image response: {img_err}")
         
         return jsonify(response)
     except Exception as e:
