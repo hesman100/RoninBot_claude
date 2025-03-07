@@ -367,8 +367,8 @@ class GameHandler:
             
             # Calculate totals across all game modes
             for mode, stats in modes.items():
-                if mode == "metadata":
-                    continue  # Skip the metadata dict when summing game stats
+                if mode == "metadata" or mode == "capital":
+                    continue  # Skip the metadata dict and deprecated capital mode when summing game stats
                 
                 # Make sure this is a game stats dictionary
                 if isinstance(stats, dict) and "total" in stats and "correct" in stats:
@@ -440,8 +440,7 @@ class GameHandler:
                 mode_display = {
                     "map": "🗺️ Map",
                     "flag": "🏳️ Flag",
-                    "capital": "🏙️ Capital",
-                    "cap": "🏙️ Capital Guess"
+                    "cap": "🏙️ Capital"
                 }.get(mode, mode)
 
                 message += f"  {mode_display}: {mode_stats['accuracy']:.1f}% ({mode_stats['correct']}/{mode_stats['total']})\n"
@@ -666,7 +665,7 @@ class GameHandler:
                 message = await context.bot.send_photo(
                     chat_id=chat_id,
                     photo=photo,
-                    caption=f"🏙️ {user_name}, what is the capital city of {self._escape_markdown(country['name'])}? (⏱️ {GAME_TIMEOUT}s)\n\nChoose from the options below:",
+                    caption=f"🏙️ {user_name}, what is the capital city of this country? (⏱️ {GAME_TIMEOUT}s)\n\nChoose from the options below:",
                     parse_mode="Markdown",
                     reply_markup=keyboard)
                 self.active_games[user_id]["message_id"] = message.message_id
