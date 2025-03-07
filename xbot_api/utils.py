@@ -28,31 +28,63 @@ def get_api_key() -> str:
     
     return api_key
 
-def prepare_image_response(image_path: str) -> Dict[str, Any]:
+def prepare_image_response(image_path: str, width: int = 320) -> Dict[str, Any]:
     """
     Prepare an image response for API requests
     
     Args:
         image_path (str): Path to the image file
+        width (int): Width to resize the image to (default: 320px)
         
     Returns:
         Dict: Dictionary with image data and metadata
     """
     try:
-        with open(image_path, "rb") as image_file:
-            encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
-            
-            # Get file extension
-            file_extension = image_path.split(".")[-1].lower()
-            mime_type = f"image/{file_extension}"
-            if file_extension == "jpg":
-                mime_type = "image/jpeg"
+        # Get file extension
+        file_extension = image_path.split(".")[-1].lower()
+        mime_type = f"image/{file_extension}"
+        if file_extension == "jpg":
+            mime_type = "image/jpeg"
+        
+        # Resize the image while maintaining aspect ratio
+        try:
+            with Image.open(image_path) as img:
+                # Calculate new height to maintain aspect ratio
+                w_percent = width / float(img.size[0])
+                height = int(float(img.size[1]) * float(w_percent))
                 
-            return {
-                "image_data": encoded_image,
-                "mime_type": mime_type,
-                "image_path": image_path
-            }
+                # Resize the image
+                resized_img = img.resize((width, height), Image.LANCZOS)
+                
+                # Save to a bytes buffer
+                buffer = io.BytesIO()
+                img_format = file_extension.upper()
+                if img_format == 'JPG':
+                    img_format = 'JPEG'
+                resized_img.save(buffer, format=img_format)
+                buffer.seek(0)
+                
+                # Encode to base64
+                encoded_image = base64.b64encode(buffer.read()).decode("utf-8")
+                
+                return {
+                    "image_data": encoded_image,
+                    "mime_type": mime_type,
+                    "image_path": image_path,
+                    "width": width,
+                    "height": height
+                }
+        except Exception as resize_error:
+            # If resizing fails, use the original image
+            logger.warning(f"Error resizing image {image_path}: {resize_error}. Using original.")
+            with open(image_path, "rb") as image_file:
+                encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
+                
+                return {
+                    "image_data": encoded_image,
+                    "mime_type": mime_type,
+                    "image_path": image_path
+                }
     except Exception as e:
         logger.error(f"Error preparing image response: {e}")
         return {

@@ -13,7 +13,7 @@ from PIL import Image
 
 # API configuration
 API_BASE_URL = "http://localhost:5001/api"
-API_KEY = "fb0c8df2-fedb-4355-85ee-0270421286a3"  # Generated API key from server logs
+API_KEY = "631c0ea5-427b-4df6-8a18-fa43924854b7"  # Generated API key from server logs
 
 # Set up headers with API key
 HEADERS = {
@@ -195,6 +195,18 @@ def main():
     else:
         print(f"Game question: {game.get('question', 'No question available')}")
         print(f"Options: {', '.join(game.get('options', []))}")
+        
+        # Display image dimensions if available
+        if "width" in game and "height" in game:
+            print(f"Image dimensions: {game['width']}x{game['height']}")
+        elif "image_data" in game:
+            # Decode the image to get dimensions
+            try:
+                image_bytes = base64.b64decode(game["image_data"])
+                with Image.open(BytesIO(image_bytes)) as img:
+                    print(f"Image dimensions from data: {img.width}x{img.height}")
+            except Exception as e:
+                print(f"Error getting image dimensions: {e}")
         
         # For demonstration, we'll provide the correct answer
         print("\nVerifying the answer...")
