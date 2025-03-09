@@ -50,15 +50,17 @@ active_games = {}
 
 def validate_api_key(request_api_key: str) -> bool:
     """Validate the provided API key against the expected API key"""
-    expected_api_key = os.environ.get("XBOT_API_KEY")
+    # Get the expected API key from utils to ensure consistency
+    from xbot_api.utils import get_api_key
+    expected_api_key = get_api_key()
     return expected_api_key == request_api_key
 
 def require_api_key(func):
     """Decorator to require API key for certain routes"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        # Get API key from header
-        api_key = request.headers.get("X-API-Key")
+        # Get API key from header or query parameters
+        api_key = request.headers.get("X-API-Key") or request.args.get("api_key")
         
         # Validate API key
         if not api_key or not validate_api_key(api_key):
