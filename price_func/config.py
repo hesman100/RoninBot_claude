@@ -26,17 +26,18 @@ DEFAULT_CRYPTOCURRENCIES = [
 # Default stocks to track
 DEFAULT_STOCKS = [
     "TSLA",  # Tesla
-    "NVDA",  # NVIDIA
+    "VFS",  # Vinfast
     "AAPL",  # Apple
-    "MRVL",  # Marvell
     "AMZN",  # Amazon
     "CDNS",  # Cadence
     "MSFT",  # Microsoft
     "GOOGL",  # Google
     "META",  # Meta
+    "NVDA",  # NVIDIA
     "INTC",  # Intel
     "QCOM",  # Qualcomm
     "AVGO",  # Broadcom
+    "MRVL",  # Marvell
 ]
 
 # Mapping of CoinMarketCap symbols to display names (for formatting)
@@ -81,6 +82,7 @@ STOCK_COMPANY_NAMES = {
     'INTC': 'Intel Corporation',
     'QCOM': 'Qualcomm Inc.',
     'AVGO': 'Broadcom Inc.',
+    'VFS': 'VinFast Auto Ltd',
 }
 
 # Default Vietnam stocks to track

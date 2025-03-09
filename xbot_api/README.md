@@ -52,7 +52,45 @@ The server will start on port 5001 by default. You can change this by setting th
 
 ### API Authentication
 
-All API endpoints (except the health check) require an API key to be included in the `X-API-Key` header. The API key is generated when the server starts if the `XBOT_API_KEY` environment variable is not set.
+All API endpoints (except the health check) require an API key to be included in the `X-API-Key` header.
+
+#### Getting the API Key
+
+There are three ways to get an API key:
+
+1. **Use the Default API Key**:
+   - Value: `xbot-default-api-key-9876543210`
+   - This is the simplest option for development and testing purposes
+   - Works out of the box without any configuration
+
+2. **Check Server Logs**:
+   - When the server starts, it logs the current API key being used
+   - Look for a log message saying "Using default API key" or "Starting XBot API server with API key"
+
+3. **Set a Custom API Key**:
+   - Set the `XBOT_API_KEY` environment variable before starting the server
+   - Example: `export XBOT_API_KEY="your-custom-api-key"`
+   - This is recommended for production environments
+
+#### Using the API Key
+
+Include the API key in the `X-API-Key` header of all your requests:
+
+```bash
+curl -H "X-API-Key: xbot-default-api-key-9876543210" http://localhost:5001/api/crypto/prices
+```
+
+Or when using the JavaScript Fetch API:
+
+```javascript
+fetch('http://localhost:5001/api/crypto/prices', {
+  headers: {
+    'X-API-Key': 'xbot-default-api-key-9876543210'
+  }
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
 
 ## API Reference
 

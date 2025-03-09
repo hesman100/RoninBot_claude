@@ -21,7 +21,7 @@ import time
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
 
-BOT_VER = "1.4"
+BOT_VER = "1.4.1"
 
 # Configure logging
 logging.basicConfig(

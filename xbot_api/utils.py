@@ -14,17 +14,20 @@ logger = logging.getLogger(__name__)
 
 def get_api_key() -> str:
     """
-    Get the API key from environment variable or generate one
+    Get the API key from environment variable or use default API key
     
     Returns:
         str: The API key to use for authentication
     """
+    # First check environment variable
     api_key = os.environ.get("XBOT_API_KEY")
+    
+    # If not set, use default API key for easier integration
     if not api_key:
-        # Generate a random API key if not set
-        api_key = str(uuid.uuid4())
-        logger.warning(f"Generated random API key: {api_key}")
-        logger.warning("Set XBOT_API_KEY environment variable for production use")
+        # Use a fixed default API key for consistent access
+        api_key = "xbot-default-api-key-9876543210"
+        logger.info(f"Using default API key: {api_key}")
+        logger.info("For production, set XBOT_API_KEY environment variable to override")
     
     return api_key
 
