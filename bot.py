@@ -21,7 +21,7 @@ import time
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
 
-BOT_VER = "1.4.1"
+BOT_VER = "1.4.2"
 
 # Configure logging
 logging.basicConfig(
@@ -447,10 +447,26 @@ def main() -> None:
     # Ensure only one instance runs
     lock_fd = acquire_lock()
 
+    # Start API server in a background thread
+    try:
+        import sys
+        from xbot_api.server import run_in_thread
+        
+        # Update the API port to use 5000 for shared access
+        os.environ["API_PORT"] = "5000"
+        
+        api_thread = run_in_thread()
+        logger.info("API server thread started")
+    except Exception as e:
+        logger.error(f"Failed to start API server: {str(e)}")
+        # Continue with bot initialization even if API server fails
+
     # Start HTTP server in a separate thread for Autoscale health checks
-    http_thread = threading.Thread(target=run_http_server, daemon=True)
-    http_thread.start()
-    logger.info("HTTP server thread started")
+    # Note: The health check now needs to be modified to work with Flask
+    # Will use Flask for health checks too
+    # http_thread = threading.Thread(target=run_http_server, daemon=True)
+    # http_thread.start()
+    # logger.info("HTTP server thread started")
 
     while True:
         try:

@@ -6,11 +6,18 @@ Run this script to start the API server
 import os
 import sys
 import logging
+import threading
 from .api import app
 from .utils import get_api_key
+from werkzeug.serving import make_server
+
+# Global server instance for shutdown
+server = None
 
 def main():
     """Run the XBot API server"""
+    global server
+    
     # Set up logging
     logging.basicConfig(
         level=logging.INFO,
@@ -26,9 +33,23 @@ def main():
     # Get port from environment or use default
     port = int(os.environ.get("API_PORT", 5001))
     
-    # Start the server
+    # Create the server
     logger.info(f"Server running on port {port}")
-    app.run(host='0.0.0.0', port=port)
+    server = make_server('0.0.0.0', port, app)
+    server.serve_forever()
+
+def shutdown_server():
+    """Shut down the API server"""
+    global server
+    if server:
+        server.shutdown()
+
+def run_in_thread():
+    """Run the API server in a thread"""
+    api_thread = threading.Thread(target=main)
+    api_thread.daemon = True
+    api_thread.start()
+    return api_thread
 
 if __name__ == '__main__':
     main()

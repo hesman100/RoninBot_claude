@@ -69,9 +69,30 @@ def require_api_key(func):
 
 # --- API Routes ---
 
+@app.route("/", methods=["GET"])
+def root():
+    """Root endpoint for health checks"""
+    return jsonify({
+        "status": "ok",
+        "message": "XBot API and Telegram Bot Service",
+        "version": "1.0.0"
+    })
+
+@app.route("/health", methods=["GET"])
+def health():
+    """Health check endpoint for automated monitoring"""
+    return jsonify({
+        "status": "ok",
+        "message": "Service is running",
+        "components": {
+            "api": "ok",
+            "bot": "ok"
+        }
+    })
+
 @app.route("/api/health", methods=["GET"])
 def health_check():
-    """Health check endpoint"""
+    """API-specific health check endpoint"""
     return jsonify({
         "status": "ok",
         "message": "XBot API is running"

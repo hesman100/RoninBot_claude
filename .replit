@@ -13,14 +13,10 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "API Server"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Telegram Bot"
+args = "Bot with API"
 
 [[workflows.workflow]]
-name = "API Server"
+name = "Bot with API"
 author = "agent"
 
 [workflows.workflow.metadata]
@@ -31,24 +27,12 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python run_api_server.py"
-waitForPort = 5001
+args = "python bot.py"
 
-[[workflows.workflow]]
-name = "Telegram Bot"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python3 bot.py"
-
+#[deployment]
+#run = ["sh", "-c", "python run_api_server.py"]
 [deployment]
+#run = ["sh", "-c", "python3 run_all.py"]
 run = ["sh", "-c", "python3 bot.py"]
 deploymentTarget = "cloudrun"
 
