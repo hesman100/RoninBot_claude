@@ -203,12 +203,14 @@ Image dimensions (actual): 320x160
    - Added detailed logging of original and resized dimensions
    - Added buffer size logging for performance monitoring
 
-2. **Capital Mode Bug Fix**:
-   - Fixed critical issue in Capital mode where verification responses returned incorrect country data
+2. **Game Mode Bug Fixes**:
+   - Fixed critical issue in all game modes (Map, Flag, Capital) where verification responses returned incorrect country data
    - Implemented direct country name matching to ensure consistent data throughout the game session
    - Added detailed logging for country lookup and verification processes
    - Ensured the original country from the question is returned in the verification response
-   - Confirmed fix with comprehensive testing across multiple countries
+   - Implemented additional verification to check for ID mismatches between stored name and retrieved country
+   - Added fallback mechanisms to prioritize the stored country name over ID lookups
+   - Confirmed fixes with comprehensive testing across multiple countries and all game modes
 
 3. **Error Handling Improvements**:
    - Added robust exception handling in image processing

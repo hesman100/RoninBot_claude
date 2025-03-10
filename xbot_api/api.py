@@ -457,33 +457,32 @@ def verify_answer():
     is_correct = user_answer.lower() == correct_answer.lower()
     
     # Get country data
-    # For Capital mode, prioritize using the country_name from game data
+    # Prioritize using the country_name from game data for all modes
     mode = data.get("mode")
     countries = get_countries()
     country = None
     
-    if mode == "cap":
-        # For capital mode, first try to find by stored country name
-        country_name = game_data.get("country_name", "")
-        
-        if country_name:
-            logger.info(f"Capital mode: Looking for country with name: '{country_name}'")
-            # First try direct lookup by name
-            for c in countries:
-                if c.get("name") == country_name:
-                    country = c
-                    logger.info(f"Found country by direct name match: {country.get('name')} (id: {country.get('id')})")
-                    break
-            
-            # If direct lookup fails, try case-insensitive
-            if not country:
-                for c in countries:
-                    if c.get("name", "").lower() == country_name.lower():
-                        country = c
-                        logger.warning(f"Found country by case-insensitive name match: {country.get('name')} (id: {country.get('id')})")
-                        break
+    # First try to find by stored country name for all modes
+    country_name = game_data.get("country_name", "")
     
-    # If Capital mode lookup failed or it's another mode, try ID-based lookup
+    if country_name:
+        logger.info(f"{mode.upper()} mode: Looking for country with name: '{country_name}'")
+        # First try direct lookup by name
+        for c in countries:
+            if c.get("name") == country_name:
+                country = c
+                logger.info(f"Found country by direct name match: {country.get('name')} (id: {country.get('id')})")
+                break
+        
+        # If direct lookup fails, try case-insensitive
+        if not country:
+            for c in countries:
+                if c.get("name", "").lower() == country_name.lower():
+                    country = c
+                    logger.warning(f"Found country by case-insensitive name match: {country.get('name')} (id: {country.get('id')})")
+                    break
+    
+    # If name-based lookup failed, try ID-based lookup
     if not country:
         # Try to get the country ID from the game data which is more reliable
         country_id = game_data.get("country_id")
@@ -495,6 +494,16 @@ def verify_answer():
         
         if country:
             logger.info(f"Found country by ID {country_id}: {country.get('name')}")
+            # Double-check with stored country name
+            stored_name = game_data.get("country_name", "")
+            if stored_name and country.get("name") != stored_name:
+                logger.warning(f"ID mismatch! ID {country_id} returned {country.get('name')} but stored name was {stored_name}")
+                # Try to override with the stored name
+                for c in countries:
+                    if c.get("name") == stored_name:
+                        country = c
+                        logger.info(f"Corrected to use stored country: {country.get('name')}")
+                        break
     
     # If we still don't have a country, try other lookup methods
     if not country:
