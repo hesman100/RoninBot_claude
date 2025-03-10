@@ -133,7 +133,10 @@ def format_country_data(country: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict: Formatted country data
     """
-    return {
+    # Debug to see what we're formatting
+    logger.info(f"Formatting country data: {country.get('name')} (capital: {country.get('capital')})")
+    
+    formatted = {
         "id": country.get("id"),
         "name": country.get("name"),
         "capital": country.get("capital"),
@@ -141,3 +144,8 @@ def format_country_data(country: Dict[str, Any]) -> Dict[str, Any]:
         "population": country.get("population"),
         "area": country.get("area"),
     }
+    
+    # Debug the result
+    logger.info(f"Formatted country data: {formatted}")
+    
+    return formatted
