@@ -334,8 +334,29 @@ def get_new_game():
     Returns:
     - JSON with game question details
     """
-    # Get or generate a unique client request ID
-    client_request_id = request.args.get("client_request_id", str(uuid.uuid4()))
+    # Get the client request ID if provided
+    client_request_id = request.args.get("client_request_id")
+    
+    # If not provided, check for other common client-side cache-busting parameters
+    if not client_request_id:
+        # Common timestamp parameters used by clients to prevent caching
+        for param in ["_t", "t", "timestamp", "ts", "time", "uuid", "random"]:
+            if param in request.args:
+                # Convert the value to a stable client request ID
+                client_request_id = f"auto-{param}-{request.args.get(param)}"
+                logger.info(f"Using {param} parameter as client request ID: {client_request_id}")
+                break
+    
+    # If still no client ID, use IP + user agent to generate one 
+    # This ensures the same user's requests will get the same country
+    if not client_request_id:
+        ip = request.remote_addr or "127.0.0.1"
+        user_agent = request.headers.get("User-Agent", "")
+        # Generate a stable ID based on IP and user agent
+        # Use only part of the user agent to avoid variations
+        user_agent_hash = hashlib.md5(user_agent.encode()).hexdigest()[:8] if user_agent else ""
+        client_request_id = f"ip-{ip}-ua-{user_agent_hash}-{int(time.time()/300)}"  # Changes every 5 minutes
+        logger.info(f"Generated client request ID from IP and user agent: {client_request_id}")
     
     # Check if we already have a response for this client request ID
     # This is the first line of defense against multiple responses
