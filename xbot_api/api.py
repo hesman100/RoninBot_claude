@@ -51,6 +51,9 @@ logging.basicConfig(level=logging.INFO)
 request_locks = {}
 lock_for_locks = threading.Lock()
 
+# Cache to store responses by client request ID to prevent duplicate responses
+request_response_cache = {}
+
 # Active games dictionary
 active_games = {}
 
@@ -325,12 +328,20 @@ def get_new_game():
     
     Query Parameters:
     - mode: Game mode ('map', 'flag', or 'cap')
+    - client_request_id: Optional unique ID provided by client to prevent multiple responses
     
     Returns:
     - JSON with game question details
     """
-    # Generate a unique request ID to prevent duplicate responses
-    request_id = str(uuid.uuid4())
+    # Get or generate a unique client request ID
+    client_request_id = request.args.get("client_request_id", str(uuid.uuid4()))
+    
+    # Check if we already have a response for this client request ID
+    # This is the first line of defense against multiple responses
+    with lock_for_locks:
+        if client_request_id in request_response_cache:
+            logger.info(f"Using cached response for client request ID: {client_request_id}")
+            return jsonify(request_response_cache[client_request_id])
     
     # Use the request path + query as a key for the lock
     request_key = f"{request.path}?{request.query_string.decode('utf-8')}"
@@ -343,7 +354,8 @@ def get_new_game():
             logger.warning(f"Duplicate request detected for {request_key}")
             return jsonify({
                 "error": "This request is already being processed",
-                "status": "duplicate_request"
+                "status": "duplicate_request",
+                "client_request_id": client_request_id
             }), 429
         else:
             # Create a new lock for this request
@@ -365,7 +377,7 @@ def get_new_game():
                     return jsonify({"error": f"Invalid game mode: {mode}. Must be 'map', 'flag', or 'cap'"}), 400
                 
                 # Log that we're processing this request with a unique ID
-                logger.info(f"Processing game request ID {request_id} for mode {mode}")
+                logger.info(f"Processing game request with client ID {client_request_id} for mode {mode}")
                 
                 # Get countries data
                 countries = get_countries()
@@ -400,8 +412,11 @@ def get_new_game():
                         options.extend(random.sample(other_capitals, min(4, len(other_capitals))))
                         random.shuffle(options)
                 
-                # Create a unique game ID
-                game_id = int(time.time() * 1000)
+                # Create a deterministic game ID based on the client request ID
+                # This ensures that even if this code runs twice for the same request,
+                # it will generate the same game ID
+                game_id_seed = int(hashlib.md5(client_request_id.encode()).hexdigest(), 16) % 10**10
+                game_id = int(str(int(time.time()))[:6] + str(game_id_seed)[:4])  # timestamp + hash
                 
                 # Store the game data
                 game_entry = {
@@ -409,13 +424,17 @@ def get_new_game():
                     "mode": mode,
                     "correct_answer": country.get("name", "") if mode in ["map", "flag"] else country.get("capital", ""),
                     "timestamp": time.time(),
-                    "country_name": country.get("name", "")  # Store country name for all modes
+                    "country_name": country.get("name", ""),  # Store country name for all modes
+                    "client_request_id": client_request_id  # Store the client request ID for reference
                 }
                 
                 # Debug: log what we're storing
                 logger.info(f"Storing game with ID {game_id}: country_name={game_entry.get('country_name')}, mode={mode}")
                 
-                active_games[game_id] = game_entry
+                # Store the game only if it doesn't already exist
+                # This is important for idempotency
+                if game_id not in active_games:
+                    active_games[game_id] = game_entry
                 
                 # Prepare response
                 response = {
@@ -423,7 +442,7 @@ def get_new_game():
                     "mode": mode,
                     "options": options,
                     "country_id": country.get("id", 0),
-                    "request_id": request_id,  # Include the request ID in the response
+                    "client_request_id": client_request_id,  # Include the client request ID in the response
                     "question": (
                         "Which country is highlighted on this map?" if mode == "map" 
                         else "Which country does this flag belong to?" if mode == "flag"
@@ -453,8 +472,24 @@ def get_new_game():
                 except Exception as img_err:
                     logger.warning(f"Error preparing image response: {img_err}")
                 
+                # Cache the response with the client request ID
+                # This ensures that subsequent requests with the same client ID
+                # get the exact same response, preventing flickering
+                with lock_for_locks:
+                    request_response_cache[client_request_id] = response
+                    
+                    # Cleanup old cache entries if we have too many
+                    if len(request_response_cache) > 1000:  # arbitrary limit
+                        oldest_keys = sorted(
+                            request_response_cache.keys(),
+                            key=lambda k: request_response_cache[k].get("timestamp", 0)
+                        )[:100]  # Remove oldest 100
+                        for key in oldest_keys:
+                            if key in request_response_cache:
+                                del request_response_cache[key]
+                
                 # Log that we're sending a response
-                logger.info(f"Sending response for request ID {request_id}")
+                logger.info(f"Sending response for client request ID {client_request_id}")
                 
                 return jsonify(response)
             
@@ -464,7 +499,7 @@ def get_new_game():
                 
         except Exception as e:
             logger.error(f"Error creating new game: {e}")
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": str(e), "client_request_id": client_request_id}), 500
 
 @app.route("/api/game/verify", methods=["POST"])
 @require_api_key

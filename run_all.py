@@ -36,6 +36,10 @@ def signal_handler(sig, frame):
 def main():
     """Run both the API server and the Telegram bot"""
     global api_process, bot_process
+
+    # Set your custom API key here
+    os.environ["XBOT_API_KEY"] = "geo-841e2b00e535e71f"  # Replace with your API key
+
     
     # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)
