@@ -9,19 +9,19 @@ This project combines a Telegram bot with a REST API service, providing both int
 - Stock price information via commands like `/stock AAPL`
 - Vietnam stock price information via commands like `/vnstock VNM`
 - Interactive country guessing game with multiple modes:
-  - Map mode: guess the country from a map image
-  - Flag mode: guess the country from a flag image
+  - Map mode: guess the country from a map image (320x320px)
+  - Flag mode: guess the country from a flag image (320x160px)
   - Capital mode: guess the country's capital city
-- Comprehensive user statistics tracking
-- Global leaderboard
+- Comprehensive user statistics tracking with accuracy percentages
+- Global leaderboard with sorting by game mode
 
 ### REST API
 - Complete API access to all bot functionality
-- Cryptocurrency price endpoints
-- Stock price endpoints
-- Vietnam stock price endpoints
-- Country game endpoints (new game, verify answer)
-- User statistics and leaderboard endpoints
+- Cryptocurrency price endpoints with real-time market data
+- Stock price endpoints supporting US and international markets
+- Vietnam stock price endpoints with specialized market access
+- Country game endpoints (new game, verify answer) with consistent data
+- User statistics and leaderboard endpoints with filtering options
 - Supports both header-based and query parameter API key authentication
 
 ## Getting Started

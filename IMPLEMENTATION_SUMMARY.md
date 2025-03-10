@@ -7,17 +7,19 @@
 - **Enhanced Game Modes**: 
   - **Map Mode**: Fixed to display square 320x320 images
   - **Flag Mode**: Maintains original aspect ratio with standardized 320px width
-  - **Capital Mode**: Text-only quiz about capital cities
-
+  - **Capital Mode**: Fixed critical bug where verification returned incorrect country data
+  
 - **API Enhancements**:
   - Updated all image responses to include width and height metadata
   - Fixed API authentication with proper key validation
   - Enhanced error handling for more robust operation
+  - Improved country data consistency across API responses
 
 - **User Experience**:
   - Consistent image presentation across Telegram bot and API
   - Improved game statistics tracking with mode-specific data
   - Leaderboard enhancements for better user engagement
+  - Fixed verification response for Capital mode to return the correct country data
 
 ## Technical Implementation
 
@@ -201,21 +203,30 @@ Image dimensions (actual): 320x160
    - Added detailed logging of original and resized dimensions
    - Added buffer size logging for performance monitoring
 
-2. **Error Handling Improvements**:
+2. **Capital Mode Bug Fix**:
+   - Fixed critical issue in Capital mode where verification responses returned incorrect country data
+   - Implemented direct country name matching to ensure consistent data throughout the game session
+   - Added detailed logging for country lookup and verification processes
+   - Ensured the original country from the question is returned in the verification response
+   - Confirmed fix with comprehensive testing across multiple countries
+
+3. **Error Handling Improvements**:
    - Added robust exception handling in image processing
    - Implemented fallback to original image when resizing fails
    - Enhanced error reporting with detailed logs
+   - Improved country data consistency error handling
 
-3. **Consistent API Key Handling**:
+4. **Consistent API Key Handling**:
    - Updated API key management for consistent authentication
    - Documented API key usage across sample clients
 
-4. **Testing Infrastructure**:
+5. **Testing Infrastructure**:
    - Implemented automated testing for all game modes
    - Added image dimension verification
    - Created testing tools for API functionality
+   - Developed specific tests for Capital mode to verify country data consistency
 
-5. **Platform-Specific Behaviors**:
+6. **Platform-Specific Behaviors**:
    - Acknowledged Telegram's client-side image resizing behavior
    - Images appear larger in question view and smaller in result view due to how Telegram handles images with longer captions
    - This is standard behavior for all Telegram bots and is expected by users
