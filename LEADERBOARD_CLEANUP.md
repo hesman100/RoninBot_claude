@@ -1,34 +1,123 @@
-# Leaderboard Cleanup Summary
+# Leaderboard Cleanup Guide
 
-## Issue
-The country game leaderboard was showing "Test User" entries in the Telegram bot's `/g lb` command, even though these entries had been removed from the API leaderboard.
+This document explains how to clean up test users from the leaderboard database on your deployment server.
 
-## Solution
-We created a comprehensive cleanup script (`clean_leaderboard.py`) that:
+## Option 1: Run the cleanup script directly
 
-1. Identified all users in the database (found only one legitimate user: ID 396254641)
-2. Removed any entries with "Test User" or "Sample User" in the name 
-3. Removed all users except the legitimate one
-4. Restarted the Telegram bot to clear any cached data
+The project includes a ready-to-use cleanup script (`clean_leaderboard.py`) that will:
 
-## Results
-- The leaderboard now contains only one legitimate user (appears as "Anonymous")
-- All test users have been completely removed
-- Both the API and Telegram bot leaderboards show consistent data
+1. Remove test users (Test User, Sample User, Anonymous User, etc.) from the database
+2. Restart the bot to clear any cached data
+3. Verify the cleanup was successful
 
-## Current Leaderboard State
-- Total entries: 1 user
-- User stats:
-  - Anonymous (ID: 396254641): 24/68 (35.3% accuracy)
-  - Maps: 13/26 (50% accuracy)
-  - Flags: 7/23 (30.4% accuracy) 
-  - Capitals: 3/11 (27.3% accuracy)
+To run it:
 
-## Implementation Notes
-The leaderboard data is stored in the `user_stats` table within the `country_game/database/countries.db` SQLite database. This table contains:
-- User identification (user_id, user_name)
-- Game mode information (game_mode: 'map', 'flag', 'cap')
-- Performance metrics (total questions, correct answers)
-- Additional metadata (login_method, wallet_address, first_play_timestamp)
+```bash
+python clean_leaderboard.py
+```
 
-Both the API server and Telegram bot access the same database, ensuring consistent leaderboard data across all interfaces.
+## Option 2: Use the SQL commands directly
+
+If you prefer to run the SQL commands directly (e.g., using a database management tool), here are the commands to use:
+
+```sql
+-- Connect to the database (path: country_game/database/countries.db)
+
+-- Delete common test users by name pattern
+DELETE FROM user_stats 
+WHERE user_name LIKE '%Test%' 
+OR user_name LIKE '%Sample%'
+OR user_name LIKE '%Anonymous%'
+OR user_name LIKE '%Demo%'
+OR user_name LIKE '%Example%'
+OR user_name = 'user123'
+OR user_name = 'John Doe'
+OR user_name = 'Jane Smith';
+
+-- Delete low-activity users (likely test accounts)
+DELETE FROM user_stats 
+WHERE total < 5 AND login_method != 'tele';
+
+-- Commit changes
+COMMIT;
+```
+
+## Option 3: Run the commands via Python
+
+If you need to integrate the cleanup into another script or add custom logic, here's a Python code snippet:
+
+```python
+import sqlite3
+import os
+
+# Path to the database
+db_path = 'country_game/database/countries.db'
+
+# Ensure the database exists
+if not os.path.exists(db_path):
+    print(f"Error: Database not found at {db_path}")
+    exit(1)
+
+# Connect to the database
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+
+try:
+    # Delete common test users by name pattern
+    cursor.execute('''
+        DELETE FROM user_stats 
+        WHERE user_name LIKE '%Test%' 
+        OR user_name LIKE '%Sample%'
+        OR user_name LIKE '%Anonymous%'
+        OR user_name LIKE '%Demo%'
+        OR user_name LIKE '%Example%'
+        OR user_name = 'user123'
+        OR user_name = 'John Doe'
+        OR user_name = 'Jane Smith'
+    ''')
+    print(f"Deleted {cursor.rowcount} entries matching test user name patterns")
+    
+    # Delete low-activity users (likely test accounts)
+    cursor.execute('''
+        DELETE FROM user_stats 
+        WHERE total < 5 AND login_method != 'tele'
+    ''')
+    print(f"Deleted {cursor.rowcount} entries for low-activity users")
+    
+    # Commit changes
+    conn.commit()
+    print("Database changes committed successfully")
+    
+except Exception as e:
+    print(f"Error: {e}")
+    conn.rollback()
+    
+finally:
+    conn.close()
+```
+
+## After Cleanup
+
+After cleaning up the database, restart the Telegram bot to ensure any cached user data is cleared:
+
+```bash
+# Find and stop the running bot process
+ps aux | grep "python.*bot.py" | grep -v grep | awk '{print $2}' | xargs kill -9
+
+# Start the bot again
+python bot.py &
+```
+
+## Setting Up Automatic Cleanup
+
+For a production server, you may want to set up automatic cleanup to prevent test users from accumulating:
+
+1. Create a cron job to run the script periodically (e.g., weekly)
+2. Add startup logic to your bot deployment script to run cleanup on restart
+3. Implement user authentication to prevent fake users from being created in the first place
+
+## Notes
+
+- The original script uses a whitelist approach (only keeping specific user IDs) which is commented out. For more aggressive cleaning, you can uncomment this section.
+- Always back up your database before running cleanup operations.
+- Test users with login_method='tele' and at least 5 activities are preserved to avoid deleting legitimate Telegram users.

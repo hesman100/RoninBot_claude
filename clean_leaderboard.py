@@ -104,23 +104,37 @@ def clean_leaderboard():
         all_records = cursor.fetchall()
         print(f"\nFound {len(all_records)} total records in user_stats table")
         
-        # Delete all test users - using a more aggressive approach
-        # Delete any user that isn't our legitimate user (ID: 396254641)
+        # Delete all test users - using a comprehensive approach
         print("\n=== Removing all test users ===")
         
-        # First pass: remove by name pattern
+        # First pass: remove by name pattern (all common test user patterns)
         cursor.execute('''
             DELETE FROM user_stats 
-            WHERE user_name LIKE '%Test%' OR user_name LIKE '%Sample%'
+            WHERE user_name LIKE '%Test%' 
+            OR user_name LIKE '%Sample%'
+            OR user_name LIKE '%Anonymous%'
+            OR user_name LIKE '%Demo%'
+            OR user_name LIKE '%Example%'
+            OR user_name = 'user123'
+            OR user_name = 'John Doe'
+            OR user_name = 'Jane Smith'
         ''')
-        print(f"Deleted {cursor.rowcount} entries matching Test/Sample names")
+        print(f"Deleted {cursor.rowcount} entries matching test user name patterns")
         
-        # Second pass: remove all users except for the legitimate one
+        # Check if we're in restrictive mode (only keep specific users)
+        # You can uncomment this for more aggressive cleaning
+        # cursor.execute('''
+        #     DELETE FROM user_stats 
+        #     WHERE user_id != 396254641  -- Keep only legitimate users
+        # ''')
+        # print(f"Deleted {cursor.rowcount} additional entries for non-legitimate users")
+        
+        # Alternative approach: Delete users with very low activity (likely test accounts)
         cursor.execute('''
             DELETE FROM user_stats 
-            WHERE user_id != 396254641
+            WHERE total < 5 AND login_method != 'tele'
         ''')
-        print(f"Deleted {cursor.rowcount} additional entries for non-legitimate users")
+        print(f"Deleted {cursor.rowcount} entries for low-activity users (likely test accounts)")
         
         # Verify the cleaning
         cursor.execute("SELECT COUNT(*) FROM user_stats")
