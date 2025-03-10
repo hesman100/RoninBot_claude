@@ -46,6 +46,54 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     try:
+        # Clean up the leaderboard at startup
+        logger.info("Cleaning up leaderboard database (removing test users)...")
+        try:
+            # Create a simplified version of the cleanup that doesn't try to restart the bot
+            # since it's not running yet
+            import sqlite3
+            
+            # Path to the database
+            db_path = 'country_game/database/countries.db'
+            
+            # Ensure the database exists
+            if os.path.exists(db_path):
+                # Connect to the database
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                
+                # Delete common test users by name pattern
+                cursor.execute('''
+                    DELETE FROM user_stats 
+                    WHERE user_name LIKE '%Test%' 
+                    OR user_name LIKE '%Sample%'
+                    OR user_name LIKE '%Anonymous%'
+                    OR user_name LIKE '%Demo%'
+                    OR user_name LIKE '%Example%'
+                    OR user_name = 'user123'
+                    OR user_name = 'John Doe'
+                    OR user_name = 'Jane Smith'
+                ''')
+                logger.info(f"Deleted {cursor.rowcount} entries matching test user name patterns")
+                
+                # Delete low-activity users (likely test accounts)
+                cursor.execute('''
+                    DELETE FROM user_stats 
+                    WHERE total < 5 AND login_method != 'tele'
+                ''')
+                logger.info(f"Deleted {cursor.rowcount} entries for low-activity users")
+                
+                # Commit changes
+                conn.commit()
+                logger.info("Leaderboard cleanup completed successfully")
+                conn.close()
+            else:
+                logger.warning(f"Database not found at {db_path}, skipping leaderboard cleanup")
+                
+        except Exception as e:
+            logger.error(f"Error cleaning leaderboard: {str(e)}")
+            # Continue with startup even if cleanup fails
+        
         # Start the API server as a subprocess
         logger.info("Starting API server...")
         api_process = subprocess.Popen(

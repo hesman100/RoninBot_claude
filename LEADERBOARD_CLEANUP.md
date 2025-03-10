@@ -108,13 +108,29 @@ ps aux | grep "python.*bot.py" | grep -v grep | awk '{print $2}' | xargs kill -9
 python bot.py &
 ```
 
-## Setting Up Automatic Cleanup
+## Automatic Cleanup at Startup
 
-For a production server, you may want to set up automatic cleanup to prevent test users from accumulating:
+The application now includes automatic cleanup of test users when it starts up:
+
+1. When you run either `run_all.py` or `integrated_server.py`, the leaderboard is automatically cleaned
+2. This happens before the bot and API server are started
+3. The cleanup process is logged to the console and log files
+
+Example log output during startup:
+```
+Cleaning up leaderboard database (removing test users)...
+Deleted 22 entries matching test user name patterns
+Deleted 1 entries for low-activity users
+Leaderboard cleanup completed successfully
+```
+
+## Additional Automatic Cleanup Options
+
+If you want additional automatic cleanup beyond what happens at startup:
 
 1. Create a cron job to run the script periodically (e.g., weekly)
-2. Add startup logic to your bot deployment script to run cleanup on restart
-3. Implement user authentication to prevent fake users from being created in the first place
+2. Implement user authentication to prevent fake users from being created in the first place
+3. Add a database trigger to automatically reject entries with known test user patterns
 
 ## Notes
 
