@@ -369,7 +369,8 @@ def get_new_game():
             "country_id": country.get("id", 0),  # Use get with default to avoid KeyError
             "mode": mode,
             "correct_answer": country.get("name", "") if mode in ["map", "flag"] else country.get("capital", ""),
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "country_name": country.get("name", "")  # Store country name for all modes
         }
         
         # Prepare response
@@ -398,6 +399,12 @@ def get_new_game():
                 if country_name:
                     flag_image_path = f"country_game/images/wiki_flag/{country_name.replace(' ', '_')}_flag.png"
                     response.update(prepare_image_response(flag_image_path))
+            elif mode == "cap":
+                # For capital mode, also provide the map image of the country
+                country_name = country.get("name", "")
+                if country_name:
+                    map_image_path = f"country_game/images/wiki_all_map_400pi/{country_name.replace(' ', '_')}_locator_map.png"
+                    response.update(prepare_image_response(map_image_path))
         except Exception as img_err:
             logger.warning(f"Error preparing image response: {img_err}")
         
@@ -463,8 +470,14 @@ def verify_answer():
             # For map/flag modes, the correct answer is the country name
             country = next((c for c in countries if c.get("name", "").lower() == correct_answer.lower()), None)
         elif mode in ["cap"]:
-            # For capital mode, the correct answer is the capital city
-            country = next((c for c in countries if c.get("capital", "").lower() == correct_answer.lower()), None)
+            # For capital mode, first try to find by stored country name
+            country_name = game_data.get("country_name", "")
+            if country_name:
+                country = next((c for c in countries if c.get("name", "").lower() == country_name.lower()), None)
+            
+            # If that fails, try to find by capital
+            if not country:
+                country = next((c for c in countries if c.get("capital", "").lower() == correct_answer.lower()), None)
     
     if not country:
         return jsonify({"error": f"Country with ID {country_id} not found"}), 404
