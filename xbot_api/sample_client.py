@@ -1,6 +1,9 @@
 """
 Sample client for the XBot API
 This demonstrates how to use the API endpoints
+
+Note: This sample client has been updated to use port 5000 (consolidated with the Telegram bot)
+and supports both header-based and query parameter API key authentication.
 """
 
 import os
@@ -12,8 +15,8 @@ from typing import Dict, Any, List, Optional
 from PIL import Image
 
 # API configuration
-API_BASE_URL = "http://localhost:5001/api"
-API_KEY = "0bd332c1-7c33-4660-9d73-7a03e9b264b8"  # Generated API key from server logs
+API_BASE_URL = "http://localhost:5000/api"
+API_KEY = "xbot-default-api-key-9876543210"  # Default API key
 
 # Set up headers with API key
 HEADERS = {
@@ -26,12 +29,22 @@ def check_health():
     response = requests.get(f"{API_BASE_URL}/health")
     return response.json()
 
-def get_crypto_price(symbol):
+def get_crypto_price(symbol, use_query_param=False):
     """Get cryptocurrency price"""
+    params = {"symbol": symbol}
+    headers = HEADERS.copy()
+    
+    # Optionally use query parameter instead of header for API key
+    if use_query_param:
+        params["api_key"] = API_KEY
+        # Remove API key from headers when using query parameter
+        if "X-API-Key" in headers:
+            del headers["X-API-Key"]
+    
     response = requests.get(
         f"{API_BASE_URL}/crypto/price", 
-        params={"symbol": symbol},
-        headers=HEADERS
+        params=params,
+        headers=headers
     )
     return response.json()
 
@@ -174,9 +187,13 @@ def main():
     health = check_health()
     print(f"API Health: {health}")
     
-    # Crypto price
+    # Crypto price - using header-based API key authentication
     btc_price = get_crypto_price("BTC")
-    print(f"\nBitcoin price: {json.dumps(btc_price, indent=2)}")
+    print(f"\nBitcoin price (header auth): {json.dumps(btc_price, indent=2)}")
+    
+    # Crypto price - using query parameter API key authentication
+    btc_price_query = get_crypto_price("BTC", use_query_param=True)
+    print(f"\nBitcoin price (query param auth): {json.dumps(btc_price_query, indent=2)}")
     
     # Stock price
     aapl_price = get_stock_price("AAPL")

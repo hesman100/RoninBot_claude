@@ -48,7 +48,7 @@ pip install -r requirements.txt
 python run_api_server.py
 ```
 
-The server will start on port 5001 by default. You can change this by setting the `API_PORT` environment variable.
+The server will now start on port 5000 by default (same as the Telegram bot). This consolidation of ports simplifies deployment and ensures both services are accessible through a single port.
 
 ### API Authentication
 
@@ -77,13 +77,19 @@ There are three ways to get an API key:
 Include the API key in the `X-API-Key` header of all your requests:
 
 ```bash
-curl -H "X-API-Key: xbot-default-api-key-9876543210" http://localhost:5001/api/crypto/prices
+curl -H "X-API-Key: xbot-default-api-key-9876543210" http://localhost:5000/api/crypto/prices
+```
+
+You can also use the API key as a query parameter:
+
+```bash
+curl "http://localhost:5000/api/crypto/prices?api_key=xbot-default-api-key-9876543210"
 ```
 
 Or when using the JavaScript Fetch API:
 
 ```javascript
-fetch('http://localhost:5001/api/crypto/prices', {
+fetch('http://localhost:5000/api/crypto/prices', {
   headers: {
     'X-API-Key': 'xbot-default-api-key-9876543210'
   }
@@ -503,8 +509,8 @@ import requests
 import json
 
 # API configuration
-API_BASE_URL = "http://localhost:5001/api"
-API_KEY = "your_api_key"
+API_BASE_URL = "http://localhost:5000/api"
+API_KEY = "xbot-default-api-key-9876543210"
 
 # Set up headers with API key
 HEADERS = {
