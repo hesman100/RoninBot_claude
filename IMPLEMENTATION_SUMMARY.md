@@ -22,12 +22,31 @@ The issue occurred because:
 
 We implemented a comprehensive solution with multiple layers of protection:
 
-### 1. Client Request ID
+### 1. Smart Client Request ID Detection
 
-Added support for a client-generated request ID that's passed as a query parameter:
+Added support for client request IDs with fallbacks for clients that don't explicitly provide one:
 
 ```python
-client_request_id = request.args.get("client_request_id", str(uuid.uuid4()))
+# Get the client request ID if provided
+client_request_id = request.args.get("client_request_id")
+
+# If not provided, check for other common client-side cache-busting parameters
+if not client_request_id:
+    # Common timestamp parameters used by clients to prevent caching
+    for param in ["_t", "t", "timestamp", "ts", "time", "uuid", "random"]:
+        if param in request.args:
+            # Convert the value to a stable client request ID
+            client_request_id = f"auto-{param}-{request.args.get(param)}"
+            logger.info(f"Using {param} parameter as client request ID: {client_request_id}")
+            break
+
+# If still no client ID, use IP + user agent to generate one 
+if not client_request_id:
+    ip = request.remote_addr or "127.0.0.1"
+    user_agent = request.headers.get("User-Agent", "")
+    # Generate a stable ID based on IP and user agent
+    user_agent_hash = hashlib.md5(user_agent.encode()).hexdigest()[:8] if user_agent else ""
+    client_request_id = f"ip-{ip}-ua-{user_agent_hash}-{int(time.time()/300)}"  # Changes every 5 minutes
 ```
 
 ### 2. Response Caching
@@ -132,11 +151,47 @@ Results confirmed that:
 
 ## Recommendations for Client Applications
 
-Client applications should:
+### For API Clients that Want Explicit Control
+
+Client applications with full control over their implementation should:
 
 1. Generate a unique client request ID for each new game request
 2. Store this ID with the game data
 3. Reuse the same ID when retrying a failed request
 4. Generate a new ID when a completely new game is needed
 
-This approach ensures consistent responses and prevents UI flickering while still allowing for new games to be generated when needed.
+Example:
+```javascript
+// In a React component
+const [requestId, setRequestId] = useState(uuid());
+const [gameData, setGameData] = useState(null);
+
+// When user clicks "New Game"
+const getNewGame = () => {
+  // Generate new ID only for new games
+  setRequestId(uuid());
+};
+
+// In the API call, always use the current requestId
+fetch(`/api/game/new?mode=map&client_request_id=${requestId}`)
+  .then(response => response.json())
+  .then(data => setGameData(data));
+```
+
+### For Simple Implementations or Legacy Clients
+
+For simpler clients that don't want to implement client request IDs:
+
+1. The API will automatically use any cache-busting parameters like `_t` or `timestamp`
+2. If no parameters exist, it falls back to using the client's IP and user agent
+3. This allows the server to provide consistent responses even without client cooperation
+
+Example:
+```javascript
+// Even simple implementations work now
+fetch(`/api/game/new?mode=map&_t=${Date.now()}`)
+  .then(response => response.json())
+  .then(data => displayGame(data));
+```
+
+Both approaches ensure consistent responses and prevent UI flickering while still allowing for new games to be generated when needed.

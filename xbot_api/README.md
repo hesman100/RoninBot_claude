@@ -4,8 +4,10 @@ This API provides a way for external applications to access the functionality of
 
 ## Latest Updates (March 2025)
 
-- Implemented robust request deduplication using client request IDs to prevent UI flickering
-- Added response caching mechanism to ensure consistent responses for the same request
+- Enhanced request deduplication with automatic client ID detection
+- Added support for alternative client caching parameters (_t, timestamp, etc.)
+- Added fallback to IP + user agent when no client ID is provided
+- Implemented robust response caching mechanism to ensure consistent responses
 - Implemented deterministic game ID generation based on client request IDs
 - Added memory management with automatic cleanup of old cache entries
 - Implemented system-wide image standardization with 320px width for consistent presentation
@@ -316,6 +318,10 @@ GET /api/game/new?mode=map&client_request_id=abc123
 - If you make the same request with the same `client_request_id`, you'll get the same game data
 - When retrying a failed request, reuse the same `client_request_id` to get consistent game data
 - Generate a new `client_request_id` only when you want a completely new game
+- **NEW:** Even if you don't provide a client_request_id, the API will:
+  - Check for common cache-busting parameters like `_t` or `timestamp`
+  - Fall back to using the client's IP and user agent if no parameters exist
+  - This ensures consistent responses regardless of client implementation
 
 **Response**:
 ```json
