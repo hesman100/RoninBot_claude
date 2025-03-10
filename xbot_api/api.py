@@ -473,7 +473,7 @@ def verify_answer():
             # For capital mode, first try to find by stored country name
             country_name = game_data.get("country_name", "")
             if country_name:
-                country = next((c for c in countries if c.get("name", "").lower() == country_name.lower()), None)
+                country = next((c for c in countries if c.get("name", "") == country_name), None)
             
             # If that fails, try to find by capital
             if not country:
