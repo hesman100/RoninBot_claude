@@ -4,6 +4,19 @@ This demonstrates how to use the API endpoints
 
 Note: This sample client has been updated to use port 5000 (consolidated with the Telegram bot)
 and supports both header-based and query parameter API key authentication.
+
+IMPORTANT: Client Request ID Implementation
+--------------------------------------------
+This client includes support for client request IDs to prevent duplicate responses.
+When making requests to the game API, you should:
+
+1. Generate a unique client_request_id for each new game request
+2. Include this ID in subsequent related requests 
+3. Reuse the same ID when retrying a failed request
+
+This ensures that even if you make the same request multiple times
+(e.g., due to network issues or retries), you'll always get the same
+response with the same game data, preventing UI flickering issues.
 """
 
 import os

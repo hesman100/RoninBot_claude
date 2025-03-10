@@ -77,6 +77,10 @@ For detailed API documentation, see [API README](xbot_api/README.md)
 - The same code is used for both bot commands and API endpoints
 - User statistics are stored in an SQLite database
 - Image processing standardizes all images to 320px width
+- Request deduplication ensures consistent responses with client request IDs
+- Memory-efficient caching with automatic cleanup for long-running servers
+
+For detailed information about how we solved the multiple responses issue, see [Implementation Summary](IMPLEMENTATION_SUMMARY.md)
 
 ## Security Considerations
 
