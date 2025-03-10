@@ -9,6 +9,7 @@ and supports both header-based and query parameter API key authentication.
 import os
 import json
 import base64
+import uuid
 import requests
 from io import BytesIO
 from typing import Dict, Any, List, Optional
@@ -122,14 +123,31 @@ def display_image(image_data):
     except Exception as e:
         return f"Error displaying image: {e}"
 
-def get_new_game(mode="map"):
-    """Get a new game question"""
+def get_new_game(mode="map", client_request_id=None):
+    """Get a new game question
+    
+    Args:
+        mode (str): Game mode - 'map', 'flag', or 'cap'
+        client_request_id (str, optional): Unique client request ID for deduplication
+    """
+    # Generate a client request ID if not provided
+    if client_request_id is None:
+        client_request_id = str(uuid.uuid4())
+        
+    params = {
+        "mode": mode,
+        "client_request_id": client_request_id
+    }
+    
     response = requests.get(
         f"{API_BASE_URL}/game/new", 
-        params={"mode": mode},
+        params=params,
         headers=HEADERS
     )
     game_data = response.json()
+    
+    # Store the client request ID in the game data for future reference
+    game_data["client_request_id"] = client_request_id
     
     # If there's image data in the response, we can display it
     if "image_data" in game_data:
@@ -204,33 +222,63 @@ def main():
     print(f"\nVNM stock price: {json.dumps(vnm_price, indent=2)}")
     
     # Game functionality
-    print("\nStarting a new game...")
-    game = get_new_game("map")
+    print("\nTesting deduplication with multiple requests using the same client_request_id...")
+    client_request_id = str(uuid.uuid4())
+    print(f"Using client_request_id: {client_request_id}")
     
-    if "error" in game:
-        print(f"Error: {game['error']}")
+    # First request
+    print("\nMaking first request...")
+    game1 = get_new_game("map", client_request_id)
+    
+    if "error" in game1:
+        print(f"Error in first request: {game1['error']}")
     else:
-        print(f"Game question: {game.get('question', 'No question available')}")
-        print(f"Options: {', '.join(game.get('options', []))}")
+        print(f"First request - Game ID: {game1.get('game_id')}")
+        print(f"First request - Country: {game1.get('country', {}).get('name', 'Unknown')}")
+        print(f"First request - Mode: {game1.get('mode')}")
+        print(f"First request - Question: {game1.get('question', 'No question available')}")
         
-        # Display image dimensions if available
-        if "width" in game and "height" in game:
-            print(f"Image dimensions: {game['width']}x{game['height']}")
-        elif "image_data" in game:
-            # Decode the image to get dimensions
-            try:
-                image_bytes = base64.b64decode(game["image_data"])
-                with Image.open(BytesIO(image_bytes)) as img:
-                    print(f"Image dimensions from data: {img.width}x{img.height}")
-            except Exception as e:
-                print(f"Error getting image dimensions: {e}")
+        # Make a second request with the same client_request_id
+        print("\nMaking second request with same client_request_id...")
+        game2 = get_new_game("map", client_request_id)
+        
+        if "error" in game2:
+            print(f"Error in second request: {game2['error']}")
+        else:
+            print(f"Second request - Game ID: {game2.get('game_id')}")
+            print(f"Second request - Country: {game2.get('country', {}).get('name', 'Unknown')}")
+        
+        # Check if the two responses are identical
+        if game1.get('game_id') == game2.get('game_id') and game1.get('country', {}).get('name') == game2.get('country', {}).get('name'):
+            print("\n✅ Deduplication successful! Both requests returned the same game data.")
+        else:
+            print("\n❌ Deduplication failed! Requests returned different game data.")
+            print(f"First game_id: {game1.get('game_id')}, Second game_id: {game2.get('game_id')}")
+            print(f"First country: {game1.get('country', {}).get('name')}, Second country: {game2.get('country', {}).get('name')}")
+        
+        # Make a third request with a new client_request_id
+        print("\nMaking third request with new client_request_id...")
+        new_client_request_id = str(uuid.uuid4())
+        game3 = get_new_game("map", new_client_request_id)
+        
+        if "error" in game3:
+            print(f"Error in third request: {game3['error']}")
+        else:
+            print(f"Third request - Game ID: {game3.get('game_id')}")
+            print(f"Third request - Country: {game3.get('country', {}).get('name', 'Unknown')}")
+            
+            # Check if the new request has different data
+            if game1.get('game_id') != game3.get('game_id'):
+                print("\n✅ New client_request_id successfully generated different game data.")
+            else:
+                print("\n❌ New client_request_id failed to generate different game data.")
         
         # For demonstration, we'll provide the correct answer
         print("\nVerifying the answer...")
         try:
-            correct_answer = game.get("country", {}).get("name", "")
+            correct_answer = game1.get("country", {}).get("name", "")
             if correct_answer:
-                result = verify_answer(game, correct_answer)
+                result = verify_answer(game1, correct_answer)
                 print(f"Correct answer: {result.get('is_correct', False)}")
                 print(f"User stats: {json.dumps(result.get('user_stats', {}), indent=2)}")
             else:

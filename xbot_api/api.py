@@ -16,6 +16,7 @@ import random
 import logging
 import threading
 import sqlite3
+import hashlib
 from typing import Dict, List, Optional, Any, Tuple
 from functools import wraps
 
