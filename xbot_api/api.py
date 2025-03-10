@@ -445,9 +445,26 @@ def verify_answer():
     is_correct = user_answer.lower() == correct_answer.lower()
     
     # Get country data
-    country_id = data.get("country_id")
+    # First try to get the country ID from the game data which is more reliable
+    country_id = game_data.get("country_id")
+    # If not available, fall back to the request data
+    if country_id is None:
+        country_id = data.get("country_id")
+    
     countries = get_countries()
     country = next((c for c in countries if c.get("id", 0) == country_id), None)
+    
+    if not country:
+        # If we still can't find the country, try to use the correct answer to find it
+        correct_answer = game_data.get("correct_answer")
+        mode = data.get("mode")
+        
+        if mode in ["map", "flag"]:
+            # For map/flag modes, the correct answer is the country name
+            country = next((c for c in countries if c.get("name", "").lower() == correct_answer.lower()), None)
+        elif mode in ["cap"]:
+            # For capital mode, the correct answer is the capital city
+            country = next((c for c in countries if c.get("capital", "").lower() == correct_answer.lower()), None)
     
     if not country:
         return jsonify({"error": f"Country with ID {country_id} not found"}), 404
