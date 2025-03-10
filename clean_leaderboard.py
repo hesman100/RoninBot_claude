@@ -107,34 +107,22 @@ def clean_leaderboard():
         # Delete all test users - using a comprehensive approach
         print("\n=== Removing all test users ===")
         
-        # First pass: remove by name pattern (all common test user patterns)
+        # Only remove specific test user names to avoid affecting legitimate users
         cursor.execute('''
             DELETE FROM user_stats 
-            WHERE user_name LIKE '%Test%' 
-            OR user_name LIKE '%Sample%'
-            OR user_name LIKE '%Anonymous%'
-            OR user_name LIKE '%Demo%'
-            OR user_name LIKE '%Example%'
+            WHERE user_name = 'Test User'
+            OR user_name = 'TestUser'
+            OR user_name = 'Sample User'
+            OR user_name = 'Anonymous'
+            OR user_name = 'Anonymous User' 
             OR user_name = 'user123'
             OR user_name = 'John Doe'
             OR user_name = 'Jane Smith'
         ''')
-        print(f"Deleted {cursor.rowcount} entries matching test user name patterns")
+        print(f"Deleted {cursor.rowcount} entries matching specific test user names")
         
-        # Check if we're in restrictive mode (only keep specific users)
-        # You can uncomment this for more aggressive cleaning
-        # cursor.execute('''
-        #     DELETE FROM user_stats 
-        #     WHERE user_id != 396254641  -- Keep only legitimate users
-        # ''')
-        # print(f"Deleted {cursor.rowcount} additional entries for non-legitimate users")
-        
-        # Alternative approach: Delete users with very low activity (likely test accounts)
-        cursor.execute('''
-            DELETE FROM user_stats 
-            WHERE total < 5 AND login_method != 'tele'
-        ''')
-        print(f"Deleted {cursor.rowcount} entries for low-activity users (likely test accounts)")
+        # We don't want to delete legitimate users like "hes man", so we've removed the wildcard patterns
+        # and the low-activity filter to be extra safe
         
         # Verify the cleaning
         cursor.execute("SELECT COUNT(*) FROM user_stats")

@@ -23,20 +23,16 @@ If you prefer to run the SQL commands directly (e.g., using a database managemen
 ```sql
 -- Connect to the database (path: country_game/database/countries.db)
 
--- Delete common test users by name pattern
+-- Delete only specific test users to avoid affecting legitimate users
 DELETE FROM user_stats 
-WHERE user_name LIKE '%Test%' 
-OR user_name LIKE '%Sample%'
-OR user_name LIKE '%Anonymous%'
-OR user_name LIKE '%Demo%'
-OR user_name LIKE '%Example%'
+WHERE user_name = 'Test User'
+OR user_name = 'TestUser'
+OR user_name = 'Sample User'
+OR user_name = 'Anonymous'
+OR user_name = 'Anonymous User' 
 OR user_name = 'user123'
 OR user_name = 'John Doe'
 OR user_name = 'Jane Smith';
-
--- Delete low-activity users (likely test accounts)
-DELETE FROM user_stats 
-WHERE total < 5 AND login_method != 'tele';
 
 -- Commit changes
 COMMIT;
@@ -63,26 +59,19 @@ conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
 try:
-    # Delete common test users by name pattern
+    # Delete only specific test users to avoid affecting legitimate users
     cursor.execute('''
         DELETE FROM user_stats 
-        WHERE user_name LIKE '%Test%' 
-        OR user_name LIKE '%Sample%'
-        OR user_name LIKE '%Anonymous%'
-        OR user_name LIKE '%Demo%'
-        OR user_name LIKE '%Example%'
+        WHERE user_name = 'Test User'
+        OR user_name = 'TestUser'
+        OR user_name = 'Sample User'
+        OR user_name = 'Anonymous'
+        OR user_name = 'Anonymous User' 
         OR user_name = 'user123'
         OR user_name = 'John Doe'
         OR user_name = 'Jane Smith'
     ''')
-    print(f"Deleted {cursor.rowcount} entries matching test user name patterns")
-    
-    # Delete low-activity users (likely test accounts)
-    cursor.execute('''
-        DELETE FROM user_stats 
-        WHERE total < 5 AND login_method != 'tele'
-    ''')
-    print(f"Deleted {cursor.rowcount} entries for low-activity users")
+    print(f"Deleted {cursor.rowcount} entries matching specific test user names")
     
     # Commit changes
     conn.commit()
@@ -108,20 +97,30 @@ ps aux | grep "python.*bot.py" | grep -v grep | awk '{print $2}' | xargs kill -9
 python bot.py &
 ```
 
-## Automatic Cleanup at Startup
+## Manual Cleanup (Recommended Approach)
 
-The application now includes automatic cleanup of test users when it starts up:
+To avoid accidentally affecting legitimate users, automatic cleanup at startup has been disabled.
 
-1. When you run either `run_all.py` or `integrated_server.py`, the leaderboard is automatically cleaned
-2. This happens before the bot and API server are started
-3. The cleanup process is logged to the console and log files
+Instead, use the manual cleanup tool when needed:
 
-Example log output during startup:
+1. Stop the running bot and API server
+2. Run `python clean_leaderboard.py` to clean up test users
+3. Start the services again using `run_all.py` or `integrated_server.py`
+
+Example log output during manual cleanup:
 ```
-Cleaning up leaderboard database (removing test users)...
-Deleted 22 entries matching test user name patterns
-Deleted 1 entries for low-activity users
-Leaderboard cleanup completed successfully
+=== Country Game Leaderboard Cleanup Tool ===
+=== Removing all test users ===
+Deleted 8 entries matching specific test user names
+
+Remaining users after cleaning (2):
+ID: 396254641, Name: hes man, Login Method: tele
+ID: 987654321, Name: Your Name, Login Method: web
+
+Database changes committed successfully
+
+=== Restarting bot to clear cache ===
+Leaderboard cleanup process complete.
 ```
 
 ## Additional Automatic Cleanup Options
@@ -134,6 +133,7 @@ If you want additional automatic cleanup beyond what happens at startup:
 
 ## Notes
 
-- The original script uses a whitelist approach (only keeping specific user IDs) which is commented out. For more aggressive cleaning, you can uncomment this section.
+- The original script had a more aggressive approach with wildcard patterns and activity filters, but this was removed to protect legitimate users like "hes man".
+- The current implementation only removes specific test usernames to ensure legitimate users are preserved.
 - Always back up your database before running cleanup operations.
-- Test users with login_method='tele' and at least 5 activities are preserved to avoid deleting legitimate Telegram users.
+- If you need to implement more aggressive cleaning, modify the SQL query to include additional specific test usernames.

@@ -63,26 +63,19 @@ def clean_leaderboard():
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             
-            # Delete common test users by name pattern
+            # Only remove specific test user names to avoid affecting legitimate users
             cursor.execute('''
                 DELETE FROM user_stats 
-                WHERE user_name LIKE '%Test%' 
-                OR user_name LIKE '%Sample%'
-                OR user_name LIKE '%Anonymous%'
-                OR user_name LIKE '%Demo%'
-                OR user_name LIKE '%Example%'
+                WHERE user_name = 'Test User'
+                OR user_name = 'TestUser'
+                OR user_name = 'Sample User'
+                OR user_name = 'Anonymous'
+                OR user_name = 'Anonymous User' 
                 OR user_name = 'user123'
                 OR user_name = 'John Doe'
                 OR user_name = 'Jane Smith'
             ''')
-            logger.info(f"Deleted {cursor.rowcount} entries matching test user name patterns")
-            
-            # Delete low-activity users (likely test accounts)
-            cursor.execute('''
-                DELETE FROM user_stats 
-                WHERE total < 5 AND login_method != 'tele'
-            ''')
-            logger.info(f"Deleted {cursor.rowcount} entries for low-activity users")
+            logger.info(f"Deleted {cursor.rowcount} entries matching specific test user names")
             
             # Commit changes
             conn.commit()
@@ -104,13 +97,11 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     try:
-        # Clean up the leaderboard at startup
-        logger.info("Cleaning up leaderboard database (removing test users)...")
-        clean_result = clean_leaderboard()
-        if clean_result:
-            logger.info("Leaderboard cleanup completed successfully")
-        else:
-            logger.warning("Leaderboard cleanup may not have completed successfully")
+        # Removed automatic leaderboard cleanup at startup
+        # to prevent affecting legitimate users after deployment
+        # Use clean_leaderboard.py script manually when needed
+        
+        logger.info("Starting services without automatic leaderboard cleanup")
         
         # Start the bot in a separate thread
         logger.info("Starting Telegram bot...")
