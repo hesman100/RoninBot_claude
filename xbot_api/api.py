@@ -14,10 +14,12 @@ import time
 import uuid
 import random
 import logging
+import threading
+import sqlite3
 from typing import Dict, List, Optional, Any, Tuple
 from functools import wraps
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 
 # Custom imports
@@ -44,6 +46,10 @@ game_handler = GameHandler()
 # Set up logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+# Thread locks for preventing multiple responses
+request_locks = {}
+lock_for_locks = threading.Lock()
 
 # Active games dictionary
 active_games = {}
@@ -323,100 +329,142 @@ def get_new_game():
     Returns:
     - JSON with game question details
     """
-    mode = request.args.get("mode", "map")
-    if mode not in ["map", "flag", "cap"]:
-        return jsonify({"error": f"Invalid game mode: {mode}. Must be 'map', 'flag', or 'cap'"}), 400
+    # Generate a unique request ID to prevent duplicate responses
+    request_id = str(uuid.uuid4())
     
-    try:
-        # Get countries data
-        countries = get_countries()
-        if not countries:
-            return jsonify({"error": "Failed to get countries data"}), 500
+    # Use the request path + query as a key for the lock
+    request_key = f"{request.path}?{request.query_string.decode('utf-8')}"
+    
+    # Only process this request if we can acquire the lock
+    with lock_for_locks:
+        if request_key in request_locks:
+            # If we already have a lock for this URL, return a response indicating
+            # that the request is already being processed
+            logger.warning(f"Duplicate request detected for {request_key}")
+            return jsonify({
+                "error": "This request is already being processed",
+                "status": "duplicate_request"
+            }), 429
+        else:
+            # Create a new lock for this request
+            request_locks[request_key] = threading.Lock()
             
-        # Get a random country
-        country = random.choice(countries)
-        
-        # Generate options - either use the method or create our own
+    # Acquire the lock for this specific request
+    with request_locks[request_key]:
         try:
-            options = game_handler._generate_options(country, mode)
-        except AttributeError:
-            # Fallback if method is not accessible
-            if mode in ["map", "flag"]:
-                # For map/flag modes, options are country names
-                country_names = [c["name"] for c in countries]
-                options = [country["name"]]  # Add correct answer
+            # Once we're done, remove the lock
+            def cleanup():
+                with lock_for_locks:
+                    if request_key in request_locks:
+                        del request_locks[request_key]
+                        
+            # Make sure we clean up even if there's an exception
+            try:
+                mode = request.args.get("mode", "map")
+                if mode not in ["map", "flag", "cap"]:
+                    return jsonify({"error": f"Invalid game mode: {mode}. Must be 'map', 'flag', or 'cap'"}), 400
                 
-                # Add random wrong answers
-                other_countries = [c["name"] for c in countries if c["name"] != country["name"]]
-                options.extend(random.sample(other_countries, min(4, len(other_countries))))
-                random.shuffle(options)
-            else:
-                # For capital mode, options are capital cities
-                capitals = [c["capital"] for c in countries if c["capital"]]
-                options = [country["capital"]]  # Add correct answer
+                # Log that we're processing this request with a unique ID
+                logger.info(f"Processing game request ID {request_id} for mode {mode}")
                 
-                # Add random wrong answers
-                other_capitals = [c["capital"] for c in countries 
-                                if c["capital"] and c["capital"] != country["capital"]]
-                options.extend(random.sample(other_capitals, min(4, len(other_capitals))))
-                random.shuffle(options)
-        
-        # Create a unique game ID
-        game_id = int(time.time() * 1000)
-        
-        # Store the game data
-        game_entry = {
-            "country_id": country.get("id", 0),  # Use get with default to avoid KeyError
-            "mode": mode,
-            "correct_answer": country.get("name", "") if mode in ["map", "flag"] else country.get("capital", ""),
-            "timestamp": time.time(),
-            "country_name": country.get("name", "")  # Store country name for all modes
-        }
-        
-        # Debug: log what we're storing
-        logger.info(f"Storing game with ID {game_id}: country_name={game_entry.get('country_name')}, mode={mode}")
-        
-        active_games[game_id] = game_entry
-        
-        # Prepare response
-        response = {
-            "game_id": game_id,
-            "mode": mode,
-            "options": options,
-            "country_id": country.get("id", 0),
-            "question": (
-                "Which country is highlighted on this map?" if mode == "map" 
-                else "Which country does this flag belong to?" if mode == "flag"
-                else f"What is the capital of {country.get('name', '')}?"
-            ),
-            "country": format_country_data(country)
-        }
-        
-        # Add image data if needed
-        try:
-            if mode == "map":
-                country_name = country.get("name", "")
-                if country_name:
-                    map_image_path = f"country_game/images/wiki_all_map_400pi/{country_name.replace(' ', '_')}_locator_map.png"
-                    response.update(prepare_image_response(map_image_path))
-            elif mode == "flag":
-                country_name = country.get("name", "")
-                if country_name:
-                    flag_image_path = f"country_game/images/wiki_flag/{country_name.replace(' ', '_')}_flag.png"
-                    response.update(prepare_image_response(flag_image_path))
-            elif mode == "cap":
-                # For capital mode, also provide the map image of the country
-                country_name = country.get("name", "")
-                if country_name:
-                    map_image_path = f"country_game/images/wiki_all_map_400pi/{country_name.replace(' ', '_')}_locator_map.png"
-                    response.update(prepare_image_response(map_image_path))
-        except Exception as img_err:
-            logger.warning(f"Error preparing image response: {img_err}")
-        
-        return jsonify(response)
-    except Exception as e:
-        logger.error(f"Error creating new game: {e}")
-        return jsonify({"error": str(e)}), 500
+                # Get countries data
+                countries = get_countries()
+                if not countries:
+                    return jsonify({"error": "Failed to get countries data"}), 500
+                    
+                # Get a random country
+                country = random.choice(countries)
+                
+                # Generate options - either use the method or create our own
+                try:
+                    options = game_handler._generate_options(country, mode)
+                except AttributeError:
+                    # Fallback if method is not accessible
+                    if mode in ["map", "flag"]:
+                        # For map/flag modes, options are country names
+                        country_names = [c["name"] for c in countries]
+                        options = [country["name"]]  # Add correct answer
+                        
+                        # Add random wrong answers
+                        other_countries = [c["name"] for c in countries if c["name"] != country["name"]]
+                        options.extend(random.sample(other_countries, min(4, len(other_countries))))
+                        random.shuffle(options)
+                    else:
+                        # For capital mode, options are capital cities
+                        capitals = [c["capital"] for c in countries if c["capital"]]
+                        options = [country["capital"]]  # Add correct answer
+                        
+                        # Add random wrong answers
+                        other_capitals = [c["capital"] for c in countries 
+                                        if c["capital"] and c["capital"] != country["capital"]]
+                        options.extend(random.sample(other_capitals, min(4, len(other_capitals))))
+                        random.shuffle(options)
+                
+                # Create a unique game ID
+                game_id = int(time.time() * 1000)
+                
+                # Store the game data
+                game_entry = {
+                    "country_id": country.get("id", 0),  # Use get with default to avoid KeyError
+                    "mode": mode,
+                    "correct_answer": country.get("name", "") if mode in ["map", "flag"] else country.get("capital", ""),
+                    "timestamp": time.time(),
+                    "country_name": country.get("name", "")  # Store country name for all modes
+                }
+                
+                # Debug: log what we're storing
+                logger.info(f"Storing game with ID {game_id}: country_name={game_entry.get('country_name')}, mode={mode}")
+                
+                active_games[game_id] = game_entry
+                
+                # Prepare response
+                response = {
+                    "game_id": game_id,
+                    "mode": mode,
+                    "options": options,
+                    "country_id": country.get("id", 0),
+                    "request_id": request_id,  # Include the request ID in the response
+                    "question": (
+                        "Which country is highlighted on this map?" if mode == "map" 
+                        else "Which country does this flag belong to?" if mode == "flag"
+                        else f"What is the capital of {country.get('name', '')}?"
+                    ),
+                    "country": format_country_data(country)
+                }
+                
+                # Add image data if needed
+                try:
+                    if mode == "map":
+                        country_name = country.get("name", "")
+                        if country_name:
+                            map_image_path = f"country_game/images/wiki_all_map_400pi/{country_name.replace(' ', '_')}_locator_map.png"
+                            response.update(prepare_image_response(map_image_path))
+                    elif mode == "flag":
+                        country_name = country.get("name", "")
+                        if country_name:
+                            flag_image_path = f"country_game/images/wiki_flag/{country_name.replace(' ', '_')}_flag.png"
+                            response.update(prepare_image_response(flag_image_path))
+                    elif mode == "cap":
+                        # For capital mode, also provide the map image of the country
+                        country_name = country.get("name", "")
+                        if country_name:
+                            map_image_path = f"country_game/images/wiki_all_map_400pi/{country_name.replace(' ', '_')}_locator_map.png"
+                            response.update(prepare_image_response(map_image_path))
+                except Exception as img_err:
+                    logger.warning(f"Error preparing image response: {img_err}")
+                
+                # Log that we're sending a response
+                logger.info(f"Sending response for request ID {request_id}")
+                
+                return jsonify(response)
+            
+            finally:
+                # Clean up the lock
+                cleanup()
+                
+        except Exception as e:
+            logger.error(f"Error creating new game: {e}")
+            return jsonify({"error": str(e)}), 500
 
 @app.route("/api/game/verify", methods=["POST"])
 @require_api_key
@@ -435,33 +483,80 @@ def verify_answer():
     Returns:
     - JSON with verification result and country details
     """
+    # Generate a unique request ID to prevent duplicate responses
+    request_id = str(uuid.uuid4())
+    
+    # First check if the request contains valid JSON
     data = request.json
     if not data:
         return jsonify({"error": "Missing request body"}), 400
     
-    required_fields = ["game_id", "country_id", "mode", "answer", "user_id"]
-    for field in required_fields:
-        if field not in data:
-            return jsonify({"error": f"Missing required field: {field}"}), 400
+    # Use the request path + JSON body hash as the lock key
+    request_key = f"{request.path}:{hash(str(request.json))}"
     
-    # Get game data
-    game_id = data.get("game_id")
-    game_data = active_games.get(game_id)
+    # Only process this request if we can acquire the lock
+    with lock_for_locks:
+        if request_key in request_locks:
+            # If we already have a lock for this request, return a response indicating
+            # that the request is already being processed
+            logger.warning(f"Duplicate verify request detected for {request_key}")
+            return jsonify({
+                "error": "This request is already being processed",
+                "status": "duplicate_request"
+            }), 429
+        else:
+            # Create a new lock for this request
+            request_locks[request_key] = threading.Lock()
     
-    if not game_data:
-        return jsonify({"error": "Game not found or expired"}), 404
-    
-    # Verify answer
-    user_answer = data.get("answer")
-    correct_answer = game_data.get("correct_answer")
-    is_correct = user_answer.lower() == correct_answer.lower()
-    
-    # Get country data
-    # Prioritize using the country_name from game data for all modes
-    mode = data.get("mode")
-    countries = get_countries()
+    # Declare variables in the outer scope that will be set inside the lock
+    mode = None
+    countries = None
     country = None
+    game_id = None
+    game_data = None
+    is_correct = None
+    correct_answer = None
+    user_answer = None
+    country_id = None
     
+    # Acquire the lock for this specific request
+    with request_locks[request_key]:
+        try:
+            # Log that we're processing this verification request
+            logger.info(f"Processing verification request ID {request_id}")
+            
+            required_fields = ["game_id", "country_id", "mode", "answer", "user_id"]
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({"error": f"Missing required field: {field}"}), 400
+            
+            # Get game data
+            game_id = data.get("game_id")
+            game_data = active_games.get(game_id)
+            
+            if not game_data:
+                return jsonify({"error": "Game not found or expired"}), 404
+            
+            # Verify answer
+            user_answer = data.get("answer")
+            correct_answer = game_data.get("correct_answer")
+            is_correct = user_answer.lower() == correct_answer.lower()
+            
+            # Log the verification attempt
+            logger.info(f"Verification request {request_id}: game_id={game_id}, answer='{user_answer}', correct='{correct_answer}', is_correct={is_correct}")
+            
+            # Get country data
+            # Prioritize using the country_name from game data for all modes
+            mode = data.get("mode")
+            countries = get_countries()
+            country = None
+        finally:
+            # Clean up the lock in the finally block to ensure it happens
+            with lock_for_locks:
+                if request_key in request_locks:
+                    del request_locks[request_key]
+
+    # From here on, we're outside the lock, but all the data we need is captured
     # First try to find by stored country name for all modes
     country_name = game_data.get("country_name", "")
     
