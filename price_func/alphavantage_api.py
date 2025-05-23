@@ -20,7 +20,7 @@ class AlphaVantageAPI:
         self.session = requests.Session()
         self._cache = {}
         self._cache_expiry = {}
-        self._cache_duration = 300  # Cache for 5 minutes
+        self._cache_duration = 60  # Cache for 1 minute to ensure more up-to-date prices
 
     def _is_rate_limited(self, data: Dict) -> bool:
         """Check if the response indicates rate limiting"""

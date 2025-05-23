@@ -173,12 +173,17 @@ def get_stock_price():
         return jsonify({"error": "Missing required parameter: symbol"}), 400
     
     try:
-        # Try with Alpha Vantage first
-        result = stock_api.get_stock_price(symbol.upper())
+        # Use Finnhub as primary API source since it's faster
+        start_time = time.time()
+        result = finnhub_api.get_stock_price(symbol.upper())
+        logger.info(f"Finnhub API response time: {time.time() - start_time:.2f} seconds")
         
-        # Fall back to Finnhub if Alpha Vantage fails or is rate limited
+        # Fall back to Alpha Vantage if Finnhub fails
         if "error" in result:
-            result = finnhub_api.get_stock_price(symbol.upper())
+            logger.info(f"Finnhub failed for {symbol}, trying AlphaVantage")
+            start_time = time.time()
+            result = stock_api.get_stock_price(symbol.upper())
+            logger.info(f"AlphaVantage API response time: {time.time() - start_time:.2f} seconds")
             
         return jsonify(result)
     except Exception as e:
@@ -194,12 +199,17 @@ def get_stock_prices():
     - JSON with price details for default stock list
     """
     try:
-        # Try with Alpha Vantage first
-        result = stock_api.get_stock_prices()
+        # Use Finnhub as primary API source since it's faster
+        start_time = time.time()
+        result = finnhub_api.get_stock_prices()
+        logger.info(f"Finnhub API response time for all stocks: {time.time() - start_time:.2f} seconds")
         
-        # Fall back to Finnhub if Alpha Vantage fails or is rate limited
+        # Fall back to Alpha Vantage if Finnhub fails or is rate limited
         if "error" in result:
-            result = finnhub_api.get_stock_prices()
+            logger.info("Finnhub API failed for all stocks, trying AlphaVantage")
+            start_time = time.time()
+            result = stock_api.get_stock_prices()
+            logger.info(f"AlphaVantage API response time for all stocks: {time.time() - start_time:.2f} seconds")
             
         return jsonify(result)
     except Exception as e:

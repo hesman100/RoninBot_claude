@@ -21,7 +21,7 @@ import time
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
 
-BOT_VER = "1.4.3"
+BOT_VER = "1.5"
 
 # Configure logging
 logging.basicConfig(
@@ -235,62 +235,65 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Get price for a specific stock or default list of stocks."""
     logger.info(f"Received /s command from chat {update.effective_chat.id}")
     try:
+        # Use Finnhub as primary API source since it's faster
         if not context.args:
             # If no arguments, show all default stocks
             logger.info("No stock specified, showing default list")
-            price_data = stock_api.get_stock_prices()
 
-            # Check if we need to use the fallback API by verifying:
-            # 1. If there's a specific rate limit error message
-            # 2. If we received fewer stocks than expected
-            is_rate_limited = (isinstance(price_data, dict)
-                               and "error" in price_data
-                               and "rate limit" in price_data["error"].lower())
+            # Try Finnhub first as it's significantly faster
+            start_time = time.time()
+            price_data = finnhub_api.get_stock_prices()
+            logger.info(
+                f"Finnhub API response time: {time.time() - start_time:.2f} seconds"
+            )
 
-            # If the data isn't empty, check if we have fewer stocks than expected
-            has_incomplete_data = (isinstance(price_data, dict) and len(
-                price_data.keys()) < len(DEFAULT_STOCKS) / 2)
-
-            if is_rate_limited or has_incomplete_data:
+            # If Finnhub fails, fall back to AlphaVantage
+            if isinstance(price_data, dict) and "error" in price_data:
+                logger.info("Finnhub API failed, falling back to AlphaVantage")
+                start_time = time.time()
+                alpha_data = stock_api.get_stock_prices()
                 logger.info(
-                    f"AlphaVantage returned incomplete data ({len(price_data.keys()) if isinstance(price_data, dict) else 0} stocks) or is rate limited, falling back to Finnhub"
+                    f"AlphaVantage API response time: {time.time() - start_time:.2f} seconds"
                 )
-                finnhub_data = finnhub_api.get_stock_prices()
 
-                # If Finnhub data is valid, use it
-                if isinstance(finnhub_data,
-                              dict) and "error" not in finnhub_data:
-                    logger.info(
-                        f"Using Finnhub data with {len(finnhub_data.keys())} stocks"
-                    )
-                    price_data = finnhub_data
+                if isinstance(alpha_data, dict) and "error" not in alpha_data:
+                    price_data = alpha_data
                 else:
-                    # If both APIs failed, combine any valid data we have
+                    # If both APIs failed but we have partial data from either, use what we have
                     logger.warning(
-                        "Both AlphaVantage and Finnhub had issues, using any available data"
+                        "Both Finnhub and AlphaVantage had issues, using any available data"
                     )
-                    if isinstance(price_data, dict) and isinstance(
-                            finnhub_data, dict):
-                        # Combine data from both sources
-                        for symbol, data in finnhub_data.items():
-                            if "error" not in data:
+                    if isinstance(alpha_data, dict) and isinstance(
+                            price_data, dict):
+                        # Combine any valid data from both sources
+                        for symbol, data in alpha_data.items():
+                            if "error" not in data and symbol not in price_data:
                                 price_data[symbol] = data
 
-            logger.info(f"Received price data: {price_data}")
+            logger.info(
+                f"Received price data: {list(price_data.keys()) if isinstance(price_data, dict) else 'error'}"
+            )
         else:
             # Get price for the specified stock
             stock_input = context.args[0].upper()
             logger.info(f"Fetching price for {stock_input}")
-            price_data = stock_api.get_stock_price(stock_input)
 
-            # If AlphaVantage fails or hits rate limit, try Finnhub
-            if isinstance(
-                    price_data, dict
-            ) and "error" in price_data and "rate limit" in price_data[
-                    "error"].lower():
+            # Try Finnhub first
+            start_time = time.time()
+            price_data = finnhub_api.get_stock_price(stock_input)
+            logger.info(
+                f"Finnhub API response time: {time.time() - start_time:.2f} seconds"
+            )
+
+            # If Finnhub fails, try AlphaVantage
+            if isinstance(price_data, dict) and "error" in price_data:
                 logger.info(
-                    "AlphaVantage rate limited, falling back to Finnhub")
-                price_data = finnhub_api.get_stock_price(stock_input)
+                    f"Finnhub failed for {stock_input}, trying AlphaVantage")
+                start_time = time.time()
+                price_data = stock_api.get_stock_price(stock_input)
+                logger.info(
+                    f"AlphaVantage API response time: {time.time() - start_time:.2f} seconds"
+                )
 
             logger.info(f"Price data received: {price_data}")
 
@@ -451,10 +454,10 @@ def main() -> None:
     try:
         import sys
         from xbot_api.server import run_in_thread
-        
+
         # Update the API port to use 5000 for shared access
         os.environ["API_PORT"] = "5000"
-        
+
         api_thread = run_in_thread()
         logger.info("API server thread started")
     except Exception as e:

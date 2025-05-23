@@ -14,7 +14,7 @@ class FinnhubAPI:
         self.session = requests.Session()
         self._cache = {}
         self._cache_expiry = {}
-        self._cache_duration = 300  # Cache for 5 minutes
+        self._cache_duration = 60  # Cache for 1 minute to ensure more up-to-date prices
 
     def _get_cached_data(self, symbol: str) -> Optional[Dict]:
         """Get cached data if available and not expired"""
@@ -50,9 +50,11 @@ class FinnhubAPI:
             except requests.exceptions.RequestException as e:
                 logger.error(f"Request failed (attempt {attempt + 1}/{MAX_RETRIES}): {str(e)}")
                 if attempt == MAX_RETRIES - 1:
-                    if hasattr(e, 'response') and e.response.status_code == 401:
-                        return {"error": "Invalid API key or unauthorized access. Please check your Finnhub API key."}
-                    return {"error": str(e)}
+                    error_message = str(e)
+                    if hasattr(e, 'response') and e.response is not None:
+                        if hasattr(e.response, 'status_code') and e.response.status_code == 401:
+                            return {"error": "Invalid API key or unauthorized access. Please check your Finnhub API key."}
+                    return {"error": error_message}
                 time.sleep(RETRY_DELAY * (attempt + 1))
 
         return {"error": "Maximum retries exceeded"}
