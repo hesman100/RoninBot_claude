@@ -13,14 +13,14 @@ COINMARKETCAP_BASE_URL = "https://pro-api.coinmarketcap.com/v1"
 
 # Default cryptocurrencies to track (using symbols for CoinMarketCap)
 DEFAULT_CRYPTOCURRENCIES = [
+    "RON",  # Ronin
     "BTC",  # Bitcoin
     "ETH",  # Ethereum
-    "SOL",  # Solana
-    "RON",  # Ronin
     "AXS",  # Axie Infinity
     "PIXEL",  # Pixel
     "PI",  # Pi Network
     "BNB",  # BNB
+    "SOL",  # Solana
 ]
 
 # Default stocks to track
