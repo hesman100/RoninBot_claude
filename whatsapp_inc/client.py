@@ -94,11 +94,14 @@ class WhatsAppClient:
         
         try:
             # Send the message
-            response = self.client.messages.create(
-                from_=self.phone_number,
-                body=message,
-                to=to_number
-            )
+            if self.client:
+                response = self.client.messages.create(
+                    from_=self.phone_number,
+                    body=message,
+                    to=to_number
+                )
+            else:
+                return {"error": "WhatsApp client not initialized"}
             
             logger.info(f"Message sent to {to_number}, SID: {response.sid}")
             return {
@@ -143,12 +146,15 @@ class WhatsAppClient:
         
         try:
             # Send the media message
-            response = self.client.messages.create(
-                from_=self.phone_number,
-                media_url=[media_url],
-                body=caption,
-                to=to_number
-            )
+            if self.client:
+                response = self.client.messages.create(
+                    from_=self.phone_number,
+                    media_url=[media_url],
+                    body=caption,
+                    to=to_number
+                )
+            else:
+                return {"error": "WhatsApp client not initialized"}
             
             logger.info(f"Media message sent to {to_number}, SID: {response.sid}")
             return {

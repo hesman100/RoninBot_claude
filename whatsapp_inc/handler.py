@@ -413,7 +413,9 @@ class WhatsAppMessageHandler:
                 response += f"Continent: {country['continent']}"
                 
                 # Update user stats (would be stored in database in real implementation)
-                self.game_handler._update_user_stats(from_number, True, mode)
+                # Convert phone number to an integer hash for user_id
+                user_id = int(hash(from_number) % (10**10))
+                self.game_handler._update_user_stats(user_id, True, mode)
                 
             else:  # cap mode
                 response = f"✅ Correct! {correct_answer} is the capital of {country['name']}.\n\n"
@@ -422,7 +424,9 @@ class WhatsAppMessageHandler:
                 response += f"Continent: {country['continent']}"
                 
                 # Update user stats
-                self.game_handler._update_user_stats(from_number, True, mode)
+                # Convert phone number to an integer hash for user_id
+                user_id = int(hash(from_number) % (10**10))
+                self.game_handler._update_user_stats(user_id, True, mode)
                 
             # Remove the active game
             del self.active_games[from_number]
@@ -436,7 +440,9 @@ class WhatsAppMessageHandler:
                     response = f"❌ Wrong answer. You've used all your attempts.\n\nThe capital of {country['name']} is {correct_answer}."
                 
                 # Update user stats
-                self.game_handler._update_user_stats(from_number, False, mode)
+                # Convert phone number to an integer hash for user_id
+                user_id = int(hash(from_number) % (10**10))
+                self.game_handler._update_user_stats(user_id, False, mode)
                 
                 # Remove the active game
                 del self.active_games[from_number]
