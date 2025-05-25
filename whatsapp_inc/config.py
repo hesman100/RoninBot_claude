@@ -9,7 +9,11 @@ import logging
 # Twilio Credentials - These should be set as environment variables
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
-TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER")  # This should include the WhatsApp prefix, e.g. 'whatsapp:+1234567890'
+# Ensure phone number has WhatsApp prefix
+phone_number = os.environ.get("TWILIO_PHONE_NUMBER", "")
+if phone_number and not phone_number.startswith("whatsapp:"):
+    phone_number = f"whatsapp:{phone_number}"
+TWILIO_PHONE_NUMBER = phone_number  # This should include the WhatsApp prefix, e.g. 'whatsapp:+1234567890'
 
 # API Rate Limiting
 MAX_MESSAGES_PER_SECOND = 1  # Twilio has rate limits that must be respected
