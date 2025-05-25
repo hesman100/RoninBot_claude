@@ -88,6 +88,12 @@ class WhatsAppClient:
         # Ensure to_number has WhatsApp prefix
         if not to_number.startswith('whatsapp:'):
             to_number = f'whatsapp:{to_number}'
+            
+        # Ensure from_number (self.phone_number) has WhatsApp prefix
+        from_number = self.phone_number
+        if not from_number.startswith('whatsapp:'):
+            from_number = f'whatsapp:{from_number}'
+            self.phone_number = from_number
         
         # Respect rate limits
         self._respect_rate_limit()
@@ -140,6 +146,12 @@ class WhatsAppClient:
         # Ensure to_number has WhatsApp prefix
         if not to_number.startswith('whatsapp:'):
             to_number = f'whatsapp:{to_number}'
+            
+        # Ensure from_number (self.phone_number) has WhatsApp prefix
+        from_number = self.phone_number
+        if not from_number.startswith('whatsapp:'):
+            from_number = f'whatsapp:{from_number}'
+            self.phone_number = from_number
         
         # Respect rate limits
         self._respect_rate_limit()
