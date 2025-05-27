@@ -1,4 +1,4 @@
-import requests
+import yfinance as yf
 import logging
 import time
 import random
@@ -9,21 +9,9 @@ logger = logging.getLogger(__name__)
 
 class VietnamStockAPI:
     def __init__(self):
-        self.session = requests.Session()
         self._cache = {}
         self._cache_expiry = {}
-        self._cache_duration = 900  # Cache for 15 minutes to reduce API requests
-        
-        # Financial Modeling Prep API for Vietnam stocks
-        self.fmp_base_url = "https://financialmodelingprep.com/api/v3"
-        # Get API key from environment (provided by user)
-        import os
-        self.fmp_api_key = os.getenv('FMP_API_KEY', 'demo')
-        
-        # Alternative endpoints
-        self.backup_sources = [
-            "https://api.exchangerate-api.com/v4/latest/USD",  # For currency conversion
-        ]
+        self._cache_duration = 1800  # Cache for 30 minutes to significantly reduce API requests
 
     def _get_cached_data(self, symbol: str) -> Optional[Dict]:
         """Get cached data if available and not expired"""
@@ -37,91 +25,82 @@ class VietnamStockAPI:
         self._cache[symbol] = data
         self._cache_expiry[symbol] = time.time() + self._cache_duration
 
-    def _is_rate_limited(self, data: Dict) -> bool:
-        """Check if the response indicates rate limiting"""
-        if isinstance(data, dict):
-            info_msg = data.get('Information', '').lower()
-            note_msg = data.get('Note', '').lower()
-            return 'rate limit' in info_msg or 'rate limit' in note_msg
-        return False
-
-    def _make_fmp_request(self, endpoint: str) -> Dict:
-        """Make a request to Financial Modeling Prep API with retry logic"""
-        url = f"{self.fmp_base_url}/{endpoint}"
-        logger.info(f"Making request to FMP: {url}")
-
-        for attempt in range(MAX_RETRIES):
-            try:
-                if attempt > 0:
-                    delay = RETRY_DELAY * (2 ** attempt) + random.uniform(0, 1)
-                    logger.info(f"Waiting {delay:.2f} seconds before retry...")
-                    time.sleep(delay)
-
-                params = {"apikey": self.fmp_api_key}
-                response = self.session.get(url, params=params, timeout=REQUEST_TIMEOUT)
-                response.raise_for_status()
-                data = response.json()
+    def _fetch_with_yfinance(self, yahoo_symbol: str) -> Dict:
+        """Fetch data using Yahoo Finance with error handling"""
+        try:
+            logger.info(f"Fetching data for {yahoo_symbol} using Yahoo Finance")
+            
+            # Use yfinance with minimal requests
+            ticker = yf.Ticker(yahoo_symbol)
+            info = ticker.info
+            
+            if info and 'regularMarketPrice' in info:
+                price = info.get('regularMarketPrice', 0)
+                change_percent = info.get('regularMarketChangePercent', 0)
                 
-                logger.info(f"FMP response received with {len(data) if isinstance(data, list) else 'dict'} items")
-                return {"success": True, "data": data}
-
-            except requests.exceptions.RequestException as e:
-                logger.error(f"FMP request failed on attempt {attempt + 1}: {str(e)}")
-                if attempt < MAX_RETRIES - 1:
-                    continue
-                else:
-                    return {"success": False, "error": f"Request failed after {MAX_RETRIES} attempts: {str(e)}"}
-
-        return {"success": False, "error": "Max retries exceeded"}
+                return {
+                    "success": True,
+                    "price": price,
+                    "change_percent": change_percent
+                }
+            else:
+                # Fallback to historical data if info fails
+                hist = ticker.history(period="2d")
+                if not hist.empty:
+                    latest_price = hist['Close'].iloc[-1]
+                    prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else latest_price
+                    change_percent = ((latest_price - prev_price) / prev_price * 100) if prev_price else 0
+                    
+                    return {
+                        "success": True,
+                        "price": float(latest_price),
+                        "change_percent": float(change_percent)
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Yahoo Finance error for {yahoo_symbol}: {str(e)}")
+            
+        return {"success": False, "error": "Unable to fetch data"}
 
     def get_stock_price(self, symbol: str) -> Dict:
-        """Get current price for a single Vietnam stock using free APIs with extended caching"""
+        """Get current price for a single Vietnam stock using Yahoo Finance with extended caching"""
         logger.info(f"Fetching price for Vietnam stock: {symbol}")
 
-        # Check cache first (15-minute cache to reduce API calls)
+        # Check cache first (30-minute cache to significantly reduce API calls)
         cached_data = self._get_cached_data(symbol)
         if cached_data:
-            logger.info(f"Returning cached data for {symbol}")
+            logger.info(f"Returning cached data for {symbol} (30-min cache)")
             return cached_data
 
         try:
-            # Try Financial Modeling Prep first (supports international markets)
+            # Format symbol for Yahoo Finance (Vietnam stocks end with .VN)
             vn_symbol = f"{symbol.upper().strip()}.VN"
-            logger.info(f"Trying FMP API for symbol: {vn_symbol}")
+            logger.info(f"Using Yahoo Finance symbol: {vn_symbol}")
 
-            # Try quote endpoint
-            result = self._make_fmp_request(f"quote/{vn_symbol}")
+            # Fetch data using Yahoo Finance
+            result = self._fetch_with_yfinance(vn_symbol)
             
-            if result["success"] and result["data"]:
-                data = result["data"]
-                if isinstance(data, list) and len(data) > 0:
-                    stock_data = data[0]
-                    
-                    price = stock_data.get('price', 0)
-                    change_percent = stock_data.get('changesPercentage', 0)
-                    
-                    if price > 0:
-                        # Format the response
-                        formatted_data = {
-                            symbol.upper(): {
-                                "usd": price,  # Actually in VND
-                                "usd_24h_change": change_percent,
-                                "name": VN_STOCK_COMPANY_NAMES.get(symbol.upper(), symbol.upper())
-                            }
-                        }
-                        logger.info(f"Successfully got Vietnam stock data from FMP: {formatted_data}")
+            if result["success"]:
+                price = result["price"]
+                change_percent = result["change_percent"]
+                
+                # Format the response to match existing structure
+                formatted_data = {
+                    symbol.upper(): {
+                        "usd": price,  # Actually in VND but keeping same structure
+                        "usd_24h_change": change_percent,
+                        "name": VN_STOCK_COMPANY_NAMES.get(symbol.upper(), symbol.upper())
+                    }
+                }
+                logger.info(f"Successfully got Vietnam stock data: {formatted_data}")
 
-                        # Cache for 15 minutes to reduce API calls
-                        self._cache_data(symbol, formatted_data)
-                        return formatted_data
-
-            # If FMP doesn't work, return informative error message
-            logger.warning(f"No data available for {symbol} from free APIs")
-            return {
-                "error": f"Vietnam stock data for {symbol} is currently unavailable. "
-                        f"Free APIs have limited coverage for Vietnamese market. "
-                        f"Please try again later or check if {symbol} is a valid Vietnam stock symbol."
-            }
+                # Cache for 30 minutes to significantly reduce API calls
+                self._cache_data(symbol, formatted_data)
+                return formatted_data
+            else:
+                error_msg = result.get("error", "Unknown error")
+                logger.error(f"Failed to fetch data for {symbol}: {error_msg}")
+                return {"error": f"Unable to fetch data for {symbol}. Please try again later."}
 
         except Exception as e:
             logger.error(f"Error fetching stock price for {symbol}: {str(e)}")
