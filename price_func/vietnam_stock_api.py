@@ -25,53 +25,67 @@ class VietnamStockAPI:
         self._cache[symbol] = data
         self._cache_expiry[symbol] = time.time() + self._cache_duration
 
-    def _fetch_with_vndirect(self, symbol: str) -> Dict:
-        """Fetch data using VND Direct API (Vietnamese broker with free API access)"""
+    def _fetch_with_yahoo_alternative(self, symbol: str) -> Dict:
+        """Fetch data using alternative Yahoo Finance approach with proper headers"""
         try:
-            logger.info(f"Fetching data for {symbol} using VND Direct API")
+            logger.info(f"Fetching data for {symbol} using alternative Yahoo Finance method")
             
-            # VND Direct real-time API endpoint
             import requests
-            import time
-            from datetime import datetime, timedelta
+            import json
             
-            # Get current timestamp and yesterday's timestamp
-            now = int(time.time())
-            yesterday = now - 86400
+            # Vietnamese stocks use .VN suffix on Yahoo Finance
+            vn_symbol = f"{symbol.upper()}.VN"
             
-            # VND Direct chart API for historical data
-            url = f"https://dchart-api.vndirect.com.vn/dchart/history"
-            params = {
-                'resolution': '1D',
-                'symbol': symbol.upper(),
-                'from': yesterday,
-                'to': now
+            # Use Yahoo Finance's query API with proper headers
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
             }
             
-            response = requests.get(url, params=params, timeout=10)
+            # Yahoo Finance query API
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{vn_symbol}"
+            params = {
+                'interval': '1d',
+                'range': '2d',
+                'includePrePost': 'false',
+                'useYfid': 'true',
+                'includeAdjustedClose': 'true'
+            }
+            
+            response = requests.get(url, params=params, headers=headers, timeout=15)
             response.raise_for_status()
             data = response.json()
             
-            if data.get('s') == 'ok' and 'c' in data and len(data['c']) > 0:
-                # Get the latest close price
-                latest_price = data['c'][-1]  # Latest close price
-                prev_price = data['c'][-2] if len(data['c']) > 1 else latest_price
+            if data.get('chart') and data['chart'].get('result') and len(data['chart']['result']) > 0:
+                result = data['chart']['result'][0]
                 
-                # Calculate change percentage
-                change_percent = ((latest_price - prev_price) / prev_price * 100) if prev_price else 0
+                # Get current price from meta data
+                meta = result.get('meta', {})
+                current_price = meta.get('regularMarketPrice', 0)
+                prev_close = meta.get('previousClose', 0)
                 
-                return {
-                    "success": True,
-                    "price": float(latest_price),
-                    "change_percent": float(change_percent)
-                }
+                if current_price > 0 and prev_close > 0:
+                    change_percent = ((current_price - prev_close) / prev_close) * 100
+                    
+                    return {
+                        "success": True,
+                        "price": float(current_price),
+                        "change_percent": float(change_percent)
+                    }
+                else:
+                    logger.warning(f"Invalid price data from Yahoo for {vn_symbol}")
+                    
             else:
-                logger.warning(f"No data returned from VND Direct for {symbol}")
+                logger.warning(f"No chart data returned from Yahoo for {vn_symbol}")
                 
         except Exception as e:
-            logger.error(f"VND Direct API error for {symbol}: {str(e)}")
+            logger.error(f"Alternative Yahoo Finance error for {symbol}: {str(e)}")
             
-        return {"success": False, "error": "Unable to fetch data from Vietnamese market"}
+        return {"success": False, "error": "Unable to fetch Vietnamese stock data"}
 
     def get_stock_price(self, symbol: str) -> Dict:
         """Get current price for a single Vietnam stock using Vietnamese API with extended caching"""
@@ -84,12 +98,12 @@ class VietnamStockAPI:
             return cached_data
 
         try:
-            # Use Vietnamese stock symbol directly (no .VN suffix needed for VND Direct)
+            # Use Vietnamese stock symbol for Yahoo Finance
             vn_symbol = symbol.upper().strip()
-            logger.info(f"Using VND Direct API for symbol: {vn_symbol}")
+            logger.info(f"Using alternative Yahoo Finance for Vietnamese symbol: {vn_symbol}")
 
-            # Fetch data using VND Direct Vietnamese API
-            result = self._fetch_with_vndirect(vn_symbol)
+            # Fetch data using alternative Yahoo Finance method
+            result = self._fetch_with_yahoo_alternative(vn_symbol)
             
             if result["success"]:
                 price = result["price"]
