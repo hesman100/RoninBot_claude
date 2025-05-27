@@ -25,45 +25,56 @@ class VietnamStockAPI:
         self._cache[symbol] = data
         self._cache_expiry[symbol] = time.time() + self._cache_duration
 
-    def _fetch_with_yfinance(self, yahoo_symbol: str) -> Dict:
-        """Fetch data using Yahoo Finance with error handling"""
+    def _fetch_with_vndirect(self, symbol: str) -> Dict:
+        """Fetch data using VND Direct API (Vietnamese broker with free API access)"""
         try:
-            logger.info(f"Fetching data for {yahoo_symbol} using Yahoo Finance")
+            logger.info(f"Fetching data for {symbol} using VND Direct API")
             
-            # Use yfinance with minimal requests
-            ticker = yf.Ticker(yahoo_symbol)
-            info = ticker.info
+            # VND Direct real-time API endpoint
+            import requests
+            import time
+            from datetime import datetime, timedelta
             
-            if info and 'regularMarketPrice' in info:
-                price = info.get('regularMarketPrice', 0)
-                change_percent = info.get('regularMarketChangePercent', 0)
+            # Get current timestamp and yesterday's timestamp
+            now = int(time.time())
+            yesterday = now - 86400
+            
+            # VND Direct chart API for historical data
+            url = f"https://dchart-api.vndirect.com.vn/dchart/history"
+            params = {
+                'resolution': '1D',
+                'symbol': symbol.upper(),
+                'from': yesterday,
+                'to': now
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('s') == 'ok' and 'c' in data and len(data['c']) > 0:
+                # Get the latest close price
+                latest_price = data['c'][-1]  # Latest close price
+                prev_price = data['c'][-2] if len(data['c']) > 1 else latest_price
+                
+                # Calculate change percentage
+                change_percent = ((latest_price - prev_price) / prev_price * 100) if prev_price else 0
                 
                 return {
                     "success": True,
-                    "price": price,
-                    "change_percent": change_percent
+                    "price": float(latest_price),
+                    "change_percent": float(change_percent)
                 }
             else:
-                # Fallback to historical data if info fails
-                hist = ticker.history(period="2d")
-                if not hist.empty:
-                    latest_price = hist['Close'].iloc[-1]
-                    prev_price = hist['Close'].iloc[-2] if len(hist) > 1 else latest_price
-                    change_percent = ((latest_price - prev_price) / prev_price * 100) if prev_price else 0
-                    
-                    return {
-                        "success": True,
-                        "price": float(latest_price),
-                        "change_percent": float(change_percent)
-                    }
-                    
+                logger.warning(f"No data returned from VND Direct for {symbol}")
+                
         except Exception as e:
-            logger.error(f"Yahoo Finance error for {yahoo_symbol}: {str(e)}")
+            logger.error(f"VND Direct API error for {symbol}: {str(e)}")
             
-        return {"success": False, "error": "Unable to fetch data"}
+        return {"success": False, "error": "Unable to fetch data from Vietnamese market"}
 
     def get_stock_price(self, symbol: str) -> Dict:
-        """Get current price for a single Vietnam stock using Yahoo Finance with extended caching"""
+        """Get current price for a single Vietnam stock using Vietnamese API with extended caching"""
         logger.info(f"Fetching price for Vietnam stock: {symbol}")
 
         # Check cache first (30-minute cache to significantly reduce API calls)
@@ -73,12 +84,12 @@ class VietnamStockAPI:
             return cached_data
 
         try:
-            # Format symbol for Yahoo Finance (Vietnam stocks end with .VN)
-            vn_symbol = f"{symbol.upper().strip()}.VN"
-            logger.info(f"Using Yahoo Finance symbol: {vn_symbol}")
+            # Use Vietnamese stock symbol directly (no .VN suffix needed for VND Direct)
+            vn_symbol = symbol.upper().strip()
+            logger.info(f"Using VND Direct API for symbol: {vn_symbol}")
 
-            # Fetch data using Yahoo Finance
-            result = self._fetch_with_yfinance(vn_symbol)
+            # Fetch data using VND Direct Vietnamese API
+            result = self._fetch_with_vndirect(vn_symbol)
             
             if result["success"]:
                 price = result["price"]
@@ -92,7 +103,7 @@ class VietnamStockAPI:
                         "name": VN_STOCK_COMPANY_NAMES.get(symbol.upper(), symbol.upper())
                     }
                 }
-                logger.info(f"Successfully got Vietnam stock data: {formatted_data}")
+                logger.info(f"Successfully got Vietnam stock data from VND Direct: {formatted_data}")
 
                 # Cache for 30 minutes to significantly reduce API calls
                 self._cache_data(symbol, formatted_data)
@@ -106,7 +117,7 @@ class VietnamStockAPI:
             logger.error(f"Error fetching stock price for {symbol}: {str(e)}")
             return {"error": f"Unable to fetch data for {symbol}: {str(e)}"}
 
-    def get_stock_prices(self, symbols: List[str] = None) -> Dict:
+    def get_stock_prices(self, symbols: Optional[List[str]] = None) -> Dict:
         """Get current prices for multiple Vietnam stocks"""
         if symbols is None:
             symbols = DEFAULT_VN_STOCKS
