@@ -130,10 +130,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                            "/c - Get prices for popular cryptocurrencies\n"
                            "/s <stock> - Get price for any stock\n"
                            "              (Example: /s AAPL or /s TSLA)\n"
-                           "/s - Get prices for popular stocks\n"
-                           "/vn <stock> - Get Vietnam stock price\n"
-                           "              (Example: /vn VNM or /vn HPG)\n"
-                           "/vn - Get prices for popular Vietnam stocks\n")
+                           "/s - Get prices for popular stocks\n")
     else:
         welcome_message = (f"🤖 Welcome to the Ronin Bot (v{BOT_VER})!\n\n"
                            "\n ==== Price ==== \n"
@@ -142,10 +139,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                            "/c - Get prices for popular cryptocurrencies\n"
                            "/s <stock> - Get price for any stock\n"
                            "              (Example: /s AAPL, /s TSLA)\n"
-                           "/s - Get prices for popular stocks\n"
-                           "/vn <stock> - Get Vietnam stock price\n"
-                           "              (Example: /vn VNM or /vn HPG)\n"
-                           "/vn - Get prices for popular Vietnam stocks\n")
+                           "/s - Get prices for popular stocks\n")
 
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=welcome_message)
@@ -463,7 +457,7 @@ def main() -> None:
             application.add_handler(CommandHandler("h", help_command))
             application.add_handler(CommandHandler("c", price))
             application.add_handler(CommandHandler("s", stock))
-            application.add_handler(CommandHandler("vn", vietnam_stock))
+            # application.add_handler(CommandHandler("vn", vietnam_stock))  # Temporarily disabled
 
             # Add the game command handlers
             application.add_handler(CommandHandler("g", game_command))
