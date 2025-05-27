@@ -21,7 +21,7 @@ import time
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
 
-BOT_VER = "1.5"
+BOT_VER = "1.5.1"
 
 # Configure logging
 logging.basicConfig(
@@ -122,52 +122,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     is_channel = update.effective_chat.type == "channel"
 
     if is_group:
-        welcome_message = (
-            f"🤖 Welcome to the Ronin Bot (v{BOT_VER})!\n\n"
-            "/help or /h - Show this help message\n\n"
-            "\n ==== Price ==== \n"
-            "/c <crypto> - Get price for any cryptocurrency\n"
-            "              (Example: /c BTC or /c BNB)\n"
-            "/c - Get prices for popular cryptocurrencies\n"
-            "/s <stock> - Get price for any stock\n"
-            "              (Example: /s AAPL or /s TSLA)\n"
-            "/s - Get prices for popular stocks\n"
-            "/vn <stock> - Get Vietnam stock price\n"
-            "              (Example: /vn VNM or /vn HPG)\n"
-            "/vn - Get prices for popular Vietnam stocks\n"
-            "\n ==== Game ==== \n"
-            "/g <option> - Play country guessing game\n"
-            "               (Example: /g map, /g flag, /g capital)\n"
-            "/g lb       - View country game leaderboard\n"
-            "/g help     - More detail game options\n"
-            "\n ====  ==== \n"
-            "💡 Tip: Anyone in the group can use these commands!")
+        welcome_message = (f"🤖 Welcome to the Ronin Bot (v{BOT_VER})!\n\n"
+                           "/help or /h - Show this help message\n\n"
+                           "\n ==== Price ==== \n"
+                           "/c <crypto> - Get price for any cryptocurrency\n"
+                           "              (Example: /c BTC or /c BNB)\n"
+                           "/c - Get prices for popular cryptocurrencies\n"
+                           "/s <stock> - Get price for any stock\n"
+                           "              (Example: /s AAPL or /s TSLA)\n"
+                           "/s - Get prices for popular stocks\n"
+                           "/vn <stock> - Get Vietnam stock price\n"
+                           "              (Example: /vn VNM or /vn HPG)\n"
+                           "/vn - Get prices for popular Vietnam stocks\n")
     else:
-        welcome_message = (
-            f"🤖 Welcome to the Ronin Bot (v{BOT_VER})!\n\n"
-            "\n ==== Price ==== \n"
-            "/c <crypto> - Get price for any cryptocurrency\n"
-            "              (Example: /c BTC, /c BNB)\n"
-            "/c - Get prices for popular cryptocurrencies\n"
-            "/s <stock> - Get price for any stock\n"
-            "              (Example: /s AAPL, /s TSLA)\n"
-            "/s - Get prices for popular stocks\n"
-            "/vn <stock> - Get Vietnam stock price\n"
-            "              (Example: /vn VNM or /vn HPG)\n"
-            "/vn - Get prices for popular Vietnam stocks\n"
-            "\n ==== Game ==== \n"
-            "/g <option> - Play country guessing game\n"
-            "              (Example: /g map, /g flag, /g capital)\n"
-            "/g lb       - View country game leaderboard\n"
-            "/g help     - More detail game options\n"
-            "\n ====  ==== \n"
-            "/help or /h - Show this help message\n\n"
-            "💡 To use in groups:\n"
-            "1. Add me to your group\n"
-            "2. Use commands like /c BTC or /s AAPL\n\n"
-            "💡 For channels:\n"
-            "1. Add me as a channel admin\n"
-            "2. Set up price updates using /setchannel")
+        welcome_message = (f"🤖 Welcome to the Ronin Bot (v{BOT_VER})!\n\n"
+                           "\n ==== Price ==== \n"
+                           "/c <crypto> - Get price for any cryptocurrency\n"
+                           "              (Example: /c BTC, /c BNB)\n"
+                           "/c - Get prices for popular cryptocurrencies\n"
+                           "/s <stock> - Get price for any stock\n"
+                           "              (Example: /s AAPL, /s TSLA)\n"
+                           "/s - Get prices for popular stocks\n"
+                           "/vn <stock> - Get Vietnam stock price\n"
+                           "              (Example: /vn VNM or /vn HPG)\n"
+                           "/vn - Get prices for popular Vietnam stocks\n")
 
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=welcome_message)
@@ -524,3 +502,16 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+#"\n ==== Game ==== \n"
+#"/g <option> - Play country guessing game\n"
+#"              (Example: /g map, /g flag, /g capital)\n"
+#"/g lb       - View country game leaderboard\n"
+#"/g help     - More detail game options\n"
+#"\n ====  ==== \n"
+#"/help or /h - Show this help message\n\n"
+#"💡 To use in groups:\n"
+#"1. Add me to your group\n"
+#"2. Use commands like /c BTC or /s AAPL\n\n"
+#"💡 For channels:\n"
+#"1. Add me as a channel admin\n"
+#"2. Set up price updates using /setchannel")
