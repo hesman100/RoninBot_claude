@@ -507,8 +507,9 @@ async def get_lunar_detail_info() -> str:
         fortune_patterns = [
             r'Ngày\s+(Thiên\s+Tài):\s*([^,\n]{1,80})',
             r'Ngày\s+(Thiên\s+Tặc):\s*([^,\n]{1,80})',
-            r'Ngày\s+(Thuần\s+Dương):\s*([^,\n]{1,80})', 
-            r'Ngày\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+):\s*([^,\n]{1,80}(?:nên|thuận|lợi|tốt|thắng|xuất hành|cầu tài|xấu|không được)[^,\n]{0,50})'
+            r'Ngày\s+(Thuần\s+Dương):\s*([^,\n]{1,80})',
+            r'Ngày\s+(Kim\s+Dương):\s*([^,\n]{1,80})', 
+            r'Ngày\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+):\s*([^,\n]{1,80}(?:nên|thuận|lợi|tốt|thắng|xuất hành|cầu tài|xấu|không được|thông suốt|phù trợ)[^,\n]{0,50})'
         ]
         
         for pattern in fortune_patterns:
