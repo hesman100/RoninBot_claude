@@ -388,54 +388,43 @@ async def get_gold_price_vnd() -> str:
 
 
 async def get_vietnam_gold_price() -> str:
-    """Get current Vietnam gold price from BTMC API"""
+    """Get current Vietnam gold price from vnappmob API"""
     try:
         import requests
         
-        # BTMC API endpoint for gold prices
-        btmc_url = "https://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45bnpm5"
+        # VnAppMob API endpoint for gold prices
+        vnappmob_url = "https://api.vnappmob.com/api/gold_price/"
         
-        # Add headers to mimic browser request
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Referer': 'https://btmc.vn/'
-        }
-        
-        response = requests.get(btmc_url, headers=headers, timeout=15)
+        response = requests.get(vnappmob_url, timeout=15)
         
         if response.status_code != 200:
             return "❌ Lỗi khi lấy giá vàng VN"
         
         data = response.json()
         
-        # Find gold prices (usually "Vang SJC" or similar)
-        gold_buy = None
-        gold_sell = None
+        # Check if data exists and has the expected structure
+        if not data or 'data' not in data:
+            return "❌ Không có dữ liệu giá vàng VN"
         
-        # Look for SJC gold in the data
-        for item in data:
-            name = item.get('name', '').upper()
-            if 'SJC' in name or 'VÀNG' in name or 'GOLD' in name:
-                gold_buy = item.get('buy')
-                gold_sell = item.get('sell')
+        gold_data = data['data']
+        
+        # Find SJC gold prices
+        sjc_gold = None
+        for item in gold_data:
+            if 'SJC' in item.get('name', '').upper():
+                sjc_gold = item
                 break
         
-        if gold_buy and gold_sell:
-            # Convert to proper format (assuming prices are in correct VND format)
-            buy_price = float(gold_buy)
-            sell_price = float(gold_sell)
+        if sjc_gold:
+            buy_price = sjc_gold.get('buy', 0)
+            sell_price = sjc_gold.get('sell', 0)
             
-            # Check if prices need to be multiplied (if they're in thousands)
-            if buy_price < 100000:  # Likely in thousands
-                buy_price *= 1000
-                sell_price *= 1000
+            # Prices are typically in thousands, convert to full VND
+            buy_price_full = float(buy_price) * 1000
+            sell_price_full = float(sell_price) * 1000
             
-            return (f"🟡 Vàng VN (mua): {buy_price:,.0f} VND/lượng\n"
-                   f"🟡 Vàng VN (bán): {sell_price:,.0f} VND/lượng")
+            return (f"🟡 Vàng VN (mua): {buy_price_full:,.0f} VND/lượng\n"
+                   f"🟡 Vàng VN (bán): {sell_price_full:,.0f} VND/lượng")
         else:
             return "❌ Không tìm thấy giá vàng SJC"
         
@@ -450,10 +439,11 @@ async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     try:
         from lunardate import LunarDate
-        from datetime import datetime
+        from datetime import datetime, timezone, timedelta
         
-        # Get current date
-        today = datetime.now()
+        # Get current date in GMT+7 (Vietnam time)
+        vietnam_tz = timezone(timedelta(hours=7))
+        today = datetime.now(vietnam_tz)
         
         # Convert to lunar date
         lunar_today = LunarDate.fromSolarDate(today.year, today.month, today.day)
