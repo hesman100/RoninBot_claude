@@ -471,7 +471,18 @@ async def get_lunar_detail_info() -> str:
         from bs4 import BeautifulSoup
         import re
 
-        url = "https://www.xemlicham.com/"
+        # Get current date and lunar date for URL construction
+        from datetime import datetime, timezone, timedelta
+        from lunardate import LunarDate
+        
+        # Get current date in Vietnam timezone
+        vietnam_tz = timezone(timedelta(hours=7))
+        today = datetime.now(vietnam_tz)
+        lunar_today = LunarDate.fromSolarDate(today.year, today.month, today.day)
+        
+        # Build URL for specific lunar date
+        url = f"https://www.xemlicham.com/am-lich/nam/{lunar_today.year}/thang/{lunar_today.month}/ngay/{lunar_today.day}"
+        
         headers = {
             'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -493,23 +504,21 @@ async def get_lunar_detail_info() -> str:
         day_match = re.search(day_pattern, text, re.IGNORECASE)
         lunar_day = day_match.group().strip() if day_match else None
 
-        # Extract fortune information (Thiên Tài, etc.)
-        fortune_pattern = r'Ngày\s+(Thiên\s+Tài):\s*([^.\n]*(?:thuận|lợi|tốt|thắng)[^.\n]*)'
-        fortune_match = re.search(fortune_pattern, text, re.IGNORECASE)
+        # Extract fortune information - broader patterns to catch various fortune types
+        fortune_patterns = [
+            r'Ngày\s+(Thiên\s+Tài):\s*([^,\n]*(?:thuận|lợi|tốt|thắng)[^,\n]*)',
+            r'Ngày\s+(Thuần\s+Dương):\s*([^,\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^,\n]*)',
+            r'Ngày\s+([^:]*(?:Tài|Dương|Cát|Tốt)[^:]*?):\s*([^,\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^,\n]*)'
+        ]
+        
         fortune_info = None
-        if fortune_match:
-            fortune_name = fortune_match.group(1).strip()
-            fortune_desc = fortune_match.group(2).strip()
-            fortune_info = f"🌟 Ngày {fortune_name}: {fortune_desc}"
-        else:
-            # Try broader pattern for any fortune day
-            fortune_pattern_broad = r'Ngày\s+([^:]*Tài[^:]*?):\s*([^.\n]*(?:thuận|lợi|tốt|thắng)[^.\n]*)'
-            fortune_match_broad = re.search(fortune_pattern_broad, text,
-                                            re.IGNORECASE)
-            if fortune_match_broad:
-                fortune_name = fortune_match_broad.group(1).strip()
-                fortune_desc = fortune_match_broad.group(2).strip()
+        for pattern in fortune_patterns:
+            fortune_match = re.search(pattern, text, re.IGNORECASE)
+            if fortune_match:
+                fortune_name = fortune_match.group(1).strip()
+                fortune_desc = fortune_match.group(2).strip()
                 fortune_info = f"🌟 Ngày {fortune_name}: {fortune_desc}"
+                break
 
         # Extract Giờ Hoàng Đạo
         time_pattern = r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^\n]*(?:Sửu|Thìn|Ngọ|Mùi|Tuất|Hợi)[^\n]*)'
