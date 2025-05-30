@@ -356,8 +356,8 @@ async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Format the message
         message = (
             f"🌙 **Ngày Âm Lịch Hôm Nay**\n\n"
-            f"📅 Dương lịch: {today.strftime('%d/%m/%Y')}\n"
-            f"🌕 Âm lịch: {lunar_today.day}/{lunar_today.month}/{lunar_today.year}\n\n"
+            f"📅 Dương lịch: {today.day} tháng {today.month}, {today.year}\n"
+            f"🌕 Âm lịch: {lunar_today.day} tháng {lunar_today.month}, {lunar_today.year}\n\n"
             f"📍 Thời gian: {today.strftime('%H:%M:%S')}"
         )
         
