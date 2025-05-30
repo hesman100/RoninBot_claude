@@ -21,7 +21,7 @@ import time
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
 
-BOT_VER = "1.6.1"
+BOT_VER = "1.6.2"
 
 # Configure logging
 logging.basicConfig(
@@ -505,12 +505,12 @@ async def get_lunar_detail_info() -> str:
         fortune_info = None
         # Try to find specific fortune types like "Thiên Tài", "Thuần Dương", "Thiên Tặc", etc.
         fortune_patterns = [
-            r'Ngày\s+(Thiên\s+Tài):\s*([^,\n]{1,80})',
-            r'Ngày\s+(Thiên\s+Tặc):\s*([^,\n]{1,80})',
-            r'Ngày\s+(Thuần\s+Dương):\s*([^,\n]{1,80})',
-            r'Ngày\s+(Kim\s+Dương):\s*([^,\n]{1,80})',
-            r'Ngày\s+(Đạo\s+Tặc):\s*([^,\n]{1,80})',
-            r'Ngày\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+):\s*([^,\n]{1,80}(?:nên|thuận|lợi|tốt|thắng|xuất hành|cầu tài|xấu|không được|thông suốt|phù trợ|rất xấu|bị hại)[^,\n]{0,50})'
+            r'Ngày\s+(Thiên\s+Tài):\s*([^\n]*)',
+            r'Ngày\s+(Thiên\s+Tặc):\s*([^\n]*)',
+            r'Ngày\s+(Thuần\s+Dương):\s*([^\n]*)',
+            r'Ngày\s+(Kim\s+Dương):\s*([^\n]*)',
+            r'Ngày\s+(Đạo\s+Tặc):\s*([^\n]*)',
+            r'Ngày\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+):\s*([^\n]*(?:nên|thuận|lợi|tốt|thắng|xuất hành|cầu tài|xấu|không được|thông suốt|phù trợ|rất xấu|bị hại)[^\n]*)'
         ]
 
         for pattern in fortune_patterns:
