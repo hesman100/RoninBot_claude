@@ -380,11 +380,68 @@ async def get_gold_price_vnd() -> str:
         tael_to_ounce = 1.20337
         gold_price_vnd_per_tael = gold_price_usd_per_ounce * usd_to_vnd * tael_to_ounce
         
-        return f"💰 Vàng: {gold_price_vnd_per_tael:,.0f} VND/lượng"
+        return f"💰 Vàng (thế giới): {gold_price_vnd_per_tael:,.0f} VND/lượng"
         
     except Exception as e:
         logger.error(f"Error getting gold price: {str(e)}")
         return "❌ Lỗi khi lấy giá vàng"
+
+
+async def get_vietnam_gold_price() -> str:
+    """Get current Vietnam gold price from BTMC API"""
+    try:
+        import requests
+        
+        # BTMC API endpoint for gold prices
+        btmc_url = "https://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45bnpm5"
+        
+        # Add headers to mimic browser request
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Referer': 'https://btmc.vn/'
+        }
+        
+        response = requests.get(btmc_url, headers=headers, timeout=15)
+        
+        if response.status_code != 200:
+            return "❌ Lỗi khi lấy giá vàng VN"
+        
+        data = response.json()
+        
+        # Find gold prices (usually "Vang SJC" or similar)
+        gold_buy = None
+        gold_sell = None
+        
+        # Look for SJC gold in the data
+        for item in data:
+            name = item.get('name', '').upper()
+            if 'SJC' in name or 'VÀNG' in name or 'GOLD' in name:
+                gold_buy = item.get('buy')
+                gold_sell = item.get('sell')
+                break
+        
+        if gold_buy and gold_sell:
+            # Convert to proper format (assuming prices are in correct VND format)
+            buy_price = float(gold_buy)
+            sell_price = float(gold_sell)
+            
+            # Check if prices need to be multiplied (if they're in thousands)
+            if buy_price < 100000:  # Likely in thousands
+                buy_price *= 1000
+                sell_price *= 1000
+            
+            return (f"🟡 Vàng VN (mua): {buy_price:,.0f} VND/lượng\n"
+                   f"🟡 Vàng VN (bán): {sell_price:,.0f} VND/lượng")
+        else:
+            return "❌ Không tìm thấy giá vàng SJC"
+        
+    except Exception as e:
+        logger.error(f"Error getting Vietnam gold price: {str(e)}")
+        return "❌ Lỗi khi lấy giá vàng VN"
 
 
 async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -401,8 +458,9 @@ async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Convert to lunar date
         lunar_today = LunarDate.fromSolarDate(today.year, today.month, today.day)
         
-        # Get gold price
-        gold_price_info = await get_gold_price_vnd()
+        # Get gold prices
+        world_gold_price = await get_gold_price_vnd()
+        vietnam_gold_price = await get_vietnam_gold_price()
         
         # Get day of week in Vietnamese
         days_of_week = {
@@ -422,7 +480,8 @@ async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             f"🌙 **{day_of_week} - Ngày Âm Lịch Hôm Nay**\n\n"
             f"📅 Dương lịch: {today.day} / tháng {today.month} / {today.year}\n"
             f"🌕 Âm lịch: {lunar_today.day} / tháng {lunar_today.month} / {lunar_today.year}\n"
-            f"{gold_price_info}\n\n"
+            f"{world_gold_price}\n"
+            f"{vietnam_gold_price}\n\n"
             f"📍 Thời gian: {today.strftime('%H:%M:%S')}"
         )
         
