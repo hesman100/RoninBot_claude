@@ -21,7 +21,7 @@ import time
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
 
-BOT_VER = "1.6"
+BOT_VER = "1.6.1"
 
 # Configure logging
 logging.basicConfig(
@@ -473,7 +473,7 @@ async def get_lunar_detail_info() -> str:
 
         # Use the home page which shows current day information
         url = "https://www.xemlicham.com/"
-        
+
         headers = {
             'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -497,7 +497,7 @@ async def get_lunar_detail_info() -> str:
         day_match = re.search(day_pattern, text, re.IGNORECASE)
         if day_match:
             day_name = day_match.group(1).strip()
-            month_name = day_match.group(2).strip() 
+            month_name = day_match.group(2).strip()
             year_name = day_match.group(3).strip()
             lunar_day = f"Ngày {day_name} tháng {month_name} năm {year_name}"
 
@@ -509,10 +509,10 @@ async def get_lunar_detail_info() -> str:
             r'Ngày\s+(Thiên\s+Tặc):\s*([^,\n]{1,80})',
             r'Ngày\s+(Thuần\s+Dương):\s*([^,\n]{1,80})',
             r'Ngày\s+(Kim\s+Dương):\s*([^,\n]{1,80})',
-            r'Ngày\s+(Đạo\s+Tặc):\s*([^,\n]{1,80})', 
+            r'Ngày\s+(Đạo\s+Tặc):\s*([^,\n]{1,80})',
             r'Ngày\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+):\s*([^,\n]{1,80}(?:nên|thuận|lợi|tốt|thắng|xuất hành|cầu tài|xấu|không được|thông suốt|phù trợ|rất xấu|bị hại)[^,\n]{0,50})'
         ]
-        
+
         for pattern in fortune_patterns:
             fortune_match = re.search(pattern, text, re.IGNORECASE)
             if fortune_match:
@@ -535,14 +535,14 @@ async def get_lunar_detail_info() -> str:
 
         # Format the result - separate lunar day from other info
         lunar_day_info = f"📜 {lunar_day}" if lunar_day else ""
-        
+
         other_parts = []
         if fortune_info:
             other_parts.append(fortune_info)
-        
+
         if hoang_dao_hours:
             other_parts.append(f"⏰ Giờ Hoàng Đạo: {hoang_dao_hours}")
-        
+
         # Combine with proper spacing
         if lunar_day_info and other_parts:
             return f"{lunar_day_info}\n\n" + "\n".join(other_parts)
@@ -595,21 +595,23 @@ async def lunar_calendar(update: Update,
 
         # Format the message
         # Extract lunar day from detail info to place it next to lunar calendar date
-        lunar_detail_parts = lunar_detail_info.split('\n\n') if lunar_detail_info else []
+        lunar_detail_parts = lunar_detail_info.split(
+            '\n\n') if lunar_detail_info else []
         lunar_day_detail = ""
         other_detail_info = ""
-        
+
         if lunar_detail_parts:
             # First part should be the lunar day detail
             if lunar_detail_parts[0].startswith("📜"):
                 lunar_day_detail = lunar_detail_parts[0].replace("📜 ", "")
                 # Update format: "Ngày X tháng Y năm Z" -> "Ngày X, tháng Y, năm Z"
-                lunar_day_detail = lunar_day_detail.replace(" tháng ", ", tháng ").replace(" năm ", ", năm ")
+                lunar_day_detail = lunar_day_detail.replace(
+                    " tháng ", ", tháng ").replace(" năm ", ", năm ")
                 if len(lunar_detail_parts) > 1:
                     other_detail_info = '\n\n'.join(lunar_detail_parts[1:])
             else:
                 other_detail_info = lunar_detail_info
-        
+
         message = (
             f"🗓️ **{day_of_week} - Dương Lịch ({today.day} / tháng {today.month} / {today.year})**\n\n"
             f"{world_gold_price}\n"
