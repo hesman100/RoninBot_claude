@@ -130,7 +130,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                            "/c - Get prices for popular cryptocurrencies\n"
                            "/s <stock> - Get price for any stock\n"
                            "              (Example: /s AAPL or /s TSLA)\n"
-                           "/s - Get prices for popular stocks\n")
+                           "/s - Get prices for popular stocks\n\n"
+                           "\n ==== Lunar Calendar ==== \n"
+                           "/l - Show current lunar calendar date\n")
     else:
         welcome_message = (f"🤖 Welcome to the Ronin Bot (v{BOT_VER})!\n\n"
                            "\n ==== Price ==== \n"
@@ -139,7 +141,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                            "/c - Get prices for popular cryptocurrencies\n"
                            "/s <stock> - Get price for any stock\n"
                            "              (Example: /s AAPL, /s TSLA)\n"
-                           "/s - Get prices for popular stocks\n")
+                           "/s - Get prices for popular stocks\n\n"
+                           "\n ==== Lunar Calendar ==== \n"
+                           "/l - Show current lunar calendar date\n")
 
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text=welcome_message)
@@ -335,6 +339,42 @@ async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Health check - Bot is running at {current_time}")
 
 
+async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Display current lunar calendar date."""
+    logger.info(f"Received /l command from chat {update.effective_chat.id}")
+    
+    try:
+        from lunardate import LunarDate
+        from datetime import datetime
+        
+        # Get current date
+        today = datetime.now()
+        
+        # Convert to lunar date
+        lunar_today = LunarDate.fromSolarDate(today.year, today.month, today.day)
+        
+        # Format the message
+        message = (
+            f"🌙 **Ngày Âm Lịch Hôm Nay**\n\n"
+            f"📅 Dương lịch: {today.strftime('%d/%m/%Y')}\n"
+            f"🌕 Âm lịch: {lunar_today.day}/{lunar_today.month}/{lunar_today.year}\n\n"
+            f"📍 Thời gian: {today.strftime('%H:%M:%S')}"
+        )
+        
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            parse_mode="Markdown"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in lunar_calendar command: {str(e)}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Lỗi khi lấy thông tin âm lịch. Vui lòng thử lại sau."
+        )
+
+
 async def game_command(update: Update,
                        context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle all /g commands with subcommands"""
@@ -457,6 +497,7 @@ def main() -> None:
             application.add_handler(CommandHandler("h", help_command))
             application.add_handler(CommandHandler("c", price))
             application.add_handler(CommandHandler("s", stock))
+            application.add_handler(CommandHandler("l", lunar_calendar))
             # application.add_handler(CommandHandler("vn", vietnam_stock))  # Temporarily disabled
 
             # Add the game command handlers
