@@ -586,16 +586,18 @@ async def lunar_calendar(update: Update,
             # First part should be the lunar day detail
             if lunar_detail_parts[0].startswith("📜"):
                 lunar_day_detail = lunar_detail_parts[0].replace("📜 ", "")
+                # Update format: "Ngày X tháng Y năm Z" -> "Ngày X, tháng Y, năm Z"
+                lunar_day_detail = lunar_day_detail.replace(" tháng ", ", tháng ").replace(" năm ", ", năm ")
                 if len(lunar_detail_parts) > 1:
                     other_detail_info = '\n\n'.join(lunar_detail_parts[1:])
             else:
                 other_detail_info = lunar_detail_info
         
         message = (
-            f"📅 **{day_of_week} - Dương Lịch ({today.day} / tháng {today.month} / {today.year})**\n\n"
+            f"🗓️ **{day_of_week} - Dương Lịch ({today.day} / tháng {today.month} / {today.year})**\n\n"
             f"{world_gold_price}\n"
             f"{vietnam_gold_price}\n\n"
-            f"🌕 Âm lịch: {lunar_today.day} / tháng {lunar_today.month} / {lunar_today.year}\n"
+            f"🌕 Âm lịch: ngày {lunar_today.day}, tháng {lunar_today.month}, {lunar_today.year}\n"
             f"📜 {lunar_day_detail}\n\n"
             f"{other_detail_info}\n\n"
             f"📍 Thời gian: {today.strftime('%H:%M:%S')}")
