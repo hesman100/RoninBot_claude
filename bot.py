@@ -484,13 +484,21 @@ async def get_lunar_detail_info() -> str:
         lunar_day = day_match.group().strip() if day_match else None
         
         # Extract fortune information (Thiên Tài, etc.)
-        fortune_pattern = r'Ngày\s+(Thiên\s+Tài):\s*([^,\n]*(?:thuận|lợi|tốt)[^,\n]*)'
+        fortune_pattern = r'Ngày\s+(Thiên\s+Tài):\s*([^.\n]*(?:thuận|lợi|tốt|thắng)[^.\n]*)'
         fortune_match = re.search(fortune_pattern, text, re.IGNORECASE)
         fortune_info = None
         if fortune_match:
             fortune_name = fortune_match.group(1).strip()
             fortune_desc = fortune_match.group(2).strip()
-            fortune_info = f"Ngày {fortune_name}: {fortune_desc}"
+            fortune_info = f"🌟 Ngày {fortune_name}: {fortune_desc}"
+        else:
+            # Try broader pattern for any fortune day
+            fortune_pattern_broad = r'Ngày\s+([^:]*Tài[^:]*?):\s*([^.\n]*(?:thuận|lợi|tốt|thắng)[^.\n]*)'
+            fortune_match_broad = re.search(fortune_pattern_broad, text, re.IGNORECASE)
+            if fortune_match_broad:
+                fortune_name = fortune_match_broad.group(1).strip()
+                fortune_desc = fortune_match_broad.group(2).strip()
+                fortune_info = f"🌟 Ngày {fortune_name}: {fortune_desc}"
         
         # Extract Giờ Hoàng Đạo
         time_pattern = r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^\n]*(?:Sửu|Thìn|Ngọ|Mùi|Tuất|Hợi)[^\n]*)'
@@ -504,7 +512,7 @@ async def get_lunar_detail_info() -> str:
             result_parts.append(f"📜 {lunar_day}")
         
         if fortune_info:
-            result_parts.append(f"🌟 {fortune_info}")
+            result_parts.append(fortune_info)
         
         if hoang_dao_hours:
             result_parts.append(f"⏰ Giờ Hoàng Đạo: {hoang_dao_hours}")
