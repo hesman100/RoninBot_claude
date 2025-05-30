@@ -503,11 +503,12 @@ async def get_lunar_detail_info() -> str:
 
         # Extract fortune information - look for specific fortune types only
         fortune_info = None
-        # Try to find specific fortune types like "Thiên Tài", "Thuần Dương", etc.
+        # Try to find specific fortune types like "Thiên Tài", "Thuần Dương", "Thiên Tặc", etc.
         fortune_patterns = [
             r'Ngày\s+(Thiên\s+Tài):\s*([^,\n]{1,80})',
+            r'Ngày\s+(Thiên\s+Tặc):\s*([^,\n]{1,80})',
             r'Ngày\s+(Thuần\s+Dương):\s*([^,\n]{1,80})', 
-            r'Ngày\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+):\s*([^,\n]{1,80}(?:nên|thuận|lợi|tốt|thắng|xuất hành|cầu tài)[^,\n]{0,50})'
+            r'Ngày\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+):\s*([^,\n]{1,80}(?:nên|thuận|lợi|tốt|thắng|xuất hành|cầu tài|xấu|không được)[^,\n]{0,50})'
         ]
         
         for pattern in fortune_patterns:
