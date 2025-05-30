@@ -471,17 +471,8 @@ async def get_lunar_detail_info() -> str:
         from bs4 import BeautifulSoup
         import re
 
-        # Get current date and lunar date for URL construction
-        from datetime import datetime, timezone, timedelta
-        from lunardate import LunarDate
-        
-        # Get current date in Vietnam timezone
-        vietnam_tz = timezone(timedelta(hours=7))
-        today = datetime.now(vietnam_tz)
-        lunar_today = LunarDate.fromSolarDate(today.year, today.month, today.day)
-        
-        # Build URL for specific lunar date
-        url = f"https://www.xemlicham.com/am-lich/nam/{lunar_today.year}/thang/{lunar_today.month}/ngay/{lunar_today.day}"
+        # Use the home page which shows current day information
+        url = "https://www.xemlicham.com/"
         
         headers = {
             'User-Agent':
@@ -499,47 +490,45 @@ async def get_lunar_detail_info() -> str:
         soup = BeautifulSoup(response.content, 'html.parser')
         text = soup.get_text()
 
-        # Extract lunar day information - look for specific day format
-        day_patterns = [
-            r'Ngày\s+([^\n]*?tháng\s+[^\n]*?năm\s+[^\n]*)',
-            r'(Ngày\s+[A-Za-z]+\s+[A-Za-z]+(?:\s+tháng\s+[A-Za-z]+\s+[A-Za-z]+)?(?:\s+năm\s+[A-Za-z]+\s+[A-Za-z]+)?)'
-        ]
-        
+        # Extract lunar day information - flexible pattern for "Ngày X tháng Y năm Z"
         lunar_day = None
-        for pattern in day_patterns:
-            day_match = re.search(pattern, text, re.IGNORECASE)
-            if day_match:
-                lunar_day = day_match.group(1).strip()
-                break
+        day_name = month_name = year_name = ""
+        day_pattern = r'Ngày\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+)\s+tháng\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+)\s+năm\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+)'
+        day_match = re.search(day_pattern, text, re.IGNORECASE)
+        if day_match:
+            day_name = day_match.group(1).strip()
+            month_name = day_match.group(2).strip() 
+            year_name = day_match.group(3).strip()
+            lunar_day = f"Ngày {day_name} tháng {month_name} năm {year_name}"
 
-        # Extract fortune information - look for specific fortune descriptions
+        # Extract fortune information - look for specific fortune types only
+        fortune_info = None
+        # Try to find specific fortune types like "Thiên Tài", "Thuần Dương", etc.
         fortune_patterns = [
-            r'Ngày\s+(Thiên\s+Tài):\s*([^.\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^.\n]*)',
-            r'Ngày\s+(Thuần\s+Dương):\s*([^.\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^.\n]*)',
-            r'(Ngày\s+[^:]*(?:Tài|Dương|Cát|Tốt)[^:]*?):\s*([^.\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^.\n]*)'
+            r'Ngày\s+(Thiên\s+Tài):\s*([^,\n]{1,80})',
+            r'Ngày\s+(Thuần\s+Dương):\s*([^,\n]{1,80})', 
+            r'Ngày\s+([A-Za-zÀ-ỹ]+\s+[A-Za-zÀ-ỹ]+):\s*([^,\n]{1,80}(?:nên|thuận|lợi|tốt|thắng|xuất hành|cầu tài)[^,\n]{0,50})'
         ]
         
-        fortune_info = None
         for pattern in fortune_patterns:
             fortune_match = re.search(pattern, text, re.IGNORECASE)
             if fortune_match:
                 fortune_name = fortune_match.group(1).strip()
                 fortune_desc = fortune_match.group(2).strip()
-                fortune_info = f"🌟 {fortune_name}: {fortune_desc}"
-                break
+                # Skip if it's the same as the lunar day info
+                if lunar_day and fortune_name not in lunar_day:
+                    fortune_info = f"🌟 Ngày {fortune_name}: {fortune_desc}"
+                    break
+                elif not lunar_day:
+                    fortune_info = f"🌟 Ngày {fortune_name}: {fortune_desc}"
+                    break
 
-        # Extract Giờ Hoàng Đạo - more comprehensive pattern
-        time_patterns = [
-            r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^\n]*(?:Tý|Sửu|Dần|Mão|Thìn|Tỵ|Ngọ|Mùi|Thân|Dậu|Tuất|Hợi)[^\n]*)',
-            r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^.\n]*\([0-9-]+\)[^.\n]*)'
-        ]
-        
+        # Extract Giờ Hoàng Đạo - flexible pattern
         hoang_dao_hours = None
-        for pattern in time_patterns:
-            time_match = re.search(pattern, text, re.IGNORECASE)
-            if time_match:
-                hoang_dao_hours = time_match.group(1).strip()
-                break
+        time_pattern = r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^.\n]*(?:\([0-9-]+\))[^.\n]*)'
+        time_match = re.search(time_pattern, text, re.IGNORECASE)
+        if time_match:
+            hoang_dao_hours = time_match.group(1).strip()
 
         # Format the result - separate lunar day from other info
         lunar_day_info = f"📜 {lunar_day}" if lunar_day else ""
