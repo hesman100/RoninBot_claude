@@ -516,20 +516,23 @@ async def get_lunar_detail_info() -> str:
         time_match = re.search(time_pattern, text, re.IGNORECASE)
         hoang_dao_hours = time_match.group(1).strip() if time_match else None
 
-        # Format the result
-        result_parts = []
-
-        if lunar_day:
-            result_parts.append(f"📜 {lunar_day}")
-
+        # Format the result - separate lunar day from other info
+        lunar_day_info = f"📜 {lunar_day}" if lunar_day else ""
+        
+        other_parts = []
         if fortune_info:
-            result_parts.append(fortune_info)
-
+            other_parts.append(fortune_info)
+        
         if hoang_dao_hours:
-            result_parts.append(f"⏰ Giờ Hoàng Đạo: {hoang_dao_hours}")
-
-        if result_parts:
-            return "\n".join(result_parts)
+            other_parts.append(f"⏰ Giờ Hoàng Đạo: {hoang_dao_hours}")
+        
+        # Combine with proper spacing
+        if lunar_day_info and other_parts:
+            return f"{lunar_day_info}\n\n" + "\n".join(other_parts)
+        elif lunar_day_info:
+            return lunar_day_info
+        elif other_parts:
+            return "\n".join(other_parts)
         else:
             return "❌ Không tìm thấy thông tin lịch âm chi tiết"
 
@@ -574,12 +577,27 @@ async def lunar_calendar(update: Update,
         day_of_week = days_of_week[today.weekday()]
 
         # Format the message
+        # Extract lunar day from detail info to place it next to lunar calendar date
+        lunar_detail_parts = lunar_detail_info.split('\n\n') if lunar_detail_info else []
+        lunar_day_detail = ""
+        other_detail_info = ""
+        
+        if lunar_detail_parts:
+            # First part should be the lunar day detail
+            if lunar_detail_parts[0].startswith("📜"):
+                lunar_day_detail = lunar_detail_parts[0].replace("📜 ", "")
+                if len(lunar_detail_parts) > 1:
+                    other_detail_info = '\n\n'.join(lunar_detail_parts[1:])
+            else:
+                other_detail_info = lunar_detail_info
+        
         message = (
             f"📅 **{day_of_week} - Dương Lịch ({today.day} / tháng {today.month} / {today.year})**\n\n"
             f"{world_gold_price}\n"
             f"{vietnam_gold_price}\n\n"
-            f"🌕 Âm lịch: {lunar_today.day} / tháng {lunar_today.month} / {lunar_today.year}\n\n"
-            f"{lunar_detail_info}\n\n"
+            f"🌕 Âm lịch: {lunar_today.day} / tháng {lunar_today.month} / {lunar_today.year}\n"
+            f"📜 {lunar_day_detail}\n\n"
+            f"{other_detail_info}\n\n"
             f"📍 Thời gian: {today.strftime('%H:%M:%S')}")
 
         await context.bot.send_message(chat_id=update.effective_chat.id,
