@@ -388,43 +388,66 @@ async def get_gold_price_vnd() -> str:
 
 
 async def get_vietnam_gold_price() -> str:
-    """Get current Vietnam gold price from vnappmob API"""
+    """Get current Vietnam gold price from giavang.org"""
     try:
         import requests
+        from bs4 import BeautifulSoup
+        import re
         
-        # VnAppMob API endpoint for gold prices
-        vnappmob_url = "https://api.vnappmob.com/api/gold_price/"
+        # GiaVang.org URL for SJC gold prices
+        url = "https://giavang.org/trong-nuoc/sjc/"
         
-        response = requests.get(vnappmob_url, timeout=15)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
         
         if response.status_code != 200:
             return "❌ Lỗi khi lấy giá vàng VN"
         
-        data = response.json()
+        soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Check if data exists and has the expected structure
-        if not data or 'data' not in data:
-            return "❌ Không có dữ liệu giá vàng VN"
+        # Find the first table with gold prices
+        table = soup.find('table')
+        if not table:
+            return "❌ Không tìm thấy bảng giá vàng"
         
-        gold_data = data['data']
+        rows = table.find_all('tr')
         
-        # Find SJC gold prices
-        sjc_gold = None
-        for item in gold_data:
-            if 'SJC' in item.get('name', '').upper():
-                sjc_gold = item
-                break
+        # Look for SJC gold data in the rows
+        buy_price = None
+        sell_price = None
         
-        if sjc_gold:
-            buy_price = sjc_gold.get('buy', 0)
-            sell_price = sjc_gold.get('sell', 0)
-            
-            # Prices are typically in thousands, convert to full VND
-            buy_price_full = float(buy_price) * 1000
-            sell_price_full = float(sell_price) * 1000
-            
-            return (f"🟡 Vàng VN (mua): {buy_price_full:,.0f} VND/lượng\n"
-                   f"🟡 Vàng VN (bán): {sell_price_full:,.0f} VND/lượng")
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            if len(cells) >= 4:
+                row_text = [cell.get_text().strip() for cell in cells]
+                
+                # Check if this row contains SJC gold info
+                if any('SJC' in text.upper() for text in row_text):
+                    try:
+                        # Extract buy and sell prices (usually in positions 2 and 3)
+                        buy_text = row_text[2] if len(row_text) > 2 else ""
+                        sell_text = row_text[3] if len(row_text) > 3 else ""
+                        
+                        # Extract numbers from price text
+                        buy_match = re.search(r'(\d{2,3})[.,](\d{3})', buy_text)
+                        sell_match = re.search(r'(\d{2,3})[.,](\d{3})', sell_text)
+                        
+                        if buy_match and sell_match:
+                            buy_price = float(f"{buy_match.group(1)}{buy_match.group(2)}") * 1000
+                            sell_price = float(f"{sell_match.group(1)}{sell_match.group(2)}") * 1000
+                            break
+                            
+                    except (ValueError, IndexError):
+                        continue
+        
+        if buy_price and sell_price:
+            return (f"🟡 Vàng VN (mua): {buy_price:,.0f} VND/lượng\n"
+                   f"🟡 Vàng VN (bán): {sell_price:,.0f} VND/lượng")
         else:
             return "❌ Không tìm thấy giá vàng SJC"
         
