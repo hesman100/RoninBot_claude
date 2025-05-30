@@ -102,7 +102,7 @@ class QuotesDatabase:
         
         if category:
             cursor.execute("""
-                SELECT id, quote_text, author, source, category
+                SELECT id, quote_text, author, source, category, source_type, source_url
                 FROM quotes 
                 WHERE language = %s AND category = %s
                 ORDER BY RANDOM()
@@ -110,7 +110,7 @@ class QuotesDatabase:
             """, (language, category))
         else:
             cursor.execute("""
-                SELECT id, quote_text, author, source, category
+                SELECT id, quote_text, author, source, category, source_type, source_url
                 FROM quotes 
                 WHERE language = %s
                 ORDER BY RANDOM()
@@ -126,7 +126,9 @@ class QuotesDatabase:
                 'quote_text': result[1],
                 'author': result[2],
                 'source': result[3],
-                'category': result[4]
+                'category': result[4],
+                'source_type': result[5],
+                'source_url': result[6]
             }
         return None
         

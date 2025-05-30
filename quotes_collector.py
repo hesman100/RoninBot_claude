@@ -22,7 +22,9 @@ class QuotesCollector:
                 "quote": "Học, học nữa, học mãi",
                 "author": "Hồ Chí Minh",
                 "category": "Giáo dục",
-                "source": "Trích từ tác phẩm của Chủ tịch Hồ Chí Minh"
+                "source": "Trích từ tác phẩm của Chủ tịch Hồ Chí Minh",
+                "source_type": "book",
+                "source_url": "https://www.hochiminh.org.vn/"
             },
             {
                 "quote": "Không có gì quý hơn độc lập tự do",
