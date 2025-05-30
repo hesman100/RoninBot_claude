@@ -339,6 +339,54 @@ async def health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Health check - Bot is running at {current_time}")
 
 
+async def get_gold_price_vnd() -> str:
+    """Get current gold price in VND per tael (lượng)"""
+    try:
+        import requests
+        import os
+        
+        # Get FMP API key
+        api_key = os.getenv('FMP_API_KEY')
+        if not api_key:
+            return "❌ Không có API key để lấy giá vàng"
+        
+        # Get gold price in USD per ounce
+        gold_url = f"https://financialmodelingprep.com/api/v3/quote/GCUSD?apikey={api_key}"
+        gold_response = requests.get(gold_url, timeout=10)
+        
+        if gold_response.status_code != 200:
+            return "❌ Lỗi khi lấy giá vàng"
+        
+        gold_data = gold_response.json()
+        if not gold_data or len(gold_data) == 0:
+            return "❌ Không có dữ liệu giá vàng"
+        
+        gold_price_usd_per_ounce = gold_data[0]['price']
+        
+        # Get USD/VND exchange rate
+        usd_vnd_url = f"https://financialmodelingprep.com/api/v3/quote/USDVND?apikey={api_key}"
+        usd_response = requests.get(usd_vnd_url, timeout=10)
+        
+        if usd_response.status_code != 200:
+            return "❌ Lỗi khi lấy tỷ giá USD/VND"
+        
+        usd_data = usd_response.json()
+        if not usd_data or len(usd_data) == 0:
+            return "❌ Không có dữ liệu tỷ giá"
+        
+        usd_to_vnd = usd_data[0]['price']
+        
+        # Convert to VND per tael (1 tael = 1.20337 ounces)
+        tael_to_ounce = 1.20337
+        gold_price_vnd_per_tael = gold_price_usd_per_ounce * usd_to_vnd * tael_to_ounce
+        
+        return f"💰 Vàng: {gold_price_vnd_per_tael:,.0f} VND/lượng"
+        
+    except Exception as e:
+        logger.error(f"Error getting gold price: {str(e)}")
+        return "❌ Lỗi khi lấy giá vàng"
+
+
 async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display current lunar calendar date."""
     logger.info(f"Received /l command from chat {update.effective_chat.id}")
@@ -353,11 +401,28 @@ async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Convert to lunar date
         lunar_today = LunarDate.fromSolarDate(today.year, today.month, today.day)
         
+        # Get gold price
+        gold_price_info = await get_gold_price_vnd()
+        
+        # Get day of week in Vietnamese
+        days_of_week = {
+            0: "Thứ Hai",    # Monday
+            1: "Thứ Ba",     # Tuesday
+            2: "Thứ Tư",     # Wednesday
+            3: "Thứ Năm",    # Thursday
+            4: "Thứ Sáu",    # Friday
+            5: "Thứ Bảy",    # Saturday
+            6: "Chủ Nhật"    # Sunday
+        }
+        
+        day_of_week = days_of_week[today.weekday()]
+        
         # Format the message
         message = (
-            f"🌙 **Ngày Âm Lịch Hôm Nay**\n\n"
-            f"📅 Dương lịch: {today.day} tháng {today.month}, {today.year}\n"
-            f"🌕 Âm lịch: {lunar_today.day} tháng {lunar_today.month}, {lunar_today.year}\n\n"
+            f"🌙 **{day_of_week} - Ngày Âm Lịch Hôm Nay**\n\n"
+            f"📅 Dương lịch: {today.day} / tháng {today.month} / {today.year}\n"
+            f"🌕 Âm lịch: {lunar_today.day} / tháng {lunar_today.month} / {lunar_today.year}\n"
+            f"{gold_price_info}\n\n"
             f"📍 Thời gian: {today.strftime('%H:%M:%S')}"
         )
         
