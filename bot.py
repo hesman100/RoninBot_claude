@@ -21,7 +21,7 @@ import time
 # Add this import for the game handler
 from country_game.game_handler import GameHandler
 
-BOT_VER = "1.5.2"
+BOT_VER = "1.6"
 
 # Configure logging
 logging.basicConfig(
@@ -344,44 +344,44 @@ async def get_gold_price_vnd() -> str:
     try:
         import requests
         import os
-        
+
         # Get FMP API key
         api_key = os.getenv('FMP_API_KEY')
         if not api_key:
             return "❌ Không có API key để lấy giá vàng"
-        
+
         # Get gold price in USD per ounce
         gold_url = f"https://financialmodelingprep.com/api/v3/quote/GCUSD?apikey={api_key}"
         gold_response = requests.get(gold_url, timeout=10)
-        
+
         if gold_response.status_code != 200:
             return "❌ Lỗi khi lấy giá vàng"
-        
+
         gold_data = gold_response.json()
         if not gold_data or len(gold_data) == 0:
             return "❌ Không có dữ liệu giá vàng"
-        
+
         gold_price_usd_per_ounce = gold_data[0]['price']
-        
+
         # Get USD/VND exchange rate
         usd_vnd_url = f"https://financialmodelingprep.com/api/v3/quote/USDVND?apikey={api_key}"
         usd_response = requests.get(usd_vnd_url, timeout=10)
-        
+
         if usd_response.status_code != 200:
             return "❌ Lỗi khi lấy tỷ giá USD/VND"
-        
+
         usd_data = usd_response.json()
         if not usd_data or len(usd_data) == 0:
             return "❌ Không có dữ liệu tỷ giá"
-        
+
         usd_to_vnd = usd_data[0]['price']
-        
+
         # Convert to VND per tael (1 tael = 1.20337 ounces)
         tael_to_ounce = 1.20337
         gold_price_vnd_per_tael = gold_price_usd_per_ounce * usd_to_vnd * tael_to_ounce
-        
+
         return f"💰 Vàng (thế giới): {gold_price_vnd_per_tael:,.0f} VND/lượng"
-        
+
     except Exception as e:
         logger.error(f"Error getting gold price: {str(e)}")
         return "❌ Lỗi khi lấy giá vàng"
@@ -393,64 +393,72 @@ async def get_vietnam_gold_price() -> str:
         import requests
         from bs4 import BeautifulSoup
         import re
-        
+
         # GiaVang.org URL for SJC gold prices
         url = "https://giavang.org/trong-nuoc/sjc/"
-        
+
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8'
         }
-        
+
         response = requests.get(url, headers=headers, timeout=15)
-        
+
         if response.status_code != 200:
             return "❌ Lỗi khi lấy giá vàng VN"
-        
+
         soup = BeautifulSoup(response.content, 'html.parser')
-        
+
         # Find the first table with gold prices
         table = soup.find('table')
         if not table:
             return "❌ Không tìm thấy bảng giá vàng"
-        
+
         rows = table.find_all('tr')
-        
+
         # Look for SJC gold data in the rows
         buy_price = None
         sell_price = None
-        
+
         for row in rows:
             cells = row.find_all(['td', 'th'])
             if len(cells) >= 4:
                 row_text = [cell.get_text().strip() for cell in cells]
-                
+
                 # Check if this row contains SJC gold info
                 if any('SJC' in text.upper() for text in row_text):
                     try:
                         # Extract buy and sell prices (usually in positions 2 and 3)
                         buy_text = row_text[2] if len(row_text) > 2 else ""
                         sell_text = row_text[3] if len(row_text) > 3 else ""
-                        
+
                         # Extract numbers from price text
-                        buy_match = re.search(r'(\d{2,3})[.,](\d{3})', buy_text)
-                        sell_match = re.search(r'(\d{2,3})[.,](\d{3})', sell_text)
-                        
+                        buy_match = re.search(r'(\d{2,3})[.,](\d{3})',
+                                              buy_text)
+                        sell_match = re.search(r'(\d{2,3})[.,](\d{3})',
+                                               sell_text)
+
                         if buy_match and sell_match:
-                            buy_price = float(f"{buy_match.group(1)}{buy_match.group(2)}") * 1000
-                            sell_price = float(f"{sell_match.group(1)}{sell_match.group(2)}") * 1000
+                            buy_price = float(
+                                f"{buy_match.group(1)}{buy_match.group(2)}"
+                            ) * 1000
+                            sell_price = float(
+                                f"{sell_match.group(1)}{sell_match.group(2)}"
+                            ) * 1000
                             break
-                            
+
                     except (ValueError, IndexError):
                         continue
-        
+
         if buy_price and sell_price:
-            return (f"🟡 Vàng VN (mua): {buy_price:,.0f} VND/lượng\n"
-                   f"🟡 Vàng VN (bán): {sell_price:,.0f} VND/lượng")
+            return (f"🟢 Vàng VN (mua): {buy_price:,.0f} VND/lượng\n"
+                    f"🔴 Vàng VN (bán): {sell_price:,.0f} VND/lượng")
         else:
             return "❌ Không tìm thấy giá vàng SJC"
-        
+
     except Exception as e:
         logger.error(f"Error getting Vietnam gold price: {str(e)}")
         return "❌ Lỗi khi lấy giá vàng VN"
@@ -462,27 +470,29 @@ async def get_lunar_detail_info() -> str:
         import requests
         from bs4 import BeautifulSoup
         import re
-        
+
         url = "https://www.xemlicham.com/"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8'
         }
-        
+
         response = requests.get(url, headers=headers, timeout=15)
-        
+
         if response.status_code != 200:
             return "❌ Lỗi khi lấy thông tin lịch âm"
-        
+
         soup = BeautifulSoup(response.content, 'html.parser')
         text = soup.get_text()
-        
+
         # Extract lunar day information
         day_pattern = r'Ngày\s+[^\n]*?tháng\s+[^\n]*?năm\s+[^\n]*'
         day_match = re.search(day_pattern, text, re.IGNORECASE)
         lunar_day = day_match.group().strip() if day_match else None
-        
+
         # Extract fortune information (Thiên Tài, etc.)
         fortune_pattern = r'Ngày\s+(Thiên\s+Tài):\s*([^.\n]*(?:thuận|lợi|tốt|thắng)[^.\n]*)'
         fortune_match = re.search(fortune_pattern, text, re.IGNORECASE)
@@ -494,95 +504,93 @@ async def get_lunar_detail_info() -> str:
         else:
             # Try broader pattern for any fortune day
             fortune_pattern_broad = r'Ngày\s+([^:]*Tài[^:]*?):\s*([^.\n]*(?:thuận|lợi|tốt|thắng)[^.\n]*)'
-            fortune_match_broad = re.search(fortune_pattern_broad, text, re.IGNORECASE)
+            fortune_match_broad = re.search(fortune_pattern_broad, text,
+                                            re.IGNORECASE)
             if fortune_match_broad:
                 fortune_name = fortune_match_broad.group(1).strip()
                 fortune_desc = fortune_match_broad.group(2).strip()
                 fortune_info = f"🌟 Ngày {fortune_name}: {fortune_desc}"
-        
+
         # Extract Giờ Hoàng Đạo
         time_pattern = r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^\n]*(?:Sửu|Thìn|Ngọ|Mùi|Tuất|Hợi)[^\n]*)'
         time_match = re.search(time_pattern, text, re.IGNORECASE)
         hoang_dao_hours = time_match.group(1).strip() if time_match else None
-        
+
         # Format the result
         result_parts = []
-        
+
         if lunar_day:
             result_parts.append(f"📜 {lunar_day}")
-        
+
         if fortune_info:
             result_parts.append(fortune_info)
-        
+
         if hoang_dao_hours:
             result_parts.append(f"⏰ Giờ Hoàng Đạo: {hoang_dao_hours}")
-        
+
         if result_parts:
             return "\n".join(result_parts)
         else:
             return "❌ Không tìm thấy thông tin lịch âm chi tiết"
-        
+
     except Exception as e:
         logger.error(f"Error getting lunar detail info: {str(e)}")
         return "❌ Lỗi khi lấy thông tin lịch âm"
 
 
-async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def lunar_calendar(update: Update,
+                         context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display current lunar calendar date."""
     logger.info(f"Received /l command from chat {update.effective_chat.id}")
-    
+
     try:
         from lunardate import LunarDate
         from datetime import datetime, timezone, timedelta
-        
+
         # Get current date in GMT+7 (Vietnam time)
         vietnam_tz = timezone(timedelta(hours=7))
         today = datetime.now(vietnam_tz)
-        
+
         # Convert to lunar date
-        lunar_today = LunarDate.fromSolarDate(today.year, today.month, today.day)
-        
+        lunar_today = LunarDate.fromSolarDate(today.year, today.month,
+                                              today.day)
+
         # Get gold prices and lunar detail info
         world_gold_price = await get_gold_price_vnd()
         vietnam_gold_price = await get_vietnam_gold_price()
         lunar_detail_info = await get_lunar_detail_info()
-        
+
         # Get day of week in Vietnamese
         days_of_week = {
-            0: "Thứ Hai",    # Monday
-            1: "Thứ Ba",     # Tuesday
-            2: "Thứ Tư",     # Wednesday
-            3: "Thứ Năm",    # Thursday
-            4: "Thứ Sáu",    # Friday
-            5: "Thứ Bảy",    # Saturday
-            6: "Chủ Nhật"    # Sunday
+            0: "Thứ Hai",  # Monday
+            1: "Thứ Ba",  # Tuesday
+            2: "Thứ Tư",  # Wednesday
+            3: "Thứ Năm",  # Thursday
+            4: "Thứ Sáu",  # Friday
+            5: "Thứ Bảy",  # Saturday
+            6: "Chủ Nhật"  # Sunday
         }
-        
+
         day_of_week = days_of_week[today.weekday()]
-        
+
         # Format the message
         message = (
-            f"🌙 **{day_of_week} - Ngày Âm Lịch Hôm Nay**\n\n"
-            f"📅 Dương lịch: {today.day} / tháng {today.month} / {today.year}\n"
-            f"🌕 Âm lịch: {lunar_today.day} / tháng {lunar_today.month} / {lunar_today.year}\n\n"
+            f"📅 **{day_of_week} - Dương Lịch ({today.day} / tháng {today.month} / {today.year})**\n\n"
             f"{world_gold_price}\n"
             f"{vietnam_gold_price}\n\n"
+            f"🌕 Âm lịch: {lunar_today.day} / tháng {lunar_today.month} / {lunar_today.year}\n\n"
             f"{lunar_detail_info}\n\n"
-            f"📍 Thời gian: {today.strftime('%H:%M:%S')}"
-        )
-        
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=message,
-            parse_mode="Markdown"
-        )
-        
+            f"📍 Thời gian: {today.strftime('%H:%M:%S')}")
+
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text=message,
+                                       parse_mode="Markdown")
+
     except Exception as e:
         logger.error(f"Error in lunar_calendar command: {str(e)}")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="Lỗi khi lấy thông tin âm lịch. Vui lòng thử lại sau."
-        )
+            text="Lỗi khi lấy thông tin âm lịch. Vui lòng thử lại sau.")
 
 
 async def game_command(update: Update,
