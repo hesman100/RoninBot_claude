@@ -499,16 +499,24 @@ async def get_lunar_detail_info() -> str:
         soup = BeautifulSoup(response.content, 'html.parser')
         text = soup.get_text()
 
-        # Extract lunar day information
-        day_pattern = r'Ngày\s+[^\n]*?tháng\s+[^\n]*?năm\s+[^\n]*'
-        day_match = re.search(day_pattern, text, re.IGNORECASE)
-        lunar_day = day_match.group().strip() if day_match else None
+        # Extract lunar day information - look for specific day format
+        day_patterns = [
+            r'Ngày\s+([^\n]*?tháng\s+[^\n]*?năm\s+[^\n]*)',
+            r'(Ngày\s+[A-Za-z]+\s+[A-Za-z]+(?:\s+tháng\s+[A-Za-z]+\s+[A-Za-z]+)?(?:\s+năm\s+[A-Za-z]+\s+[A-Za-z]+)?)'
+        ]
+        
+        lunar_day = None
+        for pattern in day_patterns:
+            day_match = re.search(pattern, text, re.IGNORECASE)
+            if day_match:
+                lunar_day = day_match.group(1).strip()
+                break
 
-        # Extract fortune information - broader patterns to catch various fortune types
+        # Extract fortune information - look for specific fortune descriptions
         fortune_patterns = [
-            r'Ngày\s+(Thiên\s+Tài):\s*([^,\n]*(?:thuận|lợi|tốt|thắng)[^,\n]*)',
-            r'Ngày\s+(Thuần\s+Dương):\s*([^,\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^,\n]*)',
-            r'Ngày\s+([^:]*(?:Tài|Dương|Cát|Tốt)[^:]*?):\s*([^,\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^,\n]*)'
+            r'Ngày\s+(Thiên\s+Tài):\s*([^.\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^.\n]*)',
+            r'Ngày\s+(Thuần\s+Dương):\s*([^.\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^.\n]*)',
+            r'(Ngày\s+[^:]*(?:Tài|Dương|Cát|Tốt)[^:]*?):\s*([^.\n]*(?:thuận|lợi|tốt|thắng|xuất hành)[^.\n]*)'
         ]
         
         fortune_info = None
@@ -517,13 +525,21 @@ async def get_lunar_detail_info() -> str:
             if fortune_match:
                 fortune_name = fortune_match.group(1).strip()
                 fortune_desc = fortune_match.group(2).strip()
-                fortune_info = f"🌟 Ngày {fortune_name}: {fortune_desc}"
+                fortune_info = f"🌟 {fortune_name}: {fortune_desc}"
                 break
 
-        # Extract Giờ Hoàng Đạo
-        time_pattern = r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^\n]*(?:Sửu|Thìn|Ngọ|Mùi|Tuất|Hợi)[^\n]*)'
-        time_match = re.search(time_pattern, text, re.IGNORECASE)
-        hoang_dao_hours = time_match.group(1).strip() if time_match else None
+        # Extract Giờ Hoàng Đạo - more comprehensive pattern
+        time_patterns = [
+            r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^\n]*(?:Tý|Sửu|Dần|Mão|Thìn|Tỵ|Ngọ|Mùi|Thân|Dậu|Tuất|Hợi)[^\n]*)',
+            r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^.\n]*\([0-9-]+\)[^.\n]*)'
+        ]
+        
+        hoang_dao_hours = None
+        for pattern in time_patterns:
+            time_match = re.search(pattern, text, re.IGNORECASE)
+            if time_match:
+                hoang_dao_hours = time_match.group(1).strip()
+                break
 
         # Format the result - separate lunar day from other info
         lunar_day_info = f"📜 {lunar_day}" if lunar_day else ""
