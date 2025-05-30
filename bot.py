@@ -456,6 +456,69 @@ async def get_vietnam_gold_price() -> str:
         return "❌ Lỗi khi lấy giá vàng VN"
 
 
+async def get_lunar_detail_info() -> str:
+    """Get detailed lunar calendar information from xemlicham.com"""
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        import re
+        
+        url = "https://www.xemlicham.com/"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        
+        if response.status_code != 200:
+            return "❌ Lỗi khi lấy thông tin lịch âm"
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        text = soup.get_text()
+        
+        # Extract lunar day information
+        day_pattern = r'Ngày\s+[^\n]*?tháng\s+[^\n]*?năm\s+[^\n]*'
+        day_match = re.search(day_pattern, text, re.IGNORECASE)
+        lunar_day = day_match.group().strip() if day_match else None
+        
+        # Extract fortune information (Thiên Tài, etc.)
+        fortune_pattern = r'Ngày\s+(Thiên\s+Tài):\s*([^,\n]*(?:thuận|lợi|tốt)[^,\n]*)'
+        fortune_match = re.search(fortune_pattern, text, re.IGNORECASE)
+        fortune_info = None
+        if fortune_match:
+            fortune_name = fortune_match.group(1).strip()
+            fortune_desc = fortune_match.group(2).strip()
+            fortune_info = f"Ngày {fortune_name}: {fortune_desc}"
+        
+        # Extract Giờ Hoàng Đạo
+        time_pattern = r'Giờ\s+Hoàng\s+Đạo[^:]*:\s*([^\n]*(?:Sửu|Thìn|Ngọ|Mùi|Tuất|Hợi)[^\n]*)'
+        time_match = re.search(time_pattern, text, re.IGNORECASE)
+        hoang_dao_hours = time_match.group(1).strip() if time_match else None
+        
+        # Format the result
+        result_parts = []
+        
+        if lunar_day:
+            result_parts.append(f"📜 {lunar_day}")
+        
+        if fortune_info:
+            result_parts.append(f"🌟 {fortune_info}")
+        
+        if hoang_dao_hours:
+            result_parts.append(f"⏰ Giờ Hoàng Đạo: {hoang_dao_hours}")
+        
+        if result_parts:
+            return "\n".join(result_parts)
+        else:
+            return "❌ Không tìm thấy thông tin lịch âm chi tiết"
+        
+    except Exception as e:
+        logger.error(f"Error getting lunar detail info: {str(e)}")
+        return "❌ Lỗi khi lấy thông tin lịch âm"
+
+
 async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display current lunar calendar date."""
     logger.info(f"Received /l command from chat {update.effective_chat.id}")
@@ -471,9 +534,10 @@ async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Convert to lunar date
         lunar_today = LunarDate.fromSolarDate(today.year, today.month, today.day)
         
-        # Get gold prices
+        # Get gold prices and lunar detail info
         world_gold_price = await get_gold_price_vnd()
         vietnam_gold_price = await get_vietnam_gold_price()
+        lunar_detail_info = await get_lunar_detail_info()
         
         # Get day of week in Vietnamese
         days_of_week = {
@@ -492,9 +556,10 @@ async def lunar_calendar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         message = (
             f"🌙 **{day_of_week} - Ngày Âm Lịch Hôm Nay**\n\n"
             f"📅 Dương lịch: {today.day} / tháng {today.month} / {today.year}\n"
-            f"🌕 Âm lịch: {lunar_today.day} / tháng {lunar_today.month} / {lunar_today.year}\n"
+            f"🌕 Âm lịch: {lunar_today.day} / tháng {lunar_today.month} / {lunar_today.year}\n\n"
             f"{world_gold_price}\n"
             f"{vietnam_gold_price}\n\n"
+            f"{lunar_detail_info}\n\n"
             f"📍 Thời gian: {today.strftime('%H:%M:%S')}"
         )
         
