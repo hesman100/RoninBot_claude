@@ -29,7 +29,6 @@ DEFAULT_STOCKS = [
     "VFS",  # Vinfast
     "AAPL",  # Apple
     "AMZN",  # Amazon
-    "CDNS",  # Cadence
     "MSFT",  # Microsoft
     "GOOGL",  # Google
     "META",  # Meta
@@ -37,7 +36,9 @@ DEFAULT_STOCKS = [
     "INTC",  # Intel
     "QCOM",  # Qualcomm
     "AVGO",  # Broadcom
+    "SNPS",  # Synopsys
     "MRVL",  # Marvell
+    "CDNS",  # Cadence
 ]
 
 # Mapping of CoinMarketCap symbols to display names (for formatting)
@@ -58,6 +59,7 @@ STOCK_TO_DISPLAY = {
     'NVDA': 'NVDA   ',  # Exactly 7 chars
     'AAPL': 'AAPL   ',  # Exactly 7 chars
     'MRVL': 'MRVL   ',  # Exactly 7 chars
+    'SNPS': 'SNPS   ',
     'AMZN': 'AMZN   ',  # Exactly 7 chars
     'CDNS': 'CDNS   ',  # Exactly 7 chars
     'MSFT': 'MSFT   ',  # Exactly 7 chars
@@ -83,6 +85,7 @@ STOCK_COMPANY_NAMES = {
     'QCOM': 'Qualcomm Inc.',
     'AVGO': 'Broadcom Inc.',
     'VFS': 'VinFast Auto Ltd',
+    'SNPS': 'Synopsys Inc.'
 }
 
 # Default Vietnam stocks to track
