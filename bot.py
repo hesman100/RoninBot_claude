@@ -840,18 +840,18 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     # Check if originally Vietnamese (for quotes like Ho Chi Minh's)
                     if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
                         # Vietnamese original first, then English translation
-                        message += f'"{quote["quote_text"]}"\n'
+                        message += f'💭 "{quote["quote_text"]}"\n'
                         message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
                         if quote.get("source_url"):
                             message += f'     ({quote["source_url"]})\n'
-                        message += f'"{quote["vietnamese_translation"]}"\n'
+                        message += f'🔁 "{quote["vietnamese_translation"]}"\n'
                     else:
                         # English original first, then Vietnamese translation
-                        message += f'"{quote["quote_text"]}"\n'
+                        message += f'💭 "{quote["quote_text"]}"\n'
                         message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
                         if quote.get("source_url"):
                             message += f'     ({quote["source_url"]})\n'
-                        message += f'"{quote["vietnamese_translation"]}"\n'
+                        message += f'🔁 "{quote["vietnamese_translation"]}"\n'
                     
                     message += f"==="
                 else:
@@ -897,14 +897,14 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 # Check if originally Vietnamese (for quotes like Ho Chi Minh's)
                 if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
                     # Vietnamese original first, then English translation
-                    message += f'"{quote["quote_text"]}"\n'
+                    message += f'💭 "{quote["quote_text"]}"\n'
                     message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
-                    message += f'"{quote["vietnamese_translation"]}"\n'
+                    message += f'🔁 "{quote["vietnamese_translation"]}"\n'
                 else:
                     # English original first, then Vietnamese translation
-                    message += f'"{quote["quote_text"]}"\n'
+                    message += f'💭 "{quote["quote_text"]}"\n'
                     message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
-                    message += f'"{quote["vietnamese_translation"]}"\n'
+                    message += f'🔁 "{quote["vietnamese_translation"]}"\n'
                 
                 message += f"==="
             else:
