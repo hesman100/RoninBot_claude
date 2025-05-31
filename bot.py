@@ -545,13 +545,25 @@ async def get_lunar_detail_info() -> str:
         if hoang_dao_hours:
             other_parts.append(f"⏰ Giờ Hoàng Đạo: {hoang_dao_hours}")
 
-        # Combine with proper spacing
-        if lunar_day_info and other_parts:
-            return f"{lunar_day_info}\n\n" + "\n".join(other_parts)
+        # Get a random quote to replace the fortune info
+        random_quote = await get_random_quote()
+        quote_text = ""
+        if random_quote:
+            # Format quote with original language first
+            if random_quote.get("language") == "vi" or random_quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
+                # Vietnamese original first, then English translation
+                quote_text = f'💭 "{random_quote["vietnamese_translation"]}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n"{random_quote["quote_text"]}"'
+            else:
+                # English original first, then Vietnamese translation
+                quote_text = f'💭 "{random_quote["quote_text"]}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n"{random_quote["vietnamese_translation"]}"'
+
+        # Combine with proper spacing, replacing fortune info with quote
+        if lunar_day_info and quote_text:
+            return f"{lunar_day_info}\n\n{quote_text}"
         elif lunar_day_info:
             return lunar_day_info
-        elif other_parts:
-            return "\n".join(other_parts)
+        elif quote_text:
+            return quote_text
         else:
             return "❌ Không tìm thấy thông tin lịch âm chi tiết"
 
