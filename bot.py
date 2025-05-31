@@ -716,7 +716,7 @@ async def get_random_quote():
     
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation FROM quotes ORDER BY RANDOM() LIMIT 1")
+        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation, language FROM quotes ORDER BY RANDOM() LIMIT 1")
         result = cursor.fetchone()
         cursor.close()
         conn.close()
@@ -727,7 +727,8 @@ async def get_random_quote():
                 'quote_text': result[1],
                 'author': result[2],
                 'source': result[3],
-                'vietnamese_translation': result[4]
+                'vietnamese_translation': result[4],
+                'language': result[5]
             }
         return None
     except Exception as e:
@@ -743,7 +744,7 @@ async def get_quote_by_id(quote_id):
     
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation, source_url FROM quotes WHERE id = %s", (quote_id,))
+        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation, source_url, language FROM quotes WHERE id = %s", (quote_id,))
         result = cursor.fetchone()
         cursor.close()
         conn.close()
@@ -755,7 +756,8 @@ async def get_quote_by_id(quote_id):
                 'author': result[2],
                 'source': result[3],
                 'vietnamese_translation': result[4],
-                'source_url': result[5]
+                'source_url': result[5],
+                'language': result[6]
             }
         return None
     except Exception as e:
@@ -773,7 +775,7 @@ async def get_quotes_by_author_search(author_search):
         cursor = conn.cursor()
         # Use ILIKE for case-insensitive search with wildcards
         search_pattern = f"%{author_search}%"
-        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation FROM quotes WHERE author ILIKE %s ORDER BY author, id", (search_pattern,))
+        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation, language FROM quotes WHERE author ILIKE %s ORDER BY author, id", (search_pattern,))
         results = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -786,7 +788,8 @@ async def get_quotes_by_author_search(author_search):
                     'quote_text': result[1],
                     'author': result[2],
                     'source': result[3],
-                    'vietnamese_translation': result[4]
+                    'vietnamese_translation': result[4],
+                    'language': result[5]
                 })
             return quotes
         return []
@@ -809,13 +812,25 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 quote = await get_quote_by_id(quote_id)
                 
                 if quote:
-                    # Format detailed quote display
+                    # Format detailed quote display - show original language first
                     message = f"===\n"
-                    message += f'"{quote["quote_text"]}"\n'
-                    message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
-                    if quote.get("source_url"):
-                        message += f'     ({quote["source_url"]})\n'
-                    message += f'"{quote["vietnamese_translation"]}"\n'
+                    
+                    # Check if originally Vietnamese (for quotes like Ho Chi Minh's)
+                    if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
+                        # Vietnamese original first, then English translation
+                        message += f'"{quote["vietnamese_translation"]}"\n'
+                        message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
+                        if quote.get("source_url"):
+                            message += f'     ({quote["source_url"]})\n'
+                        message += f'"{quote["quote_text"]}"\n'
+                    else:
+                        # English original first, then Vietnamese translation
+                        message += f'"{quote["quote_text"]}"\n'
+                        message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
+                        if quote.get("source_url"):
+                            message += f'     ({quote["source_url"]})\n'
+                        message += f'"{quote["vietnamese_translation"]}"\n'
+                    
                     message += f"==="
                 else:
                     message = f"❌ Không tìm thấy quote với ID #{quote_id}"
@@ -834,8 +849,16 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     
                     for i, quote in enumerate(quotes[:10]):  # Limit to first 10 results
                         message += f"#{quote['id']} - {quote['author']}\n"
-                        message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n'
-                        message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n\n'
+                        
+                        # Show original language first in search results too
+                        if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
+                            # Vietnamese original first, then English
+                            message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n'
+                            message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n\n'
+                        else:
+                            # English original first, then Vietnamese
+                            message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n'
+                            message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n\n'
                     
                     if len(quotes) > 10:
                         message += f"... và {len(quotes) - 10} quote(s) khác.\n"
@@ -846,11 +869,21 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             quote = await get_random_quote()
             
             if quote:
-                # Format simple quote display
+                # Format simple quote display - show original language first
                 message = f"===\n"
-                message += f'"{quote["quote_text"]}"\n'
-                message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
-                message += f'"{quote["vietnamese_translation"]}"\n'
+                
+                # Check if originally Vietnamese (for quotes like Ho Chi Minh's)
+                if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
+                    # Vietnamese original first, then English translation
+                    message += f'"{quote["vietnamese_translation"]}"\n'
+                    message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
+                    message += f'"{quote["quote_text"]}"\n'
+                else:
+                    # English original first, then Vietnamese translation
+                    message += f'"{quote["quote_text"]}"\n'
+                    message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
+                    message += f'"{quote["vietnamese_translation"]}"\n'
+                
                 message += f"==="
             else:
                 message = "❌ Không thể lấy quote từ database"
