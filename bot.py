@@ -562,15 +562,20 @@ async def get_lunar_detail_info() -> str:
             # Check if this is a Vozer Collection quote for special formatting
             if random_quote.get("source") == "Vozer Collection":
                 # Special format for Vozer Collection - only Vietnamese, no English translation
-                quote_text = f'💭 "{random_quote["quote_text"]}"\n                    ( {random_quote["author"]} / #{random_quote["id"]} )'
+                formatted_text = random_quote["quote_text"].replace('\\n', '\n')
+                quote_text = f'💭 "{formatted_text}"\n                    ( {random_quote["author"]} / #{random_quote["id"]} )'
             else:
                 # Regular format for other quotes
                 if random_quote.get("language") == "vi" or random_quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
                     # Vietnamese original first, then English translation
-                    quote_text = f'===\n💭 "{random_quote["quote_text"]}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n🔁 "{random_quote["vietnamese_translation"]}"\n==='
+                    formatted_text = random_quote["quote_text"].replace('\\n', '\n')
+                    formatted_translation = random_quote["vietnamese_translation"].replace('\\n', '\n')
+                    quote_text = f'===\n💭 "{formatted_text}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n🔁 "{formatted_translation}"\n==='
                 else:
                     # English original first, then Vietnamese translation
-                    quote_text = f'===\n💭 "{random_quote["quote_text"]}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n🔁 "{random_quote["vietnamese_translation"]}"\n==='
+                    formatted_text = random_quote["quote_text"].replace('\\n', '\n')
+                    formatted_translation = random_quote["vietnamese_translation"].replace('\\n', '\n')
+                    quote_text = f'===\n💭 "{formatted_text}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n🔁 "{formatted_translation}"\n==='
 
         # Combine with proper spacing, replacing fortune info with quote
         if lunar_day_info and quote_text:
@@ -846,7 +851,8 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     # Check if this is a Vozer Collection quote for special formatting
                     if quote.get("source") == "Vozer Collection":
                         # Special format for Vozer Collection - only Vietnamese, no English translation
-                        message = f'💭 "{quote["quote_text"]}"\n'
+                        formatted_text = quote["quote_text"].replace('\\n', '\n')
+                        message = f'💭 "{formatted_text}"\n'
                         message += f'                    ( {quote["author"]} / #{quote["id"]} )'
                     else:
                         # Regular format for other quotes
@@ -855,18 +861,22 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                         # Check if originally Vietnamese (for quotes like Ho Chi Minh's)
                         if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
                             # Vietnamese original first, then English translation
-                            message += f'💭 "{quote["quote_text"]}"\n'
+                            formatted_text = quote["quote_text"].replace('\\n', '\n')
+                            formatted_translation = quote["vietnamese_translation"].replace('\\n', '\n')
+                            message += f'💭 "{formatted_text}"\n'
                             message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
                             if quote.get("source_url"):
                                 message += f'     ({quote["source_url"]})\n'
-                            message += f'🔁 "{quote["vietnamese_translation"]}"\n'
+                            message += f'🔁 "{formatted_translation}"\n'
                         else:
                             # English original first, then Vietnamese translation
-                            message += f'💭 "{quote["quote_text"]}"\n'
+                            formatted_text = quote["quote_text"].replace('\\n', '\n')
+                            formatted_translation = quote["vietnamese_translation"].replace('\\n', '\n')
+                            message += f'💭 "{formatted_text}"\n'
                             message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
                             if quote.get("source_url"):
                                 message += f'     ({quote["source_url"]})\n'
-                            message += f'🔁 "{quote["vietnamese_translation"]}"\n'
+                            message += f'🔁 "{formatted_translation}"\n'
                         
                         message += f"==="
                 else:
@@ -888,7 +898,8 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     if arg.lower() == "vozer":
                         for quote in quotes:
                             # Use special Vozer format for search results - only Vietnamese, no English translation
-                            message += f'💭 "{quote["quote_text"]}"\n'
+                            formatted_text = quote["quote_text"].replace('\\n', '\n')
+                            message += f'💭 "{formatted_text}"\n'
                             message += f'                    ( {quote["author"]} / #{quote["id"]} )\n\n'
                     else:
                         for quote in quotes:
@@ -913,7 +924,8 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 # Check if this is a Vozer Collection quote for special formatting
                 if quote.get("source") == "Vozer Collection":
                     # Special format for Vozer Collection - only Vietnamese, no English translation
-                    message = f'💭 "{quote["quote_text"]}"\n'
+                    formatted_text = quote["quote_text"].replace('\\n', '\n')
+                    message = f'💭 "{formatted_text}"\n'
                     message += f'                    ( {quote["author"]} / #{quote["id"]} )'
                 else:
                     # Regular format for other quotes
@@ -922,14 +934,18 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     # Check if originally Vietnamese (for quotes like Ho Chi Minh's)
                     if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
                         # Vietnamese original first, then English translation
-                        message += f'💭 "{quote["quote_text"]}"\n'
+                        formatted_text = quote["quote_text"].replace('\\n', '\n')
+                        formatted_translation = quote["vietnamese_translation"].replace('\\n', '\n')
+                        message += f'💭 "{formatted_text}"\n'
                         message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
-                        message += f'🔁 "{quote["vietnamese_translation"]}"\n'
+                        message += f'🔁 "{formatted_translation}"\n'
                     else:
                         # English original first, then Vietnamese translation
-                        message += f'💭 "{quote["quote_text"]}"\n'
+                        formatted_text = quote["quote_text"].replace('\\n', '\n')
+                        formatted_translation = quote["vietnamese_translation"].replace('\\n', '\n')
+                        message += f'💭 "{formatted_text}"\n'
                         message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
-                        message += f'🔁 "{quote["vietnamese_translation"]}"\n'
+                        message += f'🔁 "{formatted_translation}"\n'
                     
                     message += f"==="
             else:
