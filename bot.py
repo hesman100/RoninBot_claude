@@ -800,9 +800,13 @@ async def get_quotes_by_author_search(author_search):
     
     try:
         cursor = conn.cursor()
-        # Use ILIKE for case-insensitive search with wildcards
-        search_pattern = f"%{author_search}%"
-        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation, language FROM quotes WHERE author ILIKE %s ORDER BY author, id", (search_pattern,))
+        # Special handling for "vozer" search - include all Vozer Collection quotes
+        if author_search.lower() == "vozer":
+            cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation, language FROM quotes WHERE source = 'Vozer Collection' ORDER BY id", ())
+        else:
+            # Use ILIKE for case-insensitive search with wildcards
+            search_pattern = f"%{author_search}%"
+            cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation, language FROM quotes WHERE author ILIKE %s ORDER BY author, id", (search_pattern,))
         results = cursor.fetchall()
         cursor.close()
         conn.close()
@@ -881,23 +885,28 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     # Format author search results
                     message = f"📚 Tìm thấy {len(quotes)} quote(s) cho '{arg}':\n\n"
                     
-                    for i, quote in enumerate(quotes[:10]):  # Limit to first 10 results
-                        message += f"#{quote['id']} - {quote['author']}\n"
+                    # Special handling for Vozer Collection quotes
+                    if arg.lower() == "vozer":
+                        for quote in quotes:
+                            # Use special Vozer format for search results
+                            message += f'💭 "{quote["quote_text"]}"\n'
+                            message += f'                    ( {quote["author"]} / #{quote["id"]} )\n'
+                            message += f'🔁 "{quote["vietnamese_translation"]}"\n\n'
+                    else:
+                        for quote in quotes:
+                            message += f"#{quote['id']} - {quote['author']}\n"
+                            
+                            # Show original language first in search results too
+                            if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
+                                # Vietnamese original first, then English
+                                message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n'
+                                message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n\n'
+                            else:
+                                # English original first, then Vietnamese
+                                message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n'
+                                message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n\n'
                         
-                        # Show original language first in search results too
-                        if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
-                            # Vietnamese original first, then English
-                            message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n'
-                            message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n\n'
-                        else:
-                            # English original first, then Vietnamese
-                            message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n'
-                            message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n\n'
-                    
-                    if len(quotes) > 10:
-                        message += f"... và {len(quotes) - 10} quote(s) khác.\n"
-                    
-                    message += "💡 Dùng /q [ID] để xem chi tiết quote cụ thể"
+                        message += "💡 Dùng /q [ID] để xem chi tiết quote cụ thể"
         else:
             # Get random quote
             quote = await get_random_quote()
