@@ -763,15 +763,49 @@ async def get_quote_by_id(quote_id):
         return None
 
 
+async def get_quotes_by_author_search(author_search):
+    """Get quotes by author name search (case-insensitive partial match)"""
+    conn = get_database_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        # Use ILIKE for case-insensitive search with wildcards
+        search_pattern = f"%{author_search}%"
+        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation FROM quotes WHERE author ILIKE %s ORDER BY author, id", (search_pattern,))
+        results = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        if results:
+            quotes = []
+            for result in results:
+                quotes.append({
+                    'id': result[0],
+                    'quote_text': result[1],
+                    'author': result[2],
+                    'source': result[3],
+                    'vietnamese_translation': result[4]
+                })
+            return quotes
+        return []
+    except Exception as e:
+        logger.error(f"Error searching quotes by author '{author_search}': {str(e)}")
+        return None
+
+
 async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /q command to show quotes"""
     logger.info(f"Received /q command from chat {update.effective_chat.id}")
     
     try:
         if context.args and len(context.args) > 0:
-            # Get specific quote by ID
+            arg = " ".join(context.args)  # Join all arguments to handle multi-word author names
+            
+            # Try to parse as quote ID first
             try:
-                quote_id = int(context.args[0])
+                quote_id = int(arg)
                 quote = await get_quote_by_id(quote_id)
                 
                 if quote:
@@ -787,7 +821,26 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     message = f"❌ Không tìm thấy quote với ID #{quote_id}"
                     
             except ValueError:
-                message = "❌ ID quote phải là số. Ví dụ: /q 100"
+                # Not a number, search by author name
+                quotes = await get_quotes_by_author_search(arg)
+                
+                if quotes is None:
+                    message = "❌ Lỗi khi tìm kiếm tác giả trong database"
+                elif len(quotes) == 0:
+                    message = f"❌ Không tìm thấy quote nào của tác giả có tên chứa '{arg}'"
+                else:
+                    # Format author search results
+                    message = f"📚 Tìm thấy {len(quotes)} quote(s) cho '{arg}':\n\n"
+                    
+                    for i, quote in enumerate(quotes[:10]):  # Limit to first 10 results
+                        message += f"#{quote['id']} - {quote['author']}\n"
+                        message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n'
+                        message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n\n'
+                    
+                    if len(quotes) > 10:
+                        message += f"... và {len(quotes) - 10} quote(s) khác.\n"
+                    
+                    message += "💡 Dùng /q [ID] để xem chi tiết quote cụ thể"
         else:
             # Get random quote
             quote = await get_random_quote()
