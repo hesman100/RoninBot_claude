@@ -875,8 +875,8 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                         # Show original language first in search results too
                         if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
                             # Vietnamese original first, then English
-                            message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n'
-                            message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n\n'
+                            message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n'
+                            message += f'"{quote["vietnamese_translation"][:80]}{"..." if len(quote["vietnamese_translation"]) > 80 else ""}"\n\n'
                         else:
                             # English original first, then Vietnamese
                             message += f'"{quote["quote_text"][:80]}{"..." if len(quote["quote_text"]) > 80 else ""}"\n'
@@ -897,9 +897,9 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 # Check if originally Vietnamese (for quotes like Ho Chi Minh's)
                 if quote.get("language") == "vi" or quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
                     # Vietnamese original first, then English translation
-                    message += f'"{quote["vietnamese_translation"]}"\n'
-                    message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
                     message += f'"{quote["quote_text"]}"\n'
+                    message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
+                    message += f'"{quote["vietnamese_translation"]}"\n'
                 else:
                     # English original first, then Vietnamese translation
                     message += f'"{quote["quote_text"]}"\n'
