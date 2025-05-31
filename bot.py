@@ -133,6 +133,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                            "/s <stock> - Get price for any stock\n"
                            "              (Example: /s AAPL or /s TSLA)\n"
                            "/s - Get prices for popular stocks\n\n"
+                           "\n ==== Quotes ==== \n"
+                           "/q - Get a random inspirational quote\n"
+                           "/q <number> - Get a specific quote by ID\n"
+                           "/q author <name> - Search quotes by author\n"
+                           "              (Example: /q author Einstein)\n\n"
                            "\n ==== Lunar Calendar ==== \n"
                            "/l - Show current lunar calendar date\n")
     else:
@@ -144,6 +149,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                            "/s <stock> - Get price for any stock\n"
                            "              (Example: /s AAPL, /s TSLA)\n"
                            "/s - Get prices for popular stocks\n\n"
+                           "\n ==== Quotes ==== \n"
+                           "/q - Get a random inspirational quote\n"
+                           "/q <number> - Get a specific quote by ID\n"
+                           "/q author <name> - Search quotes by author\n"
+                           "              (Example: /q author Einstein)\n\n"
                            "\n ==== Lunar Calendar ==== \n"
                            "/l - Show current lunar calendar date\n")
 
