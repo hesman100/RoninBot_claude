@@ -561,8 +561,8 @@ async def get_lunar_detail_info() -> str:
         if random_quote:
             # Check if this is a Vozer Collection quote for special formatting
             if random_quote.get("source") == "Vozer Collection":
-                # Special format for Vozer Collection - no source, no === brackets
-                quote_text = f'💭 "{random_quote["quote_text"]}"\n                    ( {random_quote["author"]} / #{random_quote["id"]} )\n🔁 "{random_quote["vietnamese_translation"]}"'
+                # Special format for Vozer Collection - only Vietnamese, no English translation
+                quote_text = f'💭 "{random_quote["quote_text"]}"\n                    ( {random_quote["author"]} / #{random_quote["id"]} )'
             else:
                 # Regular format for other quotes
                 if random_quote.get("language") == "vi" or random_quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
@@ -845,10 +845,9 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 if quote:
                     # Check if this is a Vozer Collection quote for special formatting
                     if quote.get("source") == "Vozer Collection":
-                        # Special format for Vozer Collection - no source, no === brackets
+                        # Special format for Vozer Collection - only Vietnamese, no English translation
                         message = f'💭 "{quote["quote_text"]}"\n'
-                        message += f'                    ( {quote["author"]} / #{quote["id"]} )\n'
-                        message += f'🔁 "{quote["vietnamese_translation"]}"'
+                        message += f'                    ( {quote["author"]} / #{quote["id"]} )'
                     else:
                         # Regular format for other quotes
                         message = f"===\n"
@@ -888,10 +887,9 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     # Special handling for Vozer Collection quotes
                     if arg.lower() == "vozer":
                         for quote in quotes:
-                            # Use special Vozer format for search results
+                            # Use special Vozer format for search results - only Vietnamese, no English translation
                             message += f'💭 "{quote["quote_text"]}"\n'
-                            message += f'                    ( {quote["author"]} / #{quote["id"]} )\n'
-                            message += f'🔁 "{quote["vietnamese_translation"]}"\n\n'
+                            message += f'                    ( {quote["author"]} / #{quote["id"]} )\n\n'
                     else:
                         for quote in quotes:
                             message += f"#{quote['id']} - {quote['author']}\n"
@@ -914,10 +912,9 @@ async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             if quote:
                 # Check if this is a Vozer Collection quote for special formatting
                 if quote.get("source") == "Vozer Collection":
-                    # Special format for Vozer Collection - no source, no === brackets
+                    # Special format for Vozer Collection - only Vietnamese, no English translation
                     message = f'💭 "{quote["quote_text"]}"\n'
-                    message += f'                    ( {quote["author"]} / #{quote["id"]} )\n'
-                    message += f'🔁 "{quote["vietnamese_translation"]}"'
+                    message += f'                    ( {quote["author"]} / #{quote["id"]} )'
                 else:
                     # Regular format for other quotes
                     message = f"===\n"
