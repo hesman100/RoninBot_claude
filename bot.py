@@ -3,6 +3,8 @@ import sys
 import os
 import fcntl
 import time
+import random
+import psycopg2
 from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
@@ -697,6 +699,119 @@ async def handle_callback_query(update: Update,
 
 
 # File lock to ensure only one instance runs
+def get_database_connection():
+    """Get PostgreSQL database connection"""
+    try:
+        return psycopg2.connect(os.environ.get("DATABASE_URL"))
+    except Exception as e:
+        logger.error(f"Database connection error: {str(e)}")
+        return None
+
+
+async def get_random_quote():
+    """Get a random quote from the database"""
+    conn = get_database_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation FROM quotes ORDER BY RANDOM() LIMIT 1")
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if result:
+            return {
+                'id': result[0],
+                'quote_text': result[1],
+                'author': result[2],
+                'source': result[3],
+                'vietnamese_translation': result[4]
+            }
+        return None
+    except Exception as e:
+        logger.error(f"Error getting random quote: {str(e)}")
+        return None
+
+
+async def get_quote_by_id(quote_id):
+    """Get a specific quote by ID from the database"""
+    conn = get_database_connection()
+    if not conn:
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, quote_text, author, source, vietnamese_translation, source_url FROM quotes WHERE id = %s", (quote_id,))
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if result:
+            return {
+                'id': result[0],
+                'quote_text': result[1],
+                'author': result[2],
+                'source': result[3],
+                'vietnamese_translation': result[4],
+                'source_url': result[5]
+            }
+        return None
+    except Exception as e:
+        logger.error(f"Error getting quote by ID {quote_id}: {str(e)}")
+        return None
+
+
+async def quote_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /q command to show quotes"""
+    logger.info(f"Received /q command from chat {update.effective_chat.id}")
+    
+    try:
+        if context.args and len(context.args) > 0:
+            # Get specific quote by ID
+            try:
+                quote_id = int(context.args[0])
+                quote = await get_quote_by_id(quote_id)
+                
+                if quote:
+                    # Format detailed quote display
+                    message = f"===\n"
+                    message += f'"{quote["quote_text"]}"\n'
+                    message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
+                    if quote.get("source_url"):
+                        message += f'     ({quote["source_url"]})\n'
+                    message += f'"{quote["vietnamese_translation"]}"\n'
+                    message += f"==="
+                else:
+                    message = f"❌ Không tìm thấy quote với ID #{quote_id}"
+                    
+            except ValueError:
+                message = "❌ ID quote phải là số. Ví dụ: /q 100"
+        else:
+            # Get random quote
+            quote = await get_random_quote()
+            
+            if quote:
+                # Format simple quote display
+                message = f"===\n"
+                message += f'"{quote["quote_text"]}"\n'
+                message += f'     ( {quote["source"]} / {quote["author"]} / #{quote["id"]} )\n'
+                message += f'"{quote["vietnamese_translation"]}"\n'
+                message += f"==="
+            else:
+                message = "❌ Không thể lấy quote từ database"
+        
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+        
+    except Exception as e:
+        logger.error(f"Error in quote command: {str(e)}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="❌ Lỗi khi lấy quote từ database"
+        )
+
+
 def acquire_lock():
     """Try to acquire a file lock to ensure only one instance runs"""
     lock_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -755,6 +870,7 @@ def main() -> None:
             application.add_handler(CommandHandler("c", price))
             application.add_handler(CommandHandler("s", stock))
             application.add_handler(CommandHandler("l", lunar_calendar))
+            application.add_handler(CommandHandler("q", quote_command))
             # application.add_handler(CommandHandler("vn", vietnam_stock))  # Temporarily disabled
 
             # Add the game command handlers
