@@ -136,8 +136,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                            "\n ==== Quotes ==== \n"
                            "/q - Get a random inspirational quote\n"
                            "/q <number> - Get a specific quote by ID\n"
-                           "/q author <name> - Search quotes by author\n"
-                           "              (Example: /q author Einstein)\n\n"
+                           "/q <name> - Search quotes by author\n"
+                           "              (Example: /q Einstein)\n\n"
                            "\n ==== Lunar Calendar ==== \n"
                            "/l - Show current lunar calendar date\n")
     else:
@@ -152,8 +152,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                            "\n ==== Quotes ==== \n"
                            "/q - Get a random inspirational quote\n"
                            "/q <number> - Get a specific quote by ID\n"
-                           "/q author <name> - Search quotes by author\n"
-                           "              (Example: /q author Einstein)\n\n"
+                           "/q <name> - Search quotes by author\n"
+                           "              (Example: /q Einstein)\n\n"
                            "\n ==== Lunar Calendar ==== \n"
                            "/l - Show current lunar calendar date\n")
 
