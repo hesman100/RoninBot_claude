@@ -562,10 +562,10 @@ async def get_lunar_detail_info() -> str:
             # Format quote with original language first
             if random_quote.get("language") == "vi" or random_quote["author"] in ["Hồ Chí Minh", "Câu ngạn ngữ Việt Nam"]:
                 # Vietnamese original first, then English translation
-                quote_text = f'💭 "{random_quote["vietnamese_translation"]}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n"{random_quote["quote_text"]}"'
+                quote_text = f'===\n💭 "{random_quote["quote_text"]}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n🔁 "{random_quote["vietnamese_translation"]}"\n==='
             else:
                 # English original first, then Vietnamese translation
-                quote_text = f'💭 "{random_quote["quote_text"]}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n"{random_quote["vietnamese_translation"]}"'
+                quote_text = f'===\n💭 "{random_quote["quote_text"]}"\n     ({random_quote["author"]} / #{random_quote["id"]})\n🔁 "{random_quote["vietnamese_translation"]}"\n==='
 
         # Combine with proper spacing, replacing fortune info with quote
         if lunar_day_info and quote_text:
