@@ -4,7 +4,7 @@ from .config import (DEFAULT_CRYPTOCURRENCIES, DEFAULT_STOCKS,
                     VN_STOCK_TO_DISPLAY, STOCK_COMPANY_NAMES,
                     VN_STOCK_COMPANY_NAMES)
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 
 def format_price_message(crypto_data: Dict) -> str:
@@ -154,9 +154,10 @@ def format_price_message(crypto_data: Dict) -> str:
                 )
                 messages.append(message)
 
-    # Add timestamp at the end
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    timestamp = f"\n\n🕐 {current_time}"
+    # Add timestamp at the end with GMT+7 timezone
+    gmt_plus_7 = timezone(timedelta(hours=7))
+    current_time = datetime.now(gmt_plus_7).strftime("%d %B %Y, %H:%M:%S")
+    timestamp = f"\n\n🕐 {current_time} (GMT+7)"
     
     final_message = "\n".join(messages) + timestamp
     logger.debug(f"Final formatted message:\n{final_message}"

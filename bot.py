@@ -5,7 +5,7 @@ import fcntl
 import time
 import random
 import psycopg2
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
 from price_func.config import (TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
@@ -392,8 +392,9 @@ async def get_gold_price_vnd() -> str:
         tael_to_ounce = 1.20337
         gold_price_vnd_per_tael = gold_price_usd_per_ounce * usd_to_vnd * tael_to_ounce
 
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return f"💰 Vàng (thế giới): {gold_price_vnd_per_tael:,.0f} VND/lượng\n\n🕐 {current_time}"
+        gmt_plus_7 = timezone(timedelta(hours=7))
+        current_time = datetime.now(gmt_plus_7).strftime("%d %B %Y, %H:%M:%S")
+        return f"💰 Vàng (thế giới): {gold_price_vnd_per_tael:,.0f} VND/lượng\n\n🕐 {current_time} (GMT+7)"
 
     except Exception as e:
         logger.error(f"Error getting gold price: {str(e)}")
@@ -467,10 +468,11 @@ async def get_vietnam_gold_price() -> str:
                         continue
 
         if buy_price and sell_price:
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            gmt_plus_7 = timezone(timedelta(hours=7))
+            current_time = datetime.now(gmt_plus_7).strftime("%d %B %Y, %H:%M:%S")
             return (f"🟢 Vàng VN (mua): {buy_price:,.0f} VND/lượng\n"
                     f"🔴 Vàng VN (bán): {sell_price:,.0f} VND/lượng\n\n"
-                    f"🕐 {current_time}")
+                    f"🕐 {current_time} (GMT+7)")
         else:
             return "❌ Không tìm thấy giá vàng SJC"
 
