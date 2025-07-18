@@ -392,7 +392,8 @@ async def get_gold_price_vnd() -> str:
         tael_to_ounce = 1.20337
         gold_price_vnd_per_tael = gold_price_usd_per_ounce * usd_to_vnd * tael_to_ounce
 
-        return f"💰 Vàng (thế giới): {gold_price_vnd_per_tael:,.0f} VND/lượng"
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return f"💰 Vàng (thế giới): {gold_price_vnd_per_tael:,.0f} VND/lượng\n\n🕐 {current_time}"
 
     except Exception as e:
         logger.error(f"Error getting gold price: {str(e)}")
@@ -466,8 +467,10 @@ async def get_vietnam_gold_price() -> str:
                         continue
 
         if buy_price and sell_price:
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             return (f"🟢 Vàng VN (mua): {buy_price:,.0f} VND/lượng\n"
-                    f"🔴 Vàng VN (bán): {sell_price:,.0f} VND/lượng")
+                    f"🔴 Vàng VN (bán): {sell_price:,.0f} VND/lượng\n\n"
+                    f"🕐 {current_time}")
         else:
             return "❌ Không tìm thấy giá vàng SJC"
 
