@@ -32,13 +32,13 @@ def format_price_message(crypto_data: Dict) -> str:
         for symbol in crypto_data.keys()) if not is_vn_stock else False
 
     # Customize column header based on type (properly aligned)
-    # Format: Name(6) + Price(9) + Mcap(6) + Change(7) + space + emoji = 29 chars total
+    # Format: Name(6) + Price(9) + Change(7) + Mcap($)(8) + space + emoji = 31 chars total
     if is_vn_stock:
-        column_header = f"{'Stock':<6}{'$vnd':>9} {'Mcap':>6}  {'24h':>7}\n"
+        column_header = f"{'Stock':<6}{'$vnd':>9}  {'24h':>7} {'Mcap($)':>8}\n"
     elif is_stocks:
-        column_header = f"{'Stock':<6}{'$usd':>9} {'Mcap':>6}  {'24h':>7}\n"
+        column_header = f"{'Stock':<6}{'$usd':>9}  {'24h':>7} {'Mcap($)':>8}\n"
     else:
-        column_header = f"{'Coin':<6}{'$usd':>9} {'Mcap':>6}  {'24h':>7}\n"
+        column_header = f"{'Coin':<6}{'$usd':>9}  {'24h':>7} {'Mcap($)':>8}\n"
 
     # Get header text based on number of coins/stocks and type (more compact)
     if len(crypto_data) == 1:
@@ -64,7 +64,7 @@ def format_price_message(crypto_data: Dict) -> str:
     header = (
         f"{header_text}\n\n"
         f"{column_header}"
-        "─────────────────────────────"  # 29 chars to match total column width
+        "───────────────────────────────"  # 31 chars to match total column width
     )
     messages = [header]
 
@@ -108,13 +108,13 @@ def format_price_message(crypto_data: Dict) -> str:
         else:
             change_str = f"{change_24h:5.1f}%"  # " -2.8%" - 6 chars total
 
-        # Fixed width columns with exact alignments: Name(6) + Price(9) + Mcap(6) + Change(7) + emoji
+        # Fixed width columns with exact alignments: Name(6) + Price(9) + Change(7) + Mcap($)(8) + emoji
         # display_name is already padded to 6 chars, don't pad again
         message = (
             f"{display_name}"     # Name: already 6 chars from padding above
             f"{price_str:>9}"     # Price: 9 chars, right-aligned
-            f" {mcap_str:>6}"     # Mcap: 6 chars, right-aligned with space before
             f"{change_str:>7} {change_24h_symbol}"  # Change: 7 chars + space + emoji
+            f" {mcap_str:>8}"     # Mcap($): 8 chars, right-aligned with space before
         )
         logger.debug(f"Row: '{message}'")  # Debug output
         messages.append(message)
@@ -169,13 +169,13 @@ def format_price_message(crypto_data: Dict) -> str:
                 else:
                     change_str = f"{change_24h:5.1f}%"  # " -2.8%" - 6 chars total
 
-                # Fixed width columns with exact alignments: Name(6) + Price(9) + Mcap(6) + Change(7) + emoji
+                # Fixed width columns with exact alignments: Name(6) + Price(9) + Change(7) + Mcap($)(8) + emoji
                 # display_name is already padded to 6 chars, don't pad again
                 message = (
                     f"{display_name}"     # Name: already 6 chars from padding above
                     f"{price_str:>9}"     # Price: 9 chars, right-aligned
-                    f" {mcap_str:>6}"     # Mcap: 6 chars, right-aligned with space before
                     f"{change_str:>7} {change_24h_symbol}"  # Change: 7 chars + space + emoji
+                    f" {mcap_str:>8}"     # Mcap($): 8 chars, right-aligned with space before
                 )
                 logger.debug(f"Row: '{message}'")  # Debug output
                 messages.append(message)
