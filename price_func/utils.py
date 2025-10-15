@@ -63,16 +63,8 @@ def format_price_message(crypto_data: Dict) -> str:
         symbol = next(iter(crypto_data.keys()))
         data = crypto_data[symbol]
 
-        # Choose display format based on whether it's a stock, vn stock, or crypto
-        if symbol in VN_STOCK_TO_DISPLAY:
-            display_name = VN_STOCK_TO_DISPLAY[symbol]
-        elif symbol in STOCK_TO_DISPLAY:
-            display_name = STOCK_TO_DISPLAY[symbol]
-        elif symbol in SYMBOL_TO_DISPLAY:
-            display_name = SYMBOL_TO_DISPLAY[symbol]
-        else:
-            symbol_trunc = symbol[:5]  # Take first 5 chars if longer (reduced from 7)
-            display_name = f"{symbol_trunc:<5}"  # Left align and pad to exactly 5 chars
+        # Use the raw symbol, truncate if needed
+        display_name = symbol[:6] if len(symbol) <= 6 else symbol[:6]
 
         price = data.get('usd', 0)
         change_24h = data.get('usd_24h_change', 0)
@@ -121,7 +113,8 @@ def format_price_message(crypto_data: Dict) -> str:
         for symbol in default_list:
             if symbol in crypto_data:
                 data = crypto_data[symbol]
-                display_name = display_map.get(symbol, f"{symbol:<6}")  # Changed from 8 to 6 chars
+                # Use the raw symbol, truncate if needed
+                display_name = symbol[:6] if len(symbol) <= 6 else symbol[:6]
 
                 price = data.get('usd', 0)
                 change_24h = data.get('usd_24h_change', 0)
