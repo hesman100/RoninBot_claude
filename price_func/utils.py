@@ -95,11 +95,13 @@ def format_price_message(crypto_data: Dict) -> str:
             change_str = f"{change_24h:5.1f}%"  # " -2.8%" - 6 chars total
 
         # Fixed width columns with exact alignments: Name(6) + Price(9) + Change(7) + emoji
+        # display_name is already padded to 6 chars, don't pad again
         message = (
-            f"{display_name:<6}"  # Name: 6 chars, left-aligned
-            f"{price_str:>9}"     # Price: 9 chars, right-aligned (increased for better spacing)
+            f"{display_name}"     # Name: already 6 chars from padding above
+            f"{price_str:>9}"     # Price: 9 chars, right-aligned
             f"{change_str:>7} {change_24h_symbol}"  # Change: 7 chars + space + emoji
         )
+        logger.debug(f"Row: '{message}'")  # Debug output
         messages.append(message)
     else:
         # Get appropriate list and display mapping based on data type
@@ -149,11 +151,13 @@ def format_price_message(crypto_data: Dict) -> str:
                     change_str = f"{change_24h:5.1f}%"  # " -2.8%" - 6 chars total
 
                 # Fixed width columns with exact alignments: Name(6) + Price(9) + Change(7) + emoji
+                # display_name is already padded to 6 chars, don't pad again
                 message = (
-                    f"{display_name:<6}"  # Name: 6 chars, left-aligned
-                    f"{price_str:>9}"     # Price: 9 chars, right-aligned (increased for better spacing)
+                    f"{display_name}"     # Name: already 6 chars from padding above
+                    f"{price_str:>9}"     # Price: 9 chars, right-aligned
                     f"{change_str:>7} {change_24h_symbol}"  # Change: 7 chars + space + emoji
                 )
+                logger.debug(f"Row: '{message}'")  # Debug output
                 messages.append(message)
 
     # Add timestamp at the end with GMT+7 timezone (more compact)
