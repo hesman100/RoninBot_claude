@@ -1029,7 +1029,7 @@ def main() -> None:
             application.add_handler(CommandHandler("s", stock))
             application.add_handler(CommandHandler("l", lunar_calendar))
             application.add_handler(CommandHandler("q", quote_command))
-            # application.add_handler(CommandHandler("vn", vietnam_stock))  # Temporarily disabled
+            application.add_handler(CommandHandler("vn", vietnam_stock))
 
             # Add the game command handlers
             application.add_handler(CommandHandler("g", game_command))
