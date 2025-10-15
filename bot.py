@@ -196,7 +196,8 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         message = format_price_message(price_data)
         await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text=message)
+                                       text=message,
+                                       parse_mode="Markdown")
 
         # Only post to channel if explicitly configured and channel ID is valid
         if TELEGRAM_CHANNEL_ID and TELEGRAM_CHANNEL_ID.strip():
@@ -205,7 +206,8 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     f"Attempting to post price update to channel {TELEGRAM_CHANNEL_ID}"
                 )
                 await context.bot.send_message(chat_id=TELEGRAM_CHANNEL_ID,
-                                               text=message)
+                                               text=message,
+                                               parse_mode="Markdown")
                 logger.info("Successfully posted to channel")
             except Exception as channel_error:
                 logger.error(
@@ -299,7 +301,8 @@ async def stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         message = format_price_message(price_data)
         await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text=message)
+                                       text=message,
+                                       parse_mode="Markdown")
 
     except Exception as e:
         logger.error(f"Error in stock command: {str(e)}")
@@ -337,7 +340,8 @@ async def vietnam_stock(update: Update,
 
         message = format_price_message(price_data)
         await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text=message)
+                                       text=message,
+                                       parse_mode="Markdown")
 
     except Exception as e:
         logger.error(f"Error in vietnam_stock command: {str(e)}")
