@@ -393,8 +393,8 @@ async def get_gold_price_vnd() -> str:
         gold_price_vnd_per_tael = gold_price_usd_per_ounce * usd_to_vnd * tael_to_ounce
 
         gmt_plus_7 = timezone(timedelta(hours=7))
-        current_time = datetime.now(gmt_plus_7).strftime("%d %B %Y, %H:%M:%S")
-        return f"💰 Vàng (thế giới): {gold_price_vnd_per_tael:,.0f} VND/lượng\n\n🕐 {current_time} (GMT+7)"
+        current_time = datetime.now(gmt_plus_7).strftime("%d %b %Y, %H:%M")
+        return f"💰 Vàng (TG): {gold_price_vnd_per_tael:,.0f} VND/lượng\n\n🕐 {current_time} (GMT+7)"
 
     except Exception as e:
         logger.error(f"Error getting gold price: {str(e)}")
@@ -469,9 +469,9 @@ async def get_vietnam_gold_price() -> str:
 
         if buy_price and sell_price:
             gmt_plus_7 = timezone(timedelta(hours=7))
-            current_time = datetime.now(gmt_plus_7).strftime("%d %B %Y, %H:%M:%S")
-            return (f"🟢 Vàng VN (mua): {buy_price:,.0f} VND/lượng\n"
-                    f"🔴 Vàng VN (bán): {sell_price:,.0f} VND/lượng\n\n"
+            current_time = datetime.now(gmt_plus_7).strftime("%d %b %Y, %H:%M")
+            return (f"🟢 VN (mua): {buy_price:,.0f} VND/lượng\n"
+                    f"🔴 VN (bán): {sell_price:,.0f} VND/lượng\n\n"
                     f"🕐 {current_time} (GMT+7)")
         else:
             return "❌ Không tìm thấy giá vàng SJC"

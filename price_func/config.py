@@ -43,31 +43,31 @@ DEFAULT_STOCKS = [
 
 # Mapping of CoinMarketCap symbols to display names (for formatting)
 SYMBOL_TO_DISPLAY = {
-    'BTC': 'BTC    ',  # Exactly 7 chars
-    'ETH': 'ETH    ',  # Exactly 7 chars
-    'SOL': 'SOL    ',  # Exactly 7 chars
-    'RON': 'RON    ',  # Exactly 7 chars
-    'AXS': 'AXS    ',  # Exactly 7 chars
-    'PIXEL': 'PIXEL  ',  # Exactly 7 chars
-    'PI': 'PI     ',  # Exactly 7 chars
-    'BNB': 'BNB    ',  # Exactly 7 chars
+    'BTC': 'BTC  ',  # Exactly 5 chars
+    'ETH': 'ETH  ',  # Exactly 5 chars
+    'SOL': 'SOL  ',  # Exactly 5 chars
+    'RON': 'RON  ',  # Exactly 5 chars
+    'AXS': 'AXS  ',  # Exactly 5 chars
+    'PIXEL': 'PIXEL',  # Exactly 5 chars
+    'PI': 'PI   ',  # Exactly 5 chars
+    'BNB': 'BNB  ',  # Exactly 5 chars
 }
 
 # Mapping of stock symbols to display names (for formatting)
 STOCK_TO_DISPLAY = {
-    'TSLA': 'TSLA   ',  # Exactly 7 chars
-    'NVDA': 'NVDA   ',  # Exactly 7 chars
-    'AAPL': 'AAPL   ',  # Exactly 7 chars
-    'MRVL': 'MRVL   ',  # Exactly 7 chars
-    'SNPS': 'SNPS   ',
-    'AMZN': 'AMZN   ',  # Exactly 7 chars
-    'CDNS': 'CDNS   ',  # Exactly 7 chars
-    'MSFT': 'MSFT   ',  # Exactly 7 chars
-    'GOOGL': 'GOOGL  ',  # Exactly 7 chars
-    'META': 'META   ',  # Exactly 7 chars
-    'INTC': 'INTC   ',  # Exactly 7 chars
-    'QCOM': 'QCOM   ',  # Exactly 7 chars
-    'AVGO': 'AVGO   ',  # Exactly 7 chars
+    'TSLA': 'TSLA ',  # Exactly 5 chars
+    'NVDA': 'NVDA ',  # Exactly 5 chars
+    'AAPL': 'AAPL ',  # Exactly 5 chars
+    'MRVL': 'MRVL ',  # Exactly 5 chars
+    'SNPS': 'SNPS ',  # Exactly 5 chars
+    'AMZN': 'AMZN ',  # Exactly 5 chars
+    'CDNS': 'CDNS ',  # Exactly 5 chars
+    'MSFT': 'MSFT ',  # Exactly 5 chars
+    'GOOGL': 'GOOGL',  # Exactly 5 chars
+    'META': 'META ',  # Exactly 5 chars
+    'INTC': 'INTC ',  # Exactly 5 chars
+    'QCOM': 'QCOM ',  # Exactly 5 chars
+    'AVGO': 'AVGO ',  # Exactly 5 chars
 }
 
 # Mapping of stock symbols to full company names
@@ -105,17 +105,17 @@ DEFAULT_VN_STOCKS = [
 
 # Mapping of Vietnam stock symbols to display names (for formatting)
 VN_STOCK_TO_DISPLAY = {
-    'VCB': 'VCB    ',  # Exactly 7 chars
-    'MWG': 'MWG    ',  # Exactly 7 chars'
-    'VIC': 'VIC    ',  # Exactly 7 chars
-    'HPG': 'HPG    ',  # Exactly 7 chars
-    'FPT': 'FPT    ',  # Exactly 7 chars
-    'MSN': 'MSN    ',  # Exactly 7 chars
-    'VNM': 'VNM    ',  # Exactly 7 chars
-    'VHM': 'VHM    ',  # Exactly 7 chars
-    'PLX': 'PLX    ',  # Exactly 7 chars
-    'GAS': 'GAS    ',  # Exactly 7 chars
-    'PNJ': 'PNJ    ',  # Exactly 7 chars
+    'VCB': 'VCB  ',  # Exactly 5 chars
+    'MWG': 'MWG  ',  # Exactly 5 chars
+    'VIC': 'VIC  ',  # Exactly 5 chars
+    'HPG': 'HPG  ',  # Exactly 5 chars
+    'FPT': 'FPT  ',  # Exactly 5 chars
+    'MSN': 'MSN  ',  # Exactly 5 chars
+    'VNM': 'VNM  ',  # Exactly 5 chars
+    'VHM': 'VHM  ',  # Exactly 5 chars
+    'PLX': 'PLX  ',  # Exactly 5 chars
+    'GAS': 'GAS  ',  # Exactly 5 chars
+    'PNJ': 'PNJ  ',  # Exactly 5 chars
 }
 
 # Mapping of Vietnam stock symbols to full company names

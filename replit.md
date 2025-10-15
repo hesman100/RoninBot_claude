@@ -4,6 +4,18 @@
 
 This project is a comprehensive Telegram bot with an integrated REST API that provides both interactive chat functionality and programmatic access to financial data and country guessing games. The system uses a consolidated server approach, running both the Telegram bot and API server on the same port (5000) for streamlined deployment.
 
+## Recent Changes
+
+**October 15, 2025** - Compact Price Display Format
+- Reduced column widths by ~30% to allow for future column additions
+  - Name column: 6 characters (down from 8)
+  - Price column: 7 characters (down from 9)
+  - 24h change column: 6 characters (down from 8)
+- Shortened header text for multi-item displays ("Crypto" instead of "Cryptocurrency Prices")
+- Compressed timestamp format (e.g., "15 Oct 2025, 13:38" instead of "15 October 2025, 13:38:13")
+- Shortened gold price labels ("Vàng (TG)" for international, "VN (mua/bán)" for Vietnam gold)
+- All display name mappings updated in `price_func/config.py` to 5-character format
+
 ## User Preferences
 
 ```
