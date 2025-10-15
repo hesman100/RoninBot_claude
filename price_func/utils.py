@@ -63,8 +63,9 @@ def format_price_message(crypto_data: Dict) -> str:
         symbol = next(iter(crypto_data.keys()))
         data = crypto_data[symbol]
 
-        # Use the raw symbol, truncate if needed
-        display_name = symbol[:6] if len(symbol) <= 6 else symbol[:6]
+        # Use the raw symbol, truncate and pad to exactly 6 characters
+        symbol_truncated = symbol[:6]
+        display_name = f"{symbol_truncated:<6}"  # Left-align and pad to 6 chars
 
         price = data.get('usd', 0)
         change_24h = data.get('usd_24h_change', 0)
@@ -116,8 +117,9 @@ def format_price_message(crypto_data: Dict) -> str:
         for symbol in default_list:
             if symbol in crypto_data:
                 data = crypto_data[symbol]
-                # Use the raw symbol, truncate if needed
-                display_name = symbol[:6] if len(symbol) <= 6 else symbol[:6]
+                # Use the raw symbol, truncate and pad to exactly 6 characters
+                symbol_truncated = symbol[:6]
+                display_name = f"{symbol_truncated:<6}"  # Left-align and pad to 6 chars
 
                 price = data.get('usd', 0)
                 change_24h = data.get('usd_24h_change', 0)
