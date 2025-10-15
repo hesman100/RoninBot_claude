@@ -22,13 +22,13 @@ def format_price_message(crypto_data: Dict) -> str:
         for symbol in crypto_data.keys()) if not is_vn_stock else False
 
     # Customize column header based on type (properly aligned)
-    # Format: Name(6) + Price(8) + Change(6) = 20 chars total
+    # Format: Name(6) + Price(9) + Change(7) + space + emoji = 24 chars total
     if is_vn_stock:
-        column_header = f"{'Stock':<6}{'$vnd':>8}{'24h':>6}\n"
+        column_header = f"{'Stock':<6}{'$vnd':>9}  {'24h':>7}\n"
     elif is_stocks:
-        column_header = f"{'Stock':<6}{'$usd':>8}{'24h':>6}\n"
+        column_header = f"{'Stock':<6}{'$usd':>9}  {'24h':>7}\n"
     else:
-        column_header = f"{'Coin':<6}{'$usd':>8}{'24h':>6}\n"
+        column_header = f"{'Coin':<6}{'$usd':>9}  {'24h':>7}\n"
 
     # Get header text based on number of coins/stocks and type (more compact)
     if len(crypto_data) == 1:
@@ -54,7 +54,7 @@ def format_price_message(crypto_data: Dict) -> str:
     header = (
         f"{header_text}\n\n"
         f"{column_header}"
-        "────────────────────"  # 20 chars to match total column width
+        "────────────────────────"  # 24 chars to match total column width
     )
     messages = [header]
 
@@ -87,14 +87,17 @@ def format_price_message(crypto_data: Dict) -> str:
         # Format the change indicators with colored circles
         change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
-        # Format the change percentage with proper spacing for negative values
-        change_str = f"{change_24h:>5.1f}%" if change_24h >= 0 else f"{change_24h:>5.1f}%"
+        # Format the change percentage - include % in width calculation
+        if change_24h >= 0:
+            change_str = f"{change_24h:5.1f}%"  # "  4.1%" - 6 chars total
+        else:
+            change_str = f"{change_24h:5.1f}%"  # " -2.8%" - 6 chars total
 
-        # Fixed width columns with exact alignments: Name(6) + Price(8) + Change(6) + emoji
+        # Fixed width columns with exact alignments: Name(6) + Price(9) + Change(7) + emoji
         message = (
             f"{display_name:<6}"  # Name: 6 chars, left-aligned
-            f"{price_str:>8}"     # Price: 8 chars, right-aligned
-            f"{change_str:>6}{change_24h_symbol}"  # Change: 6 chars, right-aligned + emoji
+            f"{price_str:>9}"     # Price: 9 chars, right-aligned (increased for better spacing)
+            f"{change_str:>7} {change_24h_symbol}"  # Change: 7 chars + space + emoji
         )
         messages.append(message)
     else:
@@ -137,14 +140,17 @@ def format_price_message(crypto_data: Dict) -> str:
                 # Format the change indicators with colored circles
                 change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
-                # Format the change percentage with proper spacing for negative values
-                change_str = f"{change_24h:>5.1f}%" if change_24h >= 0 else f"{change_24h:>5.1f}%"
+                # Format the change percentage - include % in width calculation
+                if change_24h >= 0:
+                    change_str = f"{change_24h:5.1f}%"  # "  4.1%" - 6 chars total
+                else:
+                    change_str = f"{change_24h:5.1f}%"  # " -2.8%" - 6 chars total
 
-                # Fixed width columns with exact alignments: Name(6) + Price(8) + Change(6) + emoji
+                # Fixed width columns with exact alignments: Name(6) + Price(9) + Change(7) + emoji
                 message = (
                     f"{display_name:<6}"  # Name: 6 chars, left-aligned
-                    f"{price_str:>8}"     # Price: 8 chars, right-aligned
-                    f"{change_str:>6}{change_24h_symbol}"  # Change: 6 chars, right-aligned + emoji
+                    f"{price_str:>9}"     # Price: 9 chars, right-aligned (increased for better spacing)
+                    f"{change_str:>7} {change_24h_symbol}"  # Change: 7 chars + space + emoji
                 )
                 messages.append(message)
 
