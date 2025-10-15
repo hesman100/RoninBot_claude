@@ -153,7 +153,8 @@ def format_price_message(crypto_data: Dict) -> str:
     current_time = datetime.now(gmt_plus_7).strftime("%d %b %Y, %H:%M")
     timestamp = f"\n\n🕐 {current_time} (GMT+7)"
     
-    final_message = "\n".join(messages) + timestamp
+    # Wrap in code block for monospace font alignment in Telegram
+    final_message = "```\n" + "\n".join(messages) + "\n```" + timestamp
     logger.debug(f"Final formatted message:\n{final_message}"
                  )  # Debug logging for final output
     return final_message
