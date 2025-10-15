@@ -6,15 +6,17 @@ This project is a comprehensive Telegram bot with an integrated REST API that pr
 
 ## Recent Changes
 
-**October 15, 2025** - Compact Price Display Format
-- Reduced column widths by ~30% to allow for future column additions
-  - Name column: 6 characters (down from 8)
-  - Price column: 7 characters (down from 9)
-  - 24h change column: 6 characters (down from 8)
-- Shortened header text for multi-item displays ("Crypto" instead of "Cryptocurrency Prices")
-- Compressed timestamp format (e.g., "15 Oct 2025, 13:38" instead of "15 October 2025, 13:38:13")
-- Shortened gold price labels ("Vàng (TG)" for international, "VN (mua/bán)" for Vietnam gold)
-- All display name mappings updated in `price_func/config.py` to 5-character format
+**October 15, 2025** - Market Cap Column Added to Price Display
+- Added Market Cap (Mcap) column to `/c` (crypto) and `/s` (stock) commands
+  - Market cap displayed with "m" suffix for millions (e.g., "500m")
+  - Market cap displayed with "B" suffix for billions (e.g., "2.5B")
+  - Column width: 6 characters, right-aligned
+- Updated API integrations to fetch market cap data:
+  - CoinMarketCap API: Extracts `market_cap` from quote data for cryptocurrencies
+  - Finnhub API: Fetches market cap from company profile endpoint for stocks
+- Display format: Name(6) + Price(9) + Mcap(6) + 24h Change(7) + emoji = 29 chars total
+- Added `parse_mode="Markdown"` to all price commands for proper monospace column alignment
+- Compact timestamp format: "16 Oct 2025, 06:46 (GMT+7)"
 
 ## User Preferences
 

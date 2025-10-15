@@ -67,6 +67,7 @@ class CoinMarketCapAPI:
                 symbol.upper(): {
                     "usd": quote["price"],
                     "usd_24h_change": quote["percent_change_24h"],
+                    "market_cap": quote.get("market_cap", 0),
                     "name": coin_data["name"]  # Include the full name
                 }
             }
@@ -99,6 +100,7 @@ class CoinMarketCapAPI:
                 formatted_data[symbol.upper()] = {
                     "usd": quote["price"],
                     "usd_24h_change": quote["percent_change_24h"],
+                    "market_cap": quote.get("market_cap", 0),
                     "name": coin_data["name"]  # Include the full name
                 }
             logger.info(f"Formatted multi-price data: {formatted_data}")

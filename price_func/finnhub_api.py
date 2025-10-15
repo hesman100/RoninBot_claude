@@ -59,6 +59,17 @@ class FinnhubAPI:
 
         return {"error": "Maximum retries exceeded"}
 
+    def _get_market_cap(self, symbol: str) -> float:
+        """Get market cap for a stock from company profile"""
+        try:
+            profile_data = self._make_request('stock/profile2', {'symbol': symbol.upper()})
+            if profile_data and 'marketCapitalization' in profile_data:
+                # Finnhub returns market cap in millions
+                return profile_data['marketCapitalization'] * 1_000_000
+            return 0
+        except:
+            return 0
+
     def get_stock_price(self, symbol: str) -> Dict:
         """Get current price for a single stock"""
         logger.info(f"Fetching price for stock: {symbol}")
@@ -84,10 +95,14 @@ class FinnhubAPI:
                 # Calculate 24h change
                 change_percent = ((price - prev_close) / prev_close) * 100 if prev_close else 0
 
+                # Get market cap
+                market_cap = self._get_market_cap(symbol)
+
                 formatted_data = {
                     symbol.upper(): {
                         "usd": price,
                         "usd_24h_change": change_percent,
+                        "market_cap": market_cap,
                         "name": symbol.upper()  # Use symbol as name for stocks
                     }
                 }
