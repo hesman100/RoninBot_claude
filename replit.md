@@ -12,6 +12,7 @@ This project is a comprehensive Telegram bot with an integrated REST API that pr
 - Added Market Cap column "Mcap" positioned after 24h change
   - Market cap with "m" suffix for millions (e.g., "500m")
   - Market cap with "B" suffix for billions (e.g., "2.5B")
+  - Market cap with "T" suffix for trillions (e.g., "2.2T" for BTC)
 - Smart price formatting for better space efficiency:
   - Prices ≥$1000 show as "$1.2k" format
   - VN stocks ≥1000 show as "1.2k" format (no $ sign)

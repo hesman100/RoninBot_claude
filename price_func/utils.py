@@ -8,8 +8,10 @@ from datetime import datetime, timezone, timedelta
 
 
 def format_market_cap(market_cap: float) -> str:
-    """Format market cap with M (millions) or B (billions) suffix"""
-    if market_cap >= 1_000_000_000:  # Billions
+    """Format market cap with m (millions), B (billions), or T (trillions) suffix"""
+    if market_cap >= 1_000_000_000_000:  # Trillions
+        return f"{market_cap / 1_000_000_000_000:.1f}T"
+    elif market_cap >= 1_000_000_000:  # Billions
         return f"{market_cap / 1_000_000_000:.1f}B"
     elif market_cap >= 1_000_000:  # Millions
         return f"{market_cap / 1_000_000:.0f}m"
