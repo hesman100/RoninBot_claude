@@ -58,15 +58,17 @@ def get_gold_price() -> Dict:
         price = gold_data.get('price', 0)
         change_pct = gold_data.get('changesPercentage', 0)
         
-        # Note: FMP doesn't provide market cap for commodities
-        # Gold's "market cap" would be total gold supply * price, but that's not standard
-        # We'll use 0 for market cap to display "-" in the output
+        # Calculate gold market cap based on global above-ground supply
+        # Total above-ground gold: ~216,265 metric tonnes = ~6.95 billion troy ounces
+        # Market cap = Total supply × Current price
+        GOLD_SUPPLY_OUNCES = 6_950_000_000  # ~6.95 billion troy ounces
+        market_cap = GOLD_SUPPLY_OUNCES * price
         
         result = {
             'GOLD': {
                 'usd': price,
                 'usd_24h_change': change_pct,
-                'market_cap': 0,  # No market cap for commodities
+                'market_cap': market_cap,  # Calculated market cap
                 'name': 'GOLD'
             }
         }

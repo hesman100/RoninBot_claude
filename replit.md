@@ -8,14 +8,19 @@ This project is a comprehensive Telegram bot with an integrated REST API that pr
 
 **October 16, 2025** - Ultra-Compact Mobile Display Format & Gold Price Integration
 - Ultra-compact display optimized for mobile group chats to prevent line wrapping
-- Minimal column layout: Name(4) + Price(6) + 24h Change(5) + Mcap(6) + emoji = ~22 chars
+- Minimal column layout: Name(4) + Price(6) + 24h Change(6) + Mcap(6) + emoji = ~23 chars
 - Added Market Cap column "Mcap" positioned after 24h change
   - Market cap with "m" suffix for millions (e.g., "500m")
   - Market cap with "B" suffix for billions (e.g., "2.5B")
-  - Market cap with "T" suffix for trillions (e.g., "2.2T" for BTC)
+  - Market cap with "T" suffix for trillions (e.g., "2.2T" for BTC, "30.6T" for Gold)
 - Smart price formatting for better space efficiency:
   - Prices ≥$1000 show as "$1.2k" format
   - VN stocks ≥1000 show as "1.2k" format (no $ sign)
+- **Perfect column alignment fix:**
+  - All percentage changes now display with consistent 6-char width (includes sign)
+  - Positive changes show "+" sign (e.g., "+4.1%")
+  - Negative changes include "-" sign (e.g., "-2.8%")
+  - Ensures all rows align perfectly regardless of positive/negative values
 - Updated API integrations to fetch market cap data:
   - CoinMarketCap API: Extracts `market_cap` from quote data for cryptocurrencies
   - Finnhub API: Fetches market cap from company profile endpoint for stocks
@@ -26,6 +31,7 @@ This project is a comprehensive Telegram bot with an integrated REST API that pr
   - Removed PIXEL from crypto list
   - Added GOLD (global market price in USD per ounce) at end of list
   - Gold price fetched from FMP API using symbol GCUSD
+  - Gold market cap calculated dynamically: ~6.95B ounces × current price = ~$30.6T
 
 ## User Preferences
 

@@ -34,13 +34,13 @@ def format_price_message(crypto_data: Dict) -> str:
         for symbol in crypto_data.keys()) if not is_vn_stock else False
 
     # Customize column header based on type (properly aligned)
-    # Format: Name(4) + Price(6) + Change(5) + Mcap(6) + space + emoji = ~22 chars total
+    # Format: Name(4) + Price(6) + Change(6) + Mcap(6) + space + emoji = ~23 chars total
     if is_vn_stock:
-        column_header = f"{'Stk':<4}{'$vnd':>6} {'24h':>5} {'Mcap':>6}\n"
+        column_header = f"{'Stk':<4}{'$vnd':>6} {'24h':>6} {'Mcap':>6}\n"
     elif is_stocks:
-        column_header = f"{'Stk':<4}{'$usd':>6} {'24h':>5} {'Mcap':>6}\n"
+        column_header = f"{'Stk':<4}{'$usd':>6} {'24h':>6} {'Mcap':>6}\n"
     else:
-        column_header = f"{'Coin':<4}{'$usd':>6} {'24h':>5} {'Mcap':>6}\n"
+        column_header = f"{'Coin':<4}{'$usd':>6} {'24h':>6} {'Mcap':>6}\n"
 
     # Get header text based on number of coins/stocks and type (more compact)
     if len(crypto_data) == 1:
@@ -66,7 +66,7 @@ def format_price_message(crypto_data: Dict) -> str:
     header = (
         f"{header_text}\n\n"
         f"{column_header}"
-        "──────────────────────"  # 22 chars to match total column width
+        "───────────────────────"  # 23 chars to match total column width
     )
     messages = [header]
 
@@ -107,18 +107,18 @@ def format_price_message(crypto_data: Dict) -> str:
         market_cap = data.get('market_cap', 0)
         mcap_str = format_market_cap(market_cap)
 
-        # Format the change percentage - ultra compact for mobile
+        # Format the change percentage - ensure consistent 5-char width for alignment
         if change_24h >= 0:
-            change_str = f"{change_24h:3.1f}%"  # "4.1%" - 4 chars total
+            change_str = f"+{change_24h:3.1f}%"  # "+4.1%" - 5 chars total (add + for positive)
         else:
-            change_str = f"{change_24h:3.1f}%"  # "-2.8%" - 5 chars total (negative sign adds 1)
+            change_str = f"{change_24h:4.1f}%"   # "-2.8%" - 5 chars total (negative sign included)
 
-        # Fixed width columns with exact alignments: Name(4) + Price(6) + Change(5) + Mcap(6) + emoji
+        # Fixed width columns with exact alignments: Name(4) + Price(6) + Change(6) + Mcap(6) + emoji
         # display_name is already padded to 4 chars, don't pad again
         message = (
             f"{display_name}"     # Name: already 4 chars from padding above
             f"{price_str:>6}"     # Price: 6 chars, right-aligned
-            f" {change_str:>4} {change_24h_symbol}"  # Change: 4 chars + space + emoji
+            f" {change_str:>5} {change_24h_symbol}"  # Change: 5 chars + space + emoji
             f" {mcap_str:>6}"     # Mcap: 6 chars, right-aligned with space before
         )
         logger.debug(f"Row: '{message}'")  # Debug output
@@ -171,18 +171,18 @@ def format_price_message(crypto_data: Dict) -> str:
                 market_cap = data.get('market_cap', 0)
                 mcap_str = format_market_cap(market_cap)
 
-                # Format the change percentage - ultra compact for mobile
+                # Format the change percentage - ensure consistent 5-char width for alignment
                 if change_24h >= 0:
-                    change_str = f"{change_24h:3.1f}%"  # "4.1%" - 4 chars total
+                    change_str = f"+{change_24h:3.1f}%"  # "+4.1%" - 5 chars total (add + for positive)
                 else:
-                    change_str = f"{change_24h:3.1f}%"  # "-2.8%" - 5 chars total (negative sign adds 1)
+                    change_str = f"{change_24h:4.1f}%"   # "-2.8%" - 5 chars total (negative sign included)
 
-                # Fixed width columns with exact alignments: Name(4) + Price(6) + Change(5) + Mcap(6) + emoji
+                # Fixed width columns with exact alignments: Name(4) + Price(6) + Change(6) + Mcap(6) + emoji
                 # display_name is already padded to 4 chars, don't pad again
                 message = (
                     f"{display_name}"     # Name: already 4 chars from padding above
                     f"{price_str:>6}"     # Price: 6 chars, right-aligned
-                    f" {change_str:>4} {change_24h_symbol}"  # Change: 4 chars + space + emoji
+                    f" {change_str:>5} {change_24h_symbol}"  # Change: 5 chars + space + emoji
                     f" {mcap_str:>6}"     # Mcap: 6 chars, right-aligned with space before
                 )
                 logger.debug(f"Row: '{message}'")  # Debug output
