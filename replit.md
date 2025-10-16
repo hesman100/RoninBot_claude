@@ -6,7 +6,7 @@ This project is a comprehensive Telegram bot with an integrated REST API that pr
 
 ## Recent Changes
 
-**October 16, 2025** - Ultra-Compact Mobile Display Format
+**October 16, 2025** - Ultra-Compact Mobile Display Format & Gold Price Integration
 - Ultra-compact display optimized for mobile group chats to prevent line wrapping
 - Minimal column layout: Name(4) + Price(6) + 24h Change(5) + Mcap(6) + emoji = ~22 chars
 - Added Market Cap column "Mcap" positioned after 24h change
@@ -19,8 +19,13 @@ This project is a comprehensive Telegram bot with an integrated REST API that pr
 - Updated API integrations to fetch market cap data:
   - CoinMarketCap API: Extracts `market_cap` from quote data for cryptocurrencies
   - Finnhub API: Fetches market cap from company profile endpoint for stocks
+  - Financial Modeling Prep (FMP) API: Added for gold commodity prices
 - Ultra-short column headers: "Stk" (stocks), "Coin" (crypto), "Mcap" (market cap)
 - All changes maintain monospace formatting with `parse_mode="Markdown"`
+- **Crypto list changes for /c command:**
+  - Removed PIXEL from crypto list
+  - Added GOLD (global market price in USD per ounce) at end of list
+  - Gold price fetched from FMP API using symbol GCUSD
 
 ## User Preferences
 

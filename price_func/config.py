@@ -17,10 +17,10 @@ DEFAULT_CRYPTOCURRENCIES = [
     "BTC",  # Bitcoin
     "ETH",  # Ethereum
     "AXS",  # Axie Infinity
-    "PIXEL",  # Pixel
     "PI",  # Pi Network
     "BNB",  # BNB
     "SOL",  # Solana
+    "GOLD",  # Gold (commodity, fetched from FMP API)
 ]
 
 # Default stocks to track
@@ -48,9 +48,9 @@ SYMBOL_TO_DISPLAY = {
     'SOL': 'SOL  ',  # Exactly 5 chars
     'RON': 'RON  ',  # Exactly 5 chars
     'AXS': 'AXS  ',  # Exactly 5 chars
-    'PIXEL': 'PIXEL',  # Exactly 5 chars
     'PI': 'PI   ',  # Exactly 5 chars
     'BNB': 'BNB  ',  # Exactly 5 chars
+    'GOLD': 'GOLD ',  # Exactly 5 chars
 }
 
 # Mapping of stock symbols to display names (for formatting)
@@ -134,6 +134,10 @@ VN_STOCK_COMPANY_NAMES = {
     'NVL': 'NovaLand',  # NVL
     'HSG': 'Hoa Sen Group',  # HSG
 }
+
+# Financial Modeling Prep API Configuration
+FMP_API_KEY = os.getenv('FMP_API_KEY')
+FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
 
 # API request parameters
 REQUEST_TIMEOUT = 30

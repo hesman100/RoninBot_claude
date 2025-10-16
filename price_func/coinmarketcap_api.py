@@ -47,6 +47,11 @@ class CoinMarketCapAPI:
     def get_price(self, symbol: str) -> Dict:
         """Get current price for a single cryptocurrency"""
         logger.info(f"Fetching price for symbol: {symbol}")
+        
+        # Check if requesting GOLD (fetched from FMP API)
+        if symbol.upper() == 'GOLD':
+            from .fmp_api import get_gold_price
+            return get_gold_price()
 
         params = {
             'symbol': symbol.upper(),
@@ -82,28 +87,40 @@ class CoinMarketCapAPI:
             symbols = [symbol.upper() for symbol in DEFAULT_CRYPTOCURRENCIES]
 
         logger.info(f"Fetching prices for symbols: {symbols}")
+        
+        # Separate GOLD from crypto symbols (GOLD is fetched from FMP API)
+        crypto_symbols = [s for s in symbols if s.upper() != 'GOLD']
+        has_gold = 'GOLD' in [s.upper() for s in symbols]
 
-        params = {
-            'symbol': ','.join(symbols),
-            'convert': 'USD'
-        }
+        # Fetch crypto prices from CoinMarketCap
+        formatted_data = {}
+        if crypto_symbols:
+            params = {
+                'symbol': ','.join(crypto_symbols),
+                'convert': 'USD'
+            }
 
-        data = self._make_request('cryptocurrency/quotes/latest', params)
+            data = self._make_request('cryptocurrency/quotes/latest', params)
 
-        if "error" in data:
-            return data
+            if "error" in data:
+                return data
 
-        if "data" in data:
-            formatted_data = {}
-            for symbol, coin_data in data["data"].items():
-                quote = coin_data["quote"]["USD"]
-                formatted_data[symbol.upper()] = {
-                    "usd": quote["price"],
-                    "usd_24h_change": quote["percent_change_24h"],
-                    "market_cap": quote.get("market_cap", 0),
-                    "name": coin_data["name"]  # Include the full name
-                }
-            logger.info(f"Formatted multi-price data: {formatted_data}")
-            return formatted_data
-
-        return {"error": "Failed to fetch cryptocurrency prices"}
+            if "data" in data:
+                for symbol, coin_data in data["data"].items():
+                    quote = coin_data["quote"]["USD"]
+                    formatted_data[symbol.upper()] = {
+                        "usd": quote["price"],
+                        "usd_24h_change": quote["percent_change_24h"],
+                        "market_cap": quote.get("market_cap", 0),
+                        "name": coin_data["name"]  # Include the full name
+                    }
+        
+        # Add GOLD price from FMP API if requested
+        if has_gold:
+            from .fmp_api import get_gold_price
+            gold_data = get_gold_price()
+            if gold_data:
+                formatted_data.update(gold_data)
+        
+        logger.info(f"Formatted multi-price data: {formatted_data}")
+        return formatted_data if formatted_data else {"error": "Failed to fetch cryptocurrency prices"}
