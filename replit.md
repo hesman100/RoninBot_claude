@@ -6,18 +6,20 @@ This project is a comprehensive Telegram bot with an integrated REST API that pr
 
 ## Recent Changes
 
-**October 15, 2025** - Market Cap Column Added to Price Display
-- Added Market Cap column "Mcap($)" to `/c` (crypto) and `/s` (stock) commands
-  - Market cap displayed with "m" suffix for millions (e.g., "500m")
-  - Market cap displayed with "B" suffix for billions (e.g., "2.5B")
-  - Column width: 8 characters, right-aligned
-  - Position: After 24h change column (rightmost data column before emoji)
+**October 16, 2025** - Mobile-Optimized Compact Display Format
+- Optimized display width for mobile devices to prevent line wrapping
+- Compact column layout: Name(5) + Price(7) + 24h Change(6) + Mcap($)(7) + emoji = ~27 chars
+- Added Market Cap column "Mcap($)" positioned after 24h change
+  - Market cap with "m" suffix for millions (e.g., "500m")
+  - Market cap with "B" suffix for billions (e.g., "2.5B")
+- Smart price formatting for better space efficiency:
+  - Prices ≥$1000 show as "$1.2k" format
+  - VN stocks ≥1000 show as "1.2k" format (no $ sign)
 - Updated API integrations to fetch market cap data:
   - CoinMarketCap API: Extracts `market_cap` from quote data for cryptocurrencies
   - Finnhub API: Fetches market cap from company profile endpoint for stocks
-- Display format: Name(6) + Price(9) + 24h Change(7) + Mcap($)(8) + emoji = 31 chars total
-- Added `parse_mode="Markdown"` to all price commands for proper monospace column alignment
-- Compact timestamp format: "16 Oct 2025, 06:46 (GMT+7)"
+- Column headers shortened: "Stck" instead of "Stock" for better alignment
+- All changes maintain monospace formatting with `parse_mode="Markdown"`
 
 ## User Preferences
 

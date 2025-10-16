@@ -32,13 +32,13 @@ def format_price_message(crypto_data: Dict) -> str:
         for symbol in crypto_data.keys()) if not is_vn_stock else False
 
     # Customize column header based on type (properly aligned)
-    # Format: Name(6) + Price(9) + Change(7) + Mcap($)(8) + space + emoji = 31 chars total
+    # Format: Name(5) + Price(7) + Change(6) + Mcap($)(7) + space + emoji = ~27 chars total
     if is_vn_stock:
-        column_header = f"{'Stock':<6}{'$vnd':>9}  {'24h':>7} {'Mcap($)':>8}\n"
+        column_header = f"{'Stck':<5}{'$vnd':>7} {'24h':>6} {'Mcap($)':>7}\n"
     elif is_stocks:
-        column_header = f"{'Stock':<6}{'$usd':>9}  {'24h':>7} {'Mcap($)':>8}\n"
+        column_header = f"{'Stck':<5}{'$usd':>7} {'24h':>6} {'Mcap($)':>7}\n"
     else:
-        column_header = f"{'Coin':<6}{'$usd':>9}  {'24h':>7} {'Mcap($)':>8}\n"
+        column_header = f"{'Coin':<5}{'$usd':>7} {'24h':>6} {'Mcap($)':>7}\n"
 
     # Get header text based on number of coins/stocks and type (more compact)
     if len(crypto_data) == 1:
@@ -64,7 +64,7 @@ def format_price_message(crypto_data: Dict) -> str:
     header = (
         f"{header_text}\n\n"
         f"{column_header}"
-        "───────────────────────────────"  # 31 chars to match total column width
+        "───────────────────────────"  # 27 chars to match total column width
     )
     messages = [header]
 
@@ -73,27 +73,30 @@ def format_price_message(crypto_data: Dict) -> str:
         symbol = next(iter(crypto_data.keys()))
         data = crypto_data[symbol]
 
-        # Use the raw symbol, truncate and pad to exactly 6 characters
-        symbol_truncated = symbol[:6]
-        display_name = f"{symbol_truncated:<6}"  # Left-align and pad to 6 chars
+        # Use the raw symbol, truncate and pad to exactly 5 characters
+        symbol_truncated = symbol[:5]
+        display_name = f"{symbol_truncated:<5}"  # Left-align and pad to 5 chars
 
         price = data.get('usd', 0)
         change_24h = data.get('usd_24h_change', 0)
 
-        # Format price based on the value and type (more compact)
+        # Format price based on the value and type (more compact for mobile)
         if symbol in DEFAULT_VN_STOCKS or symbol in VN_STOCK_COMPANY_NAMES:
             # Remove $ sign completely for VN stocks, no decimals
-            price_str = f"{price:,.0f}"
+            if price >= 1000:
+                price_str = f"{price/1000:.1f}k"
+            else:
+                price_str = f"{price:.0f}"
         else:
             # More compact formatting for non-VN stocks
             if price >= 1000:
-                price_str = f"${price:,.0f}"
+                price_str = f"${price/1000:.1f}k"
             elif price >= 100:
-                price_str = f"${price:.0f}"  # Reduced decimal places
+                price_str = f"${price:.0f}"
             elif price >= 1:
-                price_str = f"${price:.1f}"  # Reduced from 2 to 1 decimal
+                price_str = f"${price:.1f}"
             else:
-                price_str = f"${price:.3f}"  # Reduced from 4 to 3 decimals
+                price_str = f"${price:.3f}"
 
         # Format the change indicators with colored circles
         change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
@@ -102,19 +105,19 @@ def format_price_message(crypto_data: Dict) -> str:
         market_cap = data.get('market_cap', 0)
         mcap_str = format_market_cap(market_cap)
 
-        # Format the change percentage - include % in width calculation
+        # Format the change percentage - more compact for mobile
         if change_24h >= 0:
-            change_str = f"{change_24h:5.1f}%"  # "  4.1%" - 6 chars total
+            change_str = f"{change_24h:4.1f}%"  # " 4.1%" - 5 chars total
         else:
-            change_str = f"{change_24h:5.1f}%"  # " -2.8%" - 6 chars total
+            change_str = f"{change_24h:4.1f}%"  # "-2.8%" - 5 chars total
 
-        # Fixed width columns with exact alignments: Name(6) + Price(9) + Change(7) + Mcap($)(8) + emoji
-        # display_name is already padded to 6 chars, don't pad again
+        # Fixed width columns with exact alignments: Name(5) + Price(7) + Change(6) + Mcap($)(7) + emoji
+        # display_name is already padded to 5 chars, don't pad again
         message = (
-            f"{display_name}"     # Name: already 6 chars from padding above
-            f"{price_str:>9}"     # Price: 9 chars, right-aligned
-            f"{change_str:>7} {change_24h_symbol}"  # Change: 7 chars + space + emoji
-            f" {mcap_str:>8}"     # Mcap($): 8 chars, right-aligned with space before
+            f"{display_name}"     # Name: already 5 chars from padding above
+            f"{price_str:>7}"     # Price: 7 chars, right-aligned
+            f" {change_str:>5} {change_24h_symbol}"  # Change: 5 chars + space + emoji
+            f" {mcap_str:>7}"     # Mcap($): 7 chars, right-aligned with space before
         )
         logger.debug(f"Row: '{message}'")  # Debug output
         messages.append(message)
@@ -134,27 +137,30 @@ def format_price_message(crypto_data: Dict) -> str:
         for symbol in default_list:
             if symbol in crypto_data:
                 data = crypto_data[symbol]
-                # Use the raw symbol, truncate and pad to exactly 6 characters
-                symbol_truncated = symbol[:6]
-                display_name = f"{symbol_truncated:<6}"  # Left-align and pad to 6 chars
+                # Use the raw symbol, truncate and pad to exactly 5 characters
+                symbol_truncated = symbol[:5]
+                display_name = f"{symbol_truncated:<5}"  # Left-align and pad to 5 chars
 
                 price = data.get('usd', 0)
                 change_24h = data.get('usd_24h_change', 0)
 
-                # Format price based on the value and type (more compact)
+                # Format price based on the value and type (more compact for mobile)
                 if symbol in DEFAULT_VN_STOCKS or symbol in VN_STOCK_COMPANY_NAMES:
                     # Remove $ sign completely for VN stocks, no decimals
-                    price_str = f"{price:,.0f}"
+                    if price >= 1000:
+                        price_str = f"{price/1000:.1f}k"
+                    else:
+                        price_str = f"{price:.0f}"
                 else:
                     # More compact formatting for non-VN stocks
                     if price >= 1000:
-                        price_str = f"${price:,.0f}"
+                        price_str = f"${price/1000:.1f}k"
                     elif price >= 100:
-                        price_str = f"${price:.0f}"  # Reduced decimal places
+                        price_str = f"${price:.0f}"
                     elif price >= 1:
-                        price_str = f"${price:.1f}"  # Reduced from 2 to 1 decimal
+                        price_str = f"${price:.1f}"
                     else:
-                        price_str = f"${price:.3f}"  # Reduced from 4 to 3 decimals
+                        price_str = f"${price:.3f}"
 
                 # Format the change indicators with colored circles
                 change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
@@ -163,19 +169,19 @@ def format_price_message(crypto_data: Dict) -> str:
                 market_cap = data.get('market_cap', 0)
                 mcap_str = format_market_cap(market_cap)
 
-                # Format the change percentage - include % in width calculation
+                # Format the change percentage - more compact for mobile
                 if change_24h >= 0:
-                    change_str = f"{change_24h:5.1f}%"  # "  4.1%" - 6 chars total
+                    change_str = f"{change_24h:4.1f}%"  # " 4.1%" - 5 chars total
                 else:
-                    change_str = f"{change_24h:5.1f}%"  # " -2.8%" - 6 chars total
+                    change_str = f"{change_24h:4.1f}%"  # "-2.8%" - 5 chars total
 
-                # Fixed width columns with exact alignments: Name(6) + Price(9) + Change(7) + Mcap($)(8) + emoji
-                # display_name is already padded to 6 chars, don't pad again
+                # Fixed width columns with exact alignments: Name(5) + Price(7) + Change(6) + Mcap($)(7) + emoji
+                # display_name is already padded to 5 chars, don't pad again
                 message = (
-                    f"{display_name}"     # Name: already 6 chars from padding above
-                    f"{price_str:>9}"     # Price: 9 chars, right-aligned
-                    f"{change_str:>7} {change_24h_symbol}"  # Change: 7 chars + space + emoji
-                    f" {mcap_str:>8}"     # Mcap($): 8 chars, right-aligned with space before
+                    f"{display_name}"     # Name: already 5 chars from padding above
+                    f"{price_str:>7}"     # Price: 7 chars, right-aligned
+                    f" {change_str:>5} {change_24h_symbol}"  # Change: 5 chars + space + emoji
+                    f" {mcap_str:>7}"     # Mcap($): 7 chars, right-aligned with space before
                 )
                 logger.debug(f"Row: '{message}'")  # Debug output
                 messages.append(message)
