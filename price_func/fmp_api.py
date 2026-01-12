@@ -140,7 +140,7 @@ def _fetch_from_goldapiio() -> Dict:
 def get_commodity_prices() -> Dict:
     """
     Fetch gold, silver, and platinum prices
-    Tries MetalpriceAPI first, falls back to GoldAPI.io if primary fails
+    Tries GoldAPI.io first, falls back to MetalpriceAPI if primary fails
     """
     global _commodity_cache
     
@@ -151,11 +151,11 @@ def get_commodity_prices() -> Dict:
         logger.info("Returning cached commodity prices")
         return _commodity_cache['data']
     
-    result = _fetch_from_metalpriceapi()
+    result = _fetch_from_goldapiio()
     
     if not result or len(result) < 3:
         logger.info("Primary API failed or incomplete, trying backup API")
-        backup_result = _fetch_from_goldapiio()
+        backup_result = _fetch_from_metalpriceapi()
         if backup_result:
             for key in ['GOLD', 'SLVR', 'PLAT']:
                 if key not in result and key in backup_result:
