@@ -1,6 +1,6 @@
 """
 Commodity price API client for Gold, Silver, and Platinum
-Primary: MetalpriceAPI, Backup: Metals-API
+Primary: MetalpriceAPI, Backup: GoldAPI.io
 """
 import requests
 import logging
@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 METALPRICEAPI_KEY = os.environ.get('METALPRICEAPI_KEY', '')
 METALPRICEAPI_BASE_URL = 'https://api.metalpriceapi.com/v1'
 
-METALSAPI_KEY = os.environ.get('METALSAPI_KEY', '')
-METALSAPI_BASE_URL = 'https://metals-api.com/api'
+GOLDAPIIO_KEY = os.environ.get('GOLDAPIIO_KEY', '')
+GOLDAPIIO_BASE_URL = 'https://www.goldapi.io/api'
 
 _commodity_cache = {
     'data': None,
@@ -91,69 +91,48 @@ def _fetch_from_metalpriceapi() -> Dict:
     return result
 
 
-def _fetch_from_metalsapi() -> Dict:
-    """Fetch prices from Metals-API (backup)"""
-    if not METALSAPI_KEY:
-        logger.warning("METALSAPI_KEY not set, skipping backup API")
+def _fetch_from_goldapiio() -> Dict:
+    """Fetch prices from GoldAPI.io (backup)"""
+    if not GOLDAPIIO_KEY:
+        logger.warning("GOLDAPIIO_KEY not set, skipping backup API")
         return {}
     
     result = {}
-    try:
-        logger.info("Fetching metal prices from Metals-API (backup)")
-        url = f"{METALSAPI_BASE_URL}/latest"
-        params = {
-            'access_key': METALSAPI_KEY,
-            'base': 'USD',
-            'symbols': 'XAU,XAG,XPT'
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
-        if not data.get('success', False):
-            error_info = data.get('error', {})
-            logger.error(f"Metals-API error: {error_info}")
-            return {}
-        
-        rates = data.get('rates', {})
-        logger.info(f"Metals-API raw rates: {rates}")
-        
-        gold_rate = rates.get('XAU', 0)
-        if gold_rate and gold_rate > 0:
-            gold_price = 1 / gold_rate
-            result['GOLD'] = {
-                'usd': round(gold_price, 2),
-                'usd_24h_change': 0,
-                'market_cap': GOLD_SUPPLY_OUNCES * gold_price,
-                'name': 'GOLD'
-            }
-            logger.info(f"Gold price (backup): ${gold_price:.2f}")
-        
-        silver_rate = rates.get('XAG', 0)
-        if silver_rate and silver_rate > 0:
-            silver_price = 1 / silver_rate
-            result['SLVR'] = {
-                'usd': round(silver_price, 2),
-                'usd_24h_change': 0,
-                'market_cap': SILVER_SUPPLY_OUNCES * silver_price,
-                'name': 'SLVR'
-            }
-            logger.info(f"Silver price (backup): ${silver_price:.2f}")
-        
-        platinum_rate = rates.get('XPT', 0)
-        if platinum_rate and platinum_rate > 0:
-            platinum_price = 1 / platinum_rate
-            result['PLAT'] = {
-                'usd': round(platinum_price, 2),
-                'usd_24h_change': 0,
-                'market_cap': PLATINUM_SUPPLY_OUNCES * platinum_price,
-                'name': 'PLAT'
-            }
-            logger.info(f"Platinum price (backup): ${platinum_price:.2f}")
-        
-    except Exception as e:
-        logger.error(f"Metals-API error: {str(e)}")
+    headers = {'x-access-token': GOLDAPIIO_KEY}
+    
+    metals = [
+        ('XAU', 'GOLD', GOLD_SUPPLY_OUNCES),
+        ('XAG', 'SLVR', SILVER_SUPPLY_OUNCES),
+        ('XPT', 'PLAT', PLATINUM_SUPPLY_OUNCES)
+    ]
+    
+    for symbol, key, supply in metals:
+        try:
+            logger.info(f"Fetching {symbol} price from GoldAPI.io (backup)")
+            url = f"{GOLDAPIIO_BASE_URL}/{symbol}/USD"
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if 'error' in data:
+                logger.error(f"GoldAPI.io error for {symbol}: {data.get('error')}")
+                continue
+            
+            price = data.get('price', 0)
+            change_pct = data.get('chp', 0)
+            
+            if price and price > 0:
+                result[key] = {
+                    'usd': round(price, 2),
+                    'usd_24h_change': change_pct,
+                    'market_cap': supply * price,
+                    'name': key
+                }
+                logger.info(f"{key} price (backup): ${price:.2f}")
+                
+        except Exception as e:
+            logger.error(f"GoldAPI.io error for {symbol}: {str(e)}")
     
     return result
 
@@ -161,7 +140,7 @@ def _fetch_from_metalsapi() -> Dict:
 def get_commodity_prices() -> Dict:
     """
     Fetch gold, silver, and platinum prices
-    Tries MetalpriceAPI first, falls back to Metals-API if primary fails
+    Tries MetalpriceAPI first, falls back to GoldAPI.io if primary fails
     """
     global _commodity_cache
     
@@ -176,7 +155,7 @@ def get_commodity_prices() -> Dict:
     
     if not result or len(result) < 3:
         logger.info("Primary API failed or incomplete, trying backup API")
-        backup_result = _fetch_from_metalsapi()
+        backup_result = _fetch_from_goldapiio()
         if backup_result:
             for key in ['GOLD', 'SLVR', 'PLAT']:
                 if key not in result and key in backup_result:
