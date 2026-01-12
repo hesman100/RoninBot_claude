@@ -31,10 +31,12 @@ This project is a comprehensive Telegram bot with an integrated REST API that pr
   - Removed PIXEL from crypto list
   - Added GOLD (global market price in USD per ounce) after BTC
   - Added SLVR (Silver price in USD per ounce) after GOLD
-  - Commodities fetched from Yahoo Finance (GC=F for Gold, SI=F for Silver)
+  - Added PLAT (Platinum price in USD per ounce) after Silver
+  - Commodities fetched from Yahoo Finance (GC=F for Gold, SI=F for Silver, PL=F for Platinum)
   - Gold market cap: ~6.95B ounces × current price = ~$18-20T
   - Silver market cap: ~54.7B ounces × current price = ~$1.6T
-  - Display order: RON → ETH → AXS → PI → BNB → SOL → BTC → GOLD → SLVR
+  - Platinum market cap: ~320M ounces × current price = ~$300B
+  - Display order: RON → ETH → AXS → PI → BNB → SOL → BTC → GOLD → SLVR → PLAT
 
 ## User Preferences
 

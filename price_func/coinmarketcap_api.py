@@ -48,8 +48,8 @@ class CoinMarketCapAPI:
         """Get current price for a single cryptocurrency"""
         logger.info(f"Fetching price for symbol: {symbol}")
         
-        # Check if requesting GOLD or SLVR (fetched from Yahoo Finance)
-        if symbol.upper() in ['GOLD', 'SLVR']:
+        # Check if requesting GOLD, SLVR, or PLAT (fetched from Yahoo Finance)
+        if symbol.upper() in ['GOLD', 'SLVR', 'PLAT']:
             from .fmp_api import get_commodity_prices
             commodities = get_commodity_prices()
             if symbol.upper() in commodities:
@@ -91,8 +91,8 @@ class CoinMarketCapAPI:
 
         logger.info(f"Fetching prices for symbols: {symbols}")
         
-        # Separate commodities (GOLD, SLVR) from crypto symbols
-        commodity_symbols = ['GOLD', 'SLVR']
+        # Separate commodities (GOLD, SLVR, PLAT) from crypto symbols
+        commodity_symbols = ['GOLD', 'SLVR', 'PLAT']
         crypto_symbols = [s for s in symbols if s.upper() not in commodity_symbols]
         has_commodities = any(s.upper() in commodity_symbols for s in symbols)
 

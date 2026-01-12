@@ -20,6 +20,8 @@ _commodity_cache = {
 GOLD_SUPPLY_OUNCES = 6_950_000_000
 # Silver: ~1.7 million metric tonnes = ~54.7 billion troy ounces
 SILVER_SUPPLY_OUNCES = 54_700_000_000
+# Platinum: ~9,978 metric tonnes = ~320 million troy ounces (above-ground stock)
+PLATINUM_SUPPLY_OUNCES = 320_000_000
 
 
 def get_commodity_prices() -> Dict:
@@ -92,6 +94,33 @@ def get_commodity_prices() -> Dict:
         
     except Exception as e:
         logger.error(f"Error fetching silver price: {str(e)}")
+    
+    try:
+        # Fetch platinum price (PL=F = Platinum Futures)
+        logger.info("Fetching platinum price from Yahoo Finance: PL=F")
+        platinum = yf.Ticker("PL=F")
+        platinum_info = platinum.info
+        
+        platinum_price = platinum_info.get('regularMarketPrice', 0) or platinum_info.get('previousClose', 0)
+        platinum_prev_close = platinum_info.get('regularMarketPreviousClose', platinum_price) or platinum_info.get('previousClose', platinum_price)
+        
+        if platinum_price and platinum_prev_close:
+            platinum_change_pct = ((platinum_price - platinum_prev_close) / platinum_prev_close) * 100
+        else:
+            platinum_change_pct = 0
+        
+        platinum_market_cap = PLATINUM_SUPPLY_OUNCES * platinum_price if platinum_price else 0
+        
+        result['PLAT'] = {
+            'usd': platinum_price,
+            'usd_24h_change': platinum_change_pct,
+            'market_cap': platinum_market_cap,
+            'name': 'PLAT'
+        }
+        logger.info(f"Platinum price: ${platinum_price}, change: {platinum_change_pct:.2f}%")
+        
+    except Exception as e:
+        logger.error(f"Error fetching platinum price: {str(e)}")
     
     # Update cache
     if result:

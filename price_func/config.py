@@ -22,6 +22,7 @@ DEFAULT_CRYPTOCURRENCIES = [
     "BTC",  # Bitcoin
     "GOLD",  # Gold (commodity, fetched from Yahoo Finance)
     "SLVR",  # Silver (commodity, fetched from Yahoo Finance)
+    "PLAT",  # Platinum (commodity, fetched from Yahoo Finance)
 ]
 
 # Default stocks to track
@@ -53,6 +54,7 @@ SYMBOL_TO_DISPLAY = {
     'BNB': 'BNB  ',  # Exactly 5 chars
     'GOLD': 'GOLD ',  # Exactly 5 chars
     'SLVR': 'SLVR ',  # Exactly 5 chars (Silver)
+    'PLAT': 'PLAT ',  # Exactly 5 chars (Platinum)
 }
 
 # Mapping of stock symbols to display names (for formatting)
