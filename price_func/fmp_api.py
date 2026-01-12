@@ -61,10 +61,10 @@ def get_commodity_prices() -> Dict:
             return result
         
         rates = data.get('rates', {})
+        logger.info(f"MetalpriceAPI raw rates: {rates}")
         
-        gold_rate = rates.get('USDXAU', 0)
-        if gold_rate and gold_rate > 0:
-            gold_price = 1 / gold_rate
+        gold_price = rates.get('USDXAU', 0)
+        if gold_price and gold_price > 0:
             gold_market_cap = GOLD_SUPPLY_OUNCES * gold_price
             result['GOLD'] = {
                 'usd': round(gold_price, 2),
@@ -74,9 +74,8 @@ def get_commodity_prices() -> Dict:
             }
             logger.info(f"Gold price: ${gold_price:.2f}")
         
-        silver_rate = rates.get('USDXAG', 0)
-        if silver_rate and silver_rate > 0:
-            silver_price = 1 / silver_rate
+        silver_price = rates.get('USDXAG', 0)
+        if silver_price and silver_price > 0:
             silver_market_cap = SILVER_SUPPLY_OUNCES * silver_price
             result['SLVR'] = {
                 'usd': round(silver_price, 2),
@@ -86,9 +85,8 @@ def get_commodity_prices() -> Dict:
             }
             logger.info(f"Silver price: ${silver_price:.2f}")
         
-        platinum_rate = rates.get('USDXPT', 0)
-        if platinum_rate and platinum_rate > 0:
-            platinum_price = 1 / platinum_rate
+        platinum_price = rates.get('USDXPT', 0)
+        if platinum_price and platinum_price > 0:
             platinum_market_cap = PLATINUM_SUPPLY_OUNCES * platinum_price
             result['PLAT'] = {
                 'usd': round(platinum_price, 2),
