@@ -19,8 +19,9 @@ DEFAULT_CRYPTOCURRENCIES = [
     "PI",  # Pi Network
     "BNB",  # BNB
     "SOL",  # Solana
-    "GOLD",  # Gold (commodity, fetched from FMP API)
     "BTC",  # Bitcoin
+    "GOLD",  # Gold (commodity, fetched from Yahoo Finance)
+    "SLVR",  # Silver (commodity, fetched from Yahoo Finance)
 ]
 
 # Default stocks to track
@@ -51,6 +52,7 @@ SYMBOL_TO_DISPLAY = {
     'PI': 'PI   ',  # Exactly 5 chars
     'BNB': 'BNB  ',  # Exactly 5 chars
     'GOLD': 'GOLD ',  # Exactly 5 chars
+    'SLVR': 'SLVR ',  # Exactly 5 chars (Silver)
 }
 
 # Mapping of stock symbols to display names (for formatting)

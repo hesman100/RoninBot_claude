@@ -29,11 +29,12 @@ This project is a comprehensive Telegram bot with an integrated REST API that pr
 - All changes maintain monospace formatting with `parse_mode="Markdown"`
 - **Crypto list changes for /c command:**
   - Removed PIXEL from crypto list
-  - Added GOLD (global market price in USD per ounce) 
-  - Moved BTC to end of list (after GOLD)
-  - Gold price fetched from FMP API using symbol GCUSD
-  - Gold market cap calculated dynamically: ~6.95B ounces × current price = ~$30.6T
-  - Display order: RON → ETH → AXS → PI → BNB → SOL → GOLD → BTC
+  - Added GOLD (global market price in USD per ounce) after BTC
+  - Added SLVR (Silver price in USD per ounce) after GOLD
+  - Commodities fetched from Yahoo Finance (GC=F for Gold, SI=F for Silver)
+  - Gold market cap: ~6.95B ounces × current price = ~$18-20T
+  - Silver market cap: ~54.7B ounces × current price = ~$1.6T
+  - Display order: RON → ETH → AXS → PI → BNB → SOL → BTC → GOLD → SLVR
 
 ## User Preferences
 

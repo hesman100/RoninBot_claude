@@ -48,10 +48,13 @@ class CoinMarketCapAPI:
         """Get current price for a single cryptocurrency"""
         logger.info(f"Fetching price for symbol: {symbol}")
         
-        # Check if requesting GOLD (fetched from FMP API)
-        if symbol.upper() == 'GOLD':
-            from .fmp_api import get_gold_price
-            return get_gold_price()
+        # Check if requesting GOLD or SLVR (fetched from Yahoo Finance)
+        if symbol.upper() in ['GOLD', 'SLVR']:
+            from .fmp_api import get_commodity_prices
+            commodities = get_commodity_prices()
+            if symbol.upper() in commodities:
+                return {symbol.upper(): commodities[symbol.upper()]}
+            return {}
 
         params = {
             'symbol': symbol.upper(),
@@ -88,9 +91,10 @@ class CoinMarketCapAPI:
 
         logger.info(f"Fetching prices for symbols: {symbols}")
         
-        # Separate GOLD from crypto symbols (GOLD is fetched from FMP API)
-        crypto_symbols = [s for s in symbols if s.upper() != 'GOLD']
-        has_gold = 'GOLD' in [s.upper() for s in symbols]
+        # Separate commodities (GOLD, SLVR) from crypto symbols
+        commodity_symbols = ['GOLD', 'SLVR']
+        crypto_symbols = [s for s in symbols if s.upper() not in commodity_symbols]
+        has_commodities = any(s.upper() in commodity_symbols for s in symbols)
 
         # Fetch crypto prices from CoinMarketCap
         formatted_data = {}
@@ -115,12 +119,15 @@ class CoinMarketCapAPI:
                         "name": coin_data["name"]  # Include the full name
                     }
         
-        # Add GOLD price from FMP API if requested
-        if has_gold:
-            from .fmp_api import get_gold_price
-            gold_data = get_gold_price()
-            if gold_data:
-                formatted_data.update(gold_data)
+        # Add commodity prices (GOLD, SLVR) from Yahoo Finance if requested
+        if has_commodities:
+            from .fmp_api import get_commodity_prices
+            commodity_data = get_commodity_prices()
+            if commodity_data:
+                # Only add commodities that were requested
+                for sym in symbols:
+                    if sym.upper() in commodity_data:
+                        formatted_data[sym.upper()] = commodity_data[sym.upper()]
         
         logger.info(f"Formatted multi-price data: {formatted_data}")
         return formatted_data if formatted_data else {"error": "Failed to fetch cryptocurrency prices"}
