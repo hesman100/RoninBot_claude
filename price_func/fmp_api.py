@@ -1,37 +1,35 @@
 """
-Commodity price API client for Gold and Silver using Yahoo Finance
+Commodity price API client for Gold, Silver, and Platinum using MetalpriceAPI
 """
-import yfinance as yf
+import requests
 import logging
+import os
 from typing import Dict
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-# Cache for commodity prices (5 minutes)
+METALPRICEAPI_KEY = os.environ.get('METALPRICEAPI_KEY', '')
+METALPRICEAPI_BASE_URL = 'https://api.metalpriceapi.com/v1'
+
 _commodity_cache = {
     'data': None,
     'timestamp': None,
     'cache_duration': timedelta(minutes=5)
 }
 
-# Global commodity supply constants for market cap calculation
-# Gold: ~216,265 metric tonnes = ~6.95 billion troy ounces
 GOLD_SUPPLY_OUNCES = 6_950_000_000
-# Silver: ~1.7 million metric tonnes = ~54.7 billion troy ounces
 SILVER_SUPPLY_OUNCES = 54_700_000_000
-# Platinum: ~9,978 metric tonnes = ~320 million troy ounces (above-ground stock)
 PLATINUM_SUPPLY_OUNCES = 320_000_000
 
 
 def get_commodity_prices() -> Dict:
     """
-    Fetch gold and silver prices from Yahoo Finance
+    Fetch gold, silver, and platinum prices from MetalpriceAPI
     Returns dict with commodity price data in format compatible with crypto data
     """
     global _commodity_cache
     
-    # Check cache first
     now = datetime.now()
     if (_commodity_cache['data'] is not None and 
         _commodity_cache['timestamp'] is not None and
@@ -41,88 +39,70 @@ def get_commodity_prices() -> Dict:
     
     result = {}
     
-    try:
-        # Fetch gold price (GC=F = Gold Futures)
-        logger.info("Fetching gold price from Yahoo Finance: GC=F")
-        gold = yf.Ticker("GC=F")
-        gold_info = gold.info
-        
-        gold_price = gold_info.get('regularMarketPrice', 0) or gold_info.get('previousClose', 0)
-        gold_prev_close = gold_info.get('regularMarketPreviousClose', gold_price) or gold_info.get('previousClose', gold_price)
-        
-        if gold_price and gold_prev_close:
-            gold_change_pct = ((gold_price - gold_prev_close) / gold_prev_close) * 100
-        else:
-            gold_change_pct = 0
-        
-        gold_market_cap = GOLD_SUPPLY_OUNCES * gold_price if gold_price else 0
-        
-        result['GOLD'] = {
-            'usd': gold_price,
-            'usd_24h_change': gold_change_pct,
-            'market_cap': gold_market_cap,
-            'name': 'GOLD'
-        }
-        logger.info(f"Gold price: ${gold_price}, change: {gold_change_pct:.2f}%")
-        
-    except Exception as e:
-        logger.error(f"Error fetching gold price: {str(e)}")
+    if not METALPRICEAPI_KEY:
+        logger.error("METALPRICEAPI_KEY not set in environment variables")
+        return result
     
     try:
-        # Fetch silver price (SI=F = Silver Futures)
-        logger.info("Fetching silver price from Yahoo Finance: SI=F")
-        silver = yf.Ticker("SI=F")
-        silver_info = silver.info
-        
-        silver_price = silver_info.get('regularMarketPrice', 0) or silver_info.get('previousClose', 0)
-        silver_prev_close = silver_info.get('regularMarketPreviousClose', silver_price) or silver_info.get('previousClose', silver_price)
-        
-        if silver_price and silver_prev_close:
-            silver_change_pct = ((silver_price - silver_prev_close) / silver_prev_close) * 100
-        else:
-            silver_change_pct = 0
-        
-        silver_market_cap = SILVER_SUPPLY_OUNCES * silver_price if silver_price else 0
-        
-        result['SLVR'] = {
-            'usd': silver_price,
-            'usd_24h_change': silver_change_pct,
-            'market_cap': silver_market_cap,
-            'name': 'SLVR'
+        logger.info("Fetching metal prices from MetalpriceAPI")
+        url = f"{METALPRICEAPI_BASE_URL}/latest"
+        params = {
+            'api_key': METALPRICEAPI_KEY,
+            'base': 'USD',
+            'currencies': 'XAU,XAG,XPT'
         }
-        logger.info(f"Silver price: ${silver_price}, change: {silver_change_pct:.2f}%")
         
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if not data.get('success', False):
+            logger.error(f"MetalpriceAPI error: {data.get('error', 'Unknown error')}")
+            return result
+        
+        rates = data.get('rates', {})
+        
+        gold_rate = rates.get('USDXAU', 0)
+        if gold_rate and gold_rate > 0:
+            gold_price = 1 / gold_rate
+            gold_market_cap = GOLD_SUPPLY_OUNCES * gold_price
+            result['GOLD'] = {
+                'usd': round(gold_price, 2),
+                'usd_24h_change': 0,
+                'market_cap': gold_market_cap,
+                'name': 'GOLD'
+            }
+            logger.info(f"Gold price: ${gold_price:.2f}")
+        
+        silver_rate = rates.get('USDXAG', 0)
+        if silver_rate and silver_rate > 0:
+            silver_price = 1 / silver_rate
+            silver_market_cap = SILVER_SUPPLY_OUNCES * silver_price
+            result['SLVR'] = {
+                'usd': round(silver_price, 2),
+                'usd_24h_change': 0,
+                'market_cap': silver_market_cap,
+                'name': 'SLVR'
+            }
+            logger.info(f"Silver price: ${silver_price:.2f}")
+        
+        platinum_rate = rates.get('USDXPT', 0)
+        if platinum_rate and platinum_rate > 0:
+            platinum_price = 1 / platinum_rate
+            platinum_market_cap = PLATINUM_SUPPLY_OUNCES * platinum_price
+            result['PLAT'] = {
+                'usd': round(platinum_price, 2),
+                'usd_24h_change': 0,
+                'market_cap': platinum_market_cap,
+                'name': 'PLAT'
+            }
+            logger.info(f"Platinum price: ${platinum_price:.2f}")
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching metal prices: {str(e)}")
     except Exception as e:
-        logger.error(f"Error fetching silver price: {str(e)}")
+        logger.error(f"Unexpected error fetching metal prices: {str(e)}")
     
-    try:
-        # Fetch platinum price (PL=F = Platinum Futures)
-        logger.info("Fetching platinum price from Yahoo Finance: PL=F")
-        platinum = yf.Ticker("PL=F")
-        platinum_info = platinum.info
-        
-        platinum_price = platinum_info.get('regularMarketPrice', 0) or platinum_info.get('previousClose', 0)
-        platinum_prev_close = platinum_info.get('regularMarketPreviousClose', platinum_price) or platinum_info.get('previousClose', platinum_price)
-        
-        if platinum_price and platinum_prev_close:
-            platinum_change_pct = ((platinum_price - platinum_prev_close) / platinum_prev_close) * 100
-        else:
-            platinum_change_pct = 0
-        
-        platinum_market_cap = PLATINUM_SUPPLY_OUNCES * platinum_price if platinum_price else 0
-        
-        result['PLAT'] = {
-            'usd': platinum_price,
-            'usd_24h_change': platinum_change_pct,
-            'market_cap': platinum_market_cap,
-            'name': 'PLAT'
-        }
-        logger.info(f"Platinum price: ${platinum_price}, change: {platinum_change_pct:.2f}%")
-        
-    except Exception as e:
-        logger.error(f"Error fetching platinum price: {str(e)}")
-    
-    # Update cache
     if result:
         _commodity_cache['data'] = result
         _commodity_cache['timestamp'] = now
