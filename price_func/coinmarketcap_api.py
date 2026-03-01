@@ -44,20 +44,20 @@ class CoinMarketCapAPI:
 
         return {"error": "Maximum retries exceeded"}
 
+    # Map display symbols to their CoinMarketCap symbols
+    SYMBOL_ALIASES = {
+        'GOLD': 'XAUT',  # Tether Gold
+    }
+
     def get_price(self, symbol: str) -> Dict:
         """Get current price for a single cryptocurrency"""
         logger.info(f"Fetching price for symbol: {symbol}")
-        
-        # Check if requesting GOLD, SLVR, or PLAT (fetched from Yahoo Finance)
-        if symbol.upper() in ['GOLD', 'SLVR', 'PLAT']:
-            from .fmp_api import get_commodity_prices
-            commodities = get_commodity_prices()
-            if symbol.upper() in commodities:
-                return {symbol.upper(): commodities[symbol.upper()]}
-            return {}
+
+        display_symbol = symbol.upper()
+        cmc_symbol = self.SYMBOL_ALIASES.get(display_symbol, display_symbol)
 
         params = {
-            'symbol': symbol.upper(),
+            'symbol': cmc_symbol,
             'convert': 'USD'
         }
 
@@ -70,13 +70,12 @@ class CoinMarketCapAPI:
             coin_data = next(iter(data["data"].values()))
             quote = coin_data["quote"]["USD"]
 
-            # Format response to match our existing structure
             formatted_data = {
-                symbol.upper(): {
+                display_symbol: {
                     "usd": quote["price"],
                     "usd_24h_change": quote["percent_change_24h"],
                     "market_cap": quote.get("market_cap", 0),
-                    "name": coin_data["name"]  # Include the full name
+                    "name": coin_data["name"]
                 }
             }
             logger.info(f"Formatted price data: {formatted_data}")
@@ -90,44 +89,33 @@ class CoinMarketCapAPI:
             symbols = [symbol.upper() for symbol in DEFAULT_CRYPTOCURRENCIES]
 
         logger.info(f"Fetching prices for symbols: {symbols}")
-        
-        # Separate commodities (GOLD, SLVR, PLAT) from crypto symbols
-        commodity_symbols = ['GOLD', 'SLVR', 'PLAT']
-        crypto_symbols = [s for s in symbols if s.upper() not in commodity_symbols]
-        has_commodities = any(s.upper() in commodity_symbols for s in symbols)
 
-        # Fetch crypto prices from CoinMarketCap
+        # Build alias map for this request: display_symbol -> cmc_symbol
+        display_to_cmc = {s: self.SYMBOL_ALIASES.get(s, s) for s in symbols}
+        cmc_to_display = {v: k for k, v in display_to_cmc.items()}
+        cmc_symbols = list(display_to_cmc.values())
+
+        params = {
+            'symbol': ','.join(cmc_symbols),
+            'convert': 'USD'
+        }
+
+        data = self._make_request('cryptocurrency/quotes/latest', params)
+
+        if "error" in data:
+            return data
+
         formatted_data = {}
-        if crypto_symbols:
-            params = {
-                'symbol': ','.join(crypto_symbols),
-                'convert': 'USD'
-            }
+        if "data" in data:
+            for cmc_symbol, coin_data in data["data"].items():
+                quote = coin_data["quote"]["USD"]
+                display_symbol = cmc_to_display.get(cmc_symbol.upper(), cmc_symbol.upper())
+                formatted_data[display_symbol] = {
+                    "usd": quote["price"],
+                    "usd_24h_change": quote["percent_change_24h"],
+                    "market_cap": quote.get("market_cap", 0),
+                    "name": coin_data["name"]
+                }
 
-            data = self._make_request('cryptocurrency/quotes/latest', params)
-
-            if "error" in data:
-                return data
-
-            if "data" in data:
-                for symbol, coin_data in data["data"].items():
-                    quote = coin_data["quote"]["USD"]
-                    formatted_data[symbol.upper()] = {
-                        "usd": quote["price"],
-                        "usd_24h_change": quote["percent_change_24h"],
-                        "market_cap": quote.get("market_cap", 0),
-                        "name": coin_data["name"]  # Include the full name
-                    }
-        
-        # Add commodity prices (GOLD, SLVR) from Yahoo Finance if requested
-        if has_commodities:
-            from .fmp_api import get_commodity_prices
-            commodity_data = get_commodity_prices()
-            if commodity_data:
-                # Only add commodities that were requested
-                for sym in symbols:
-                    if sym.upper() in commodity_data:
-                        formatted_data[sym.upper()] = commodity_data[sym.upper()]
-        
         logger.info(f"Formatted multi-price data: {formatted_data}")
         return formatted_data if formatted_data else {"error": "Failed to fetch cryptocurrency prices"}

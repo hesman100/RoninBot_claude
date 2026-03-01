@@ -20,9 +20,7 @@ DEFAULT_CRYPTOCURRENCIES = [
     "BNB",  # BNB
     "SOL",  # Solana
     "BTC",  # Bitcoin
-    "GOLD",  # Gold (commodity, fetched from Yahoo Finance)
-    "SLVR",  # Silver (commodity, fetched from Yahoo Finance)
-    "PLAT",  # Platinum (commodity, fetched from Yahoo Finance)
+    "GOLD",  # Gold (via XAUT on CoinMarketCap)
 ]
 
 # Default stocks to track
@@ -52,9 +50,7 @@ SYMBOL_TO_DISPLAY = {
     'AXS': 'AXS  ',  # Exactly 5 chars
     'PI': 'PI   ',  # Exactly 5 chars
     'BNB': 'BNB  ',  # Exactly 5 chars
-    'GOLD': 'GOLD ',  # Exactly 5 chars
-    'SLVR': 'SLVR ',  # Exactly 5 chars (Silver)
-    'PLAT': 'PLAT ',  # Exactly 5 chars (Platinum)
+    'GOLD': 'GOLD ',  # Exactly 5 chars (Tether Gold / XAUT)
 }
 
 # Mapping of stock symbols to display names (for formatting)
