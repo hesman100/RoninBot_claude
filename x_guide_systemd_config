@@ -1,0 +1,45 @@
+
+
+1/create /etc/systemd/system/roninbot.service
+2/with this content:
+[Unit]
+Description=RoninBot Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=knuc
+Group=knuc
+
+WorkingDirectory=/dir_place_this_code_folder/
+
+# Very important: use full path to python from venv
+ExecStart=/bin/python3 bot.py
+
+# Environment variables (cleaner than export in script)
+Environment="TELEGRAM_BOT_TOKEN=got_from_BotFather"
+Environment="COINMARKETCAP_API_KEY=get_from_CMC"
+Environment="ALPHAVANTAGE_API_KEY=get_it_free"
+Environment="FINNHUB_API_KEY=get_it_free"
+Environment="GOLDAPIIO_KEY=get_it_free"
+
+Restart=always
+RestartSec=5s
+
+# Nice logging
+StandardOutput=append:/dir_place_this_code_folder/xbot.log
+StandardError=inherit
+
+# Optional: give up after X failed restarts in short time
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+[Install]
+WantedBy=multi-user.target
+
+
+3/ Then:
+sudo systemctl daemon-reload
+sudo systemctl enable roninbot.service
+sudo systemctl start roninbot.service
