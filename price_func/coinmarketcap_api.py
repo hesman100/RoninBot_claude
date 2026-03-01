@@ -7,6 +7,16 @@ from .config import DEFAULT_CRYPTOCURRENCIES, REQUEST_TIMEOUT, MAX_RETRIES, RETR
 
 logger = logging.getLogger(__name__)
 
+# CMC category IDs for real-world asset pages
+TOKENIZED_GOLD_CATEGORY_ID   = '625d09d246203827ab52dd53'  # /real-world-assets/gold/
+TOKENIZED_SILVER_CATEGORY_ID = '68639ad6358e0763b448bf96'  # /real-world-assets/silver/
+
+# RWA symbols and their category config: (category_id, display_name, min_price, max_price)
+RWA_SYMBOLS = {
+    'GOLD': (TOKENIZED_GOLD_CATEGORY_ID, 'Gold',   1500, 9000),
+    'SLVR': (TOKENIZED_SILVER_CATEGORY_ID, 'Silver',  10,  500),
+}
+
 class CoinMarketCapAPI:
     def __init__(self):
         self.api_key = os.getenv('COINMARKETCAP_API_KEY')
@@ -44,20 +54,62 @@ class CoinMarketCapAPI:
 
         return {"error": "Maximum retries exceeded"}
 
-    # Map display symbols to their CoinMarketCap symbols
-    SYMBOL_ALIASES = {
-        'GOLD': 'XAUT',  # Tether Gold
-    }
+    def _get_rwa_price(self, display_symbol: str) -> Dict:
+        """Get price from a CMC real-world-assets category.
+        Filters coins by price range and excludes extreme movers.
+        Uses market-cap-weighted average when available, otherwise simple average.
+        """
+        category_id, display_name, min_price, max_price = RWA_SYMBOLS[display_symbol]
+
+        logger.info(f"Fetching {display_name} price from CMC category {category_id}")
+        data = self._make_request('cryptocurrency/category',
+                                  {'id': category_id, 'limit': 20})
+        if 'error' in data:
+            return data
+
+        coins = data.get('data', {}).get('coins', [])
+        if not coins:
+            return {'error': f'No tokenized {display_name} data available'}
+
+        valid = [
+            c for c in coins
+            if min_price < c.get('quote', {}).get('USD', {}).get('price', 0) < max_price
+            and abs(c.get('quote', {}).get('USD', {}).get('percent_change_24h', 0)) < 30
+        ]
+
+        if not valid:
+            return {'error': f'No valid {display_name} price data found'}
+
+        total_mcap = sum(c['quote']['USD'].get('market_cap', 0) for c in valid)
+
+        if total_mcap > 0:
+            avg_price = sum(c['quote']['USD']['price'] * c['quote']['USD']['market_cap']
+                            for c in valid) / total_mcap
+            avg_change = sum(c['quote']['USD']['percent_change_24h'] * c['quote']['USD']['market_cap']
+                             for c in valid) / total_mcap
+        else:
+            avg_price = sum(c['quote']['USD']['price'] for c in valid) / len(valid)
+            avg_change = sum(c['quote']['USD']['percent_change_24h'] for c in valid) / len(valid)
+
+        logger.info(f"{display_name} avg price: {avg_price:.2f} from {len(valid)} tokens")
+        return {
+            display_symbol: {
+                'usd': avg_price,
+                'usd_24h_change': avg_change,
+                'market_cap': total_mcap,
+                'name': display_name
+            }
+        }
 
     def get_price(self, symbol: str) -> Dict:
         """Get current price for a single cryptocurrency"""
         logger.info(f"Fetching price for symbol: {symbol}")
 
-        display_symbol = symbol.upper()
-        cmc_symbol = self.SYMBOL_ALIASES.get(display_symbol, display_symbol)
+        if symbol.upper() in RWA_SYMBOLS:
+            return self._get_rwa_price(symbol.upper())
 
         params = {
-            'symbol': cmc_symbol,
+            'symbol': symbol.upper(),
             'convert': 'USD'
         }
 
@@ -71,7 +123,7 @@ class CoinMarketCapAPI:
             quote = coin_data["quote"]["USD"]
 
             formatted_data = {
-                display_symbol: {
+                symbol.upper(): {
                     "usd": quote["price"],
                     "usd_24h_change": quote["percent_change_24h"],
                     "market_cap": quote.get("market_cap", 0),
@@ -90,32 +142,36 @@ class CoinMarketCapAPI:
 
         logger.info(f"Fetching prices for symbols: {symbols}")
 
-        # Build alias map for this request: display_symbol -> cmc_symbol
-        display_to_cmc = {s: self.SYMBOL_ALIASES.get(s, s) for s in symbols}
-        cmc_to_display = {v: k for k, v in display_to_cmc.items()}
-        cmc_symbols = list(display_to_cmc.values())
-
-        params = {
-            'symbol': ','.join(cmc_symbols),
-            'convert': 'USD'
-        }
-
-        data = self._make_request('cryptocurrency/quotes/latest', params)
-
-        if "error" in data:
-            return data
+        rwa_symbols = [s for s in symbols if s in RWA_SYMBOLS]
+        crypto_symbols = [s for s in symbols if s not in RWA_SYMBOLS]
 
         formatted_data = {}
-        if "data" in data:
-            for cmc_symbol, coin_data in data["data"].items():
-                quote = coin_data["quote"]["USD"]
-                display_symbol = cmc_to_display.get(cmc_symbol.upper(), cmc_symbol.upper())
-                formatted_data[display_symbol] = {
-                    "usd": quote["price"],
-                    "usd_24h_change": quote["percent_change_24h"],
-                    "market_cap": quote.get("market_cap", 0),
-                    "name": coin_data["name"]
-                }
+
+        if crypto_symbols:
+            params = {
+                'symbol': ','.join(crypto_symbols),
+                'convert': 'USD'
+            }
+
+            data = self._make_request('cryptocurrency/quotes/latest', params)
+
+            if "error" in data:
+                return data
+
+            if "data" in data:
+                for cmc_symbol, coin_data in data["data"].items():
+                    quote = coin_data["quote"]["USD"]
+                    formatted_data[cmc_symbol.upper()] = {
+                        "usd": quote["price"],
+                        "usd_24h_change": quote["percent_change_24h"],
+                        "market_cap": quote.get("market_cap", 0),
+                        "name": coin_data["name"]
+                    }
+
+        for sym in rwa_symbols:
+            rwa_data = self._get_rwa_price(sym)
+            if 'error' not in rwa_data:
+                formatted_data.update(rwa_data)
 
         logger.info(f"Formatted multi-price data: {formatted_data}")
         return formatted_data if formatted_data else {"error": "Failed to fetch cryptocurrency prices"}
