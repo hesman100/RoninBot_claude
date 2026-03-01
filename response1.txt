@@ -1,1 +1,0 @@
-{"correct_answer":"New_Zealand","country":{"area":270467.0,"capital":"Wellington","id":null,"name":"New_Zealand","population":5084300,"region":"Oceania"},"is_correct":false,"user_stats":{"accuracy":0.0,"correct":0,"total":1}}
