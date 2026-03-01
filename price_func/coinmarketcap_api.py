@@ -73,8 +73,8 @@ class CoinMarketCapAPI:
 
         valid = [
             c for c in coins
-            if min_price < c.get('quote', {}).get('USD', {}).get('price', 0) < max_price
-            and abs(c.get('quote', {}).get('USD', {}).get('percent_change_24h', 0)) < 30
+            if min_price < (c.get('quote', {}).get('USD', {}).get('price') or 0) < max_price
+            and abs(c.get('quote', {}).get('USD', {}).get('percent_change_24h') or 0) < 30
         ]
 
         if not valid:
