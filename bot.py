@@ -13,13 +13,16 @@ from price_func.utils import format_price_message, format_error_message
 
 BOT_VER = "1.7"
 
+_log_handlers = [logging.StreamHandler(sys.stdout)]
+try:
+    _log_handlers.append(logging.FileHandler('bot.log'))
+except PermissionError:
+    pass
+
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO,
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('bot.log')
-    ])
+    handlers=_log_handlers)
 logger = logging.getLogger(__name__)
 
 try:
