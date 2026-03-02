@@ -103,9 +103,14 @@ def format_price_message(crypto_data: Dict) -> str:
         # Format the change indicators with colored circles
         change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
-        # Format market cap
-        market_cap = data.get('market_cap', 0)
-        mcap_str = format_market_cap(market_cap)
+        # Format market cap (override for OIL/LNG)
+        if symbol == 'OIL':
+            mcap_str = "Thung"
+        elif symbol == 'LNG':
+            mcap_str = " 1Km3"
+        else:
+            market_cap = data.get('market_cap', 0)
+            mcap_str = format_market_cap(market_cap)
 
         # Format the change percentage - ensure consistent 5-char width for alignment
         if change_24h >= 0:
@@ -167,9 +172,14 @@ def format_price_message(crypto_data: Dict) -> str:
                 # Format the change indicators with colored circles
                 change_24h_symbol = "🟢" if change_24h > 0 else "🔴"
 
-                # Format market cap
-                market_cap = data.get('market_cap', 0)
-                mcap_str = format_market_cap(market_cap)
+                # Format market cap (override for OIL/LNG)
+                if symbol == 'OIL':
+                    mcap_str = "Thung"
+                elif symbol == 'LNG':
+                    mcap_str = " 1Km3"
+                else:
+                    market_cap = data.get('market_cap', 0)
+                    mcap_str = format_market_cap(market_cap)
 
                 # Format the change percentage - ensure consistent 5-char width for alignment
                 if change_24h >= 0:
