@@ -22,6 +22,8 @@ DEFAULT_CRYPTOCURRENCIES = [
     "BTC",  # Bitcoin
     "GOLD",  # Gold (coinmarketcap.com/real-world-assets/gold/)
     "SLVR",  # Silver (coinmarketcap.com/real-world-assets/silver/)
+    "OIL",   # WTI Crude Oil (oilprice.com)
+    "LNG",   # LNG Natural Gas price USD/1000m3 (oilprice.com)
 ]
 
 # Default stocks to track
@@ -53,6 +55,8 @@ SYMBOL_TO_DISPLAY = {
     'BNB': 'BNB  ',  # Exactly 5 chars
     'GOLD': 'GOLD ',  # Exactly 5 chars
     'SLVR': 'SLVR ',  # Exactly 5 chars
+    'OIL': 'OIL  ',  # Exactly 5 chars
+    'LNG': 'LNG  ',  # Exactly 5 chars
 }
 
 # Mapping of stock symbols to display names (for formatting)

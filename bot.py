@@ -9,6 +9,7 @@ from price_func.config import (TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
 from price_func.coinmarketcap_api import CoinMarketCapAPI
 from price_func.alphavantage_api import AlphaVantageAPI
 from price_func.finnhub_api import FinnhubAPI
+from price_func.oilprice_api import OilPriceAPI
 from price_func.utils import format_price_message, format_error_message
 
 BOT_VER = "1.7"
@@ -29,6 +30,7 @@ try:
     crypto_api = CoinMarketCapAPI()
     stock_api = AlphaVantageAPI()
     finnhub_api = FinnhubAPI()
+    oilprice_api = OilPriceAPI()
 except Exception as e:
     logger.error(f"Failed to initialize API clients: {str(e)}")
     raise
@@ -41,6 +43,11 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not context.args:
             logger.info("No cryptocurrency specified, showing default list")
             price_data = crypto_api.get_prices()
+            oil_data = oilprice_api.get_prices()
+            if "error" not in oil_data:
+                price_data.update(oil_data)
+            else:
+                logger.warning(f"Oil price fetch failed: {oil_data.get('error')}")
         else:
             crypto_input = context.args[0].upper()
             logger.info(f"Fetching price for {crypto_input}")
